@@ -31,23 +31,32 @@ pub fn evaluate_return_clause<'a>(
             }
             Expression::Variable(var) => {
                 // tag it to particular table. If it is not table_name name throw error
-                let uid = logical_plan
-                    .entity_name_uid_map
-                    .get(*var)
-                    .ok_or(PlannerError::InvalidVariableInReturnClause)?;
-                if let Some(table_data) = logical_plan.table_data_by_uid.get_mut(uid) {
-                    table_data.return_items.push(current_return_item.clone());
 
-                    if add_in_overall {
-                        let return_item_data = ReturnItemData {
-                            return_item: current_return_item,
-                            belongs_to_table: var,
-                        };
-                        logical_plan.overall_return_items.push(return_item_data);
-                    }
+                if *var == "*" {
+                    let return_item_data = ReturnItemData {
+                        return_item: current_return_item,
+                        belongs_to_table: "",
+                    };
+                    logical_plan.overall_return_items.push(return_item_data);
                 } else {
-                    // thorw error
-                    return Err(PlannerError::OrphanPropertyInReturnClause);
+                    let uid = logical_plan
+                        .entity_name_uid_map
+                        .get(*var)
+                        .ok_or(PlannerError::InvalidVariableInReturnClause)?;
+                    if let Some(table_data) = logical_plan.table_data_by_uid.get_mut(uid) {
+                        table_data.return_items.push(current_return_item.clone());
+
+                        if add_in_overall {
+                            let return_item_data = ReturnItemData {
+                                return_item: current_return_item,
+                                belongs_to_table: var,
+                            };
+                            logical_plan.overall_return_items.push(return_item_data);
+                        }
+                    } else {
+                        // thorw error
+                        return Err(PlannerError::OrphanPropertyInReturnClause);
+                    }
                 }
             }
             Expression::FunctionCallExp(function_call) => {
@@ -58,10 +67,10 @@ pub fn evaluate_return_clause<'a>(
                 let attach_table_name = "";
                 let mut return_items: Vec<ReturnItem> = vec![];
                 for arg in &function_call.args {
-                    // if arg is just a variable with entity name then skip
+                    // if arg is just a variable with entity name or '*' then skip
                     // e.g. MATCH (p:Post) RETURN COUNT(p)  Here p is entity name
                     if let Expression::Variable(var) = arg.clone() {
-                        if logical_plan.entity_name_uid_map.contains_key(var) {
+                        if logical_plan.entity_name_uid_map.contains_key(var) || var == "*" {
                             continue;
                         }
                     }

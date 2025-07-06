@@ -124,7 +124,7 @@ fn process_return_expression_string(
                     return Ok(format!("{}.{}", entity_name, node_id));
                 }
             }
-            if is_final_node {
+            if is_final_node && *var != "*" {
                 return Ok(format!("{}.*", var));
             }
             // Ok(var.to_string())
