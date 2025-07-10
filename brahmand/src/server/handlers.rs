@@ -14,10 +14,11 @@ use uuid::Uuid;
 use crate::{
     open_cypher_parser::{self},
     query_engine::{
-        self,
+        // self,
         types::{GraphSchemaElement, QueryType, TraversalMode},
-    },
+    }, query_engine_v2,
 };
+
 
 use super::{
     AppState, graph_meta,
@@ -50,12 +51,18 @@ pub async fn query_handler(
 
     // TODO convert this error to axum error with proper message. Expose the module name in traces but not to users
     let (query_type, ch_sql_queries, graph_schema_element_opt) =
-        query_engine::evaluate_query(cypher_ast, &traversal_mode, &graph_schema).map_err(|e| {
+        query_engine_v2::evaluate_query(cypher_ast, &traversal_mode, &graph_schema).map_err(|e| {
             (
                 axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                 format!("Brahmand Error: {}", e),
             )
         })?;
+        // query_engine::evaluate_query(cypher_ast, &traversal_mode, &graph_schema).map_err(|e| {
+        //     (
+        //         axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+        //         format!("Brahmand Error: {}", e),
+        //     )
+        // })?;
     if query_type == QueryType::Ddl {
         return ddl_handler(
             app_state.clickhouse_client.clone(),
