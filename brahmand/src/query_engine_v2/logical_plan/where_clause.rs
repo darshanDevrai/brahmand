@@ -10,12 +10,12 @@ use crate::{open_cypher_parser::ast::WhereClause, query_engine_v2::{expr::plan_e
 
 pub fn evaluate_where_clause<'a>(
     where_clause: &WhereClause<'a>,
-    plan: LogicalPlan,
-) -> LogicalPlan {
+    plan: Arc<LogicalPlan>,
+) -> Arc<LogicalPlan> {
     
     let predicates:PlanExpr = where_clause.conditions.clone().into();
-    LogicalPlan::Filter(Filter{
-        input: Arc::new(plan), 
+    Arc::new(LogicalPlan::Filter(Filter{
+        input: plan, 
         predicate: predicates
-    })
+    }))
 }

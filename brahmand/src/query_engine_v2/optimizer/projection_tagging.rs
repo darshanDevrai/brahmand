@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::query_engine_v2::{expr::plan_expr::{PlanExpr, TableAlias}, logical_plan::logical_plan::{LogicalPlan, PlanCtx, ReturnItem}, optimizer::optimizer_pass::OptimizerPass, transformed::Transformed};
+use crate::query_engine_v2::{expr::plan_expr::{PlanExpr, TableAlias}, logical_plan::logical_plan::{LogicalPlan, PlanCtx, ProjectionItem}, optimizer::optimizer_pass::OptimizerPass, transformed::Transformed};
 
 
 
@@ -48,21 +48,21 @@ impl ProjectionTagging {
         ProjectionTagging 
     }
 
-    fn tag_projection(&self, mut item: ReturnItem, plan_ctx: &mut PlanCtx) {
+    fn tag_projection(&self, mut item: ProjectionItem, plan_ctx: &mut PlanCtx) {
         match &item.expression {
             PlanExpr::TableAlias(table_alias) => {
                 let table_ctx = plan_ctx.alias_table_ctx_map.get_mut(&table_alias.0).unwrap();
                 item.belongs_to_table = Some(TableAlias(table_alias.0.clone()));
-                table_ctx.return_items.push(item);
+                table_ctx.projection_items.push(item);
             },
             PlanExpr::PropertyAccessExp(property_access) => {
                 let table_ctx = plan_ctx.alias_table_ctx_map.get_mut(&property_access.table_alias.0).unwrap();
                 item.belongs_to_table = Some(TableAlias(property_access.table_alias.0.clone()));
-                table_ctx.return_items.push(item);
+                table_ctx.projection_items.push(item);
             }
             PlanExpr::OperatorApplicationExp(operator_application) => {
                 for operand in &operator_application.operands {
-                    let operand_return_item = ReturnItem {
+                    let operand_return_item = ProjectionItem {
                         expression: operand.clone(),
                         col_alias: None,
                         belongs_to_table: None,
@@ -72,7 +72,7 @@ impl ProjectionTagging {
             },
             PlanExpr::ScalarFnCall(scalar_fn_call) => {
                 for arg in &scalar_fn_call.args {
-                    let arg_return_item = ReturnItem {
+                    let arg_return_item = ProjectionItem {
                         expression: arg.clone(),
                         col_alias: None,
                         belongs_to_table: None,
@@ -82,7 +82,7 @@ impl ProjectionTagging {
             },
             PlanExpr::AggregateFnCall(aggregate_fn_call) => {
                 for arg in &aggregate_fn_call.args {
-                    let arg_return_item = ReturnItem {
+                    let arg_return_item = ProjectionItem {
                         expression: arg.clone(),
                         col_alias: None,
                         belongs_to_table: None,

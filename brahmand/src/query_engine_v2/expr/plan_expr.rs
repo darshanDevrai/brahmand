@@ -1,13 +1,7 @@
 use crate::open_cypher_parser::{self, ast::Expression};
 use std::fmt;
 
-// Example: Direction for relationships
-#[derive(Debug, PartialEq, Clone)]
-pub enum Direction {
-    Outgoing,
-    Incoming,
-    Either,
-}
+
 
 
 #[derive(Debug, PartialEq, Clone)]
@@ -47,6 +41,26 @@ pub enum PlanExpr {
 
     /// A path-pattern, for instance: (a)-[]->()<-[]-(b)
     PathPattern(PathPattern),
+}
+
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum Direction {
+    Outgoing,
+    Incoming,
+    Either,
+}
+
+impl Direction {
+    pub fn reverse(self) -> Self {
+        if self == Direction::Incoming {
+            Direction::Outgoing
+        } else if self == Direction::Outgoing {
+            Direction::Incoming
+        } else {
+            self
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]

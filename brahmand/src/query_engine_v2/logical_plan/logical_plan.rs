@@ -9,6 +9,10 @@ pub enum LogicalPlan {
     /// Scans nodes of a given label (node type). Used as a leaf for MATCH patterns.
     Scan (Scan),
 
+    GraphNode(GraphNode),
+
+    GraphRel(GraphRel),
+
     /// Traverses relationships from an input node set.
     ConnectedTraversal (ConnectedTraversal),
 
@@ -41,8 +45,8 @@ pub enum LogicalPlan {
 pub struct TableCtx {
     pub label: Option<String>,
     pub properties: Vec<Property>,
-    pub extracted_filters: Option<PlanExpr>,
-    pub return_items: Vec<ReturnItem>
+    pub filter_predicates: Vec<PlanExpr>,
+    pub projection_items: Vec<ProjectionItem>
 }
 
 #[derive(Debug, PartialEq, Clone,)]
@@ -66,6 +70,25 @@ pub struct Scan {
     // pub properties: Option<Vec<Property>>,
 }
 
+#[derive(Debug, PartialEq, Clone)]
+pub struct GraphNode {
+    pub input: Arc<LogicalPlan>,
+    pub self_plan: Arc<LogicalPlan>,
+    pub alias: String,
+    pub down_connection: Option<String>
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct GraphRel {
+    pub left: Arc<LogicalPlan>,
+    pub center: Arc<LogicalPlan>,
+    pub right: Arc<LogicalPlan>,
+    pub alias: String,
+    pub direction: Direction,
+    pub left_connection: Option<String>,
+    pub right_connection: Option<String>,
+    pub is_rel_anchor: bool
+}
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct ConnectedTraversal {
@@ -86,11 +109,11 @@ pub struct Filter {
 #[derive(Debug, PartialEq, Clone)]
 pub struct Projection {
     pub input: Arc<LogicalPlan>,
-    pub items: Vec<ReturnItem>,
+    pub items: Vec<ProjectionItem>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct ReturnItem {
+pub struct ProjectionItem {
     pub expression: PlanExpr,
     pub col_alias: Option<ColumnAlias>,
     pub belongs_to_table: Option<TableAlias>,
@@ -146,7 +169,7 @@ pub enum OrerByOrder {
 // }
 
 impl Filter {
-    pub fn rebuild_or_clone(&self, input_tf: Transformed<Arc<LogicalPlan>>) -> Transformed<Arc<LogicalPlan>> {
+    pub fn rebuild_or_clone(&self, input_tf: Transformed<Arc<LogicalPlan>>, old_plan: Arc<LogicalPlan>) -> Transformed<Arc<LogicalPlan>> {
         match input_tf {
             Transformed::Yes(new_input) => {
                 let new_node = LogicalPlan::Filter(Filter {
@@ -156,19 +179,13 @@ impl Filter {
                 });
                 Transformed::Yes(Arc::new(new_node))
             }
-            Transformed::No(old_input) => {
-                Transformed::No(old_input.clone())
+            Transformed::No(_) => {
+                Transformed::No(old_plan.clone())
             }
         }
     }
 }
 
-impl Scan {
-    pub fn rebuild_or_clone(&self, _input_tf: Transformed<Arc<LogicalPlan>>) -> Transformed<Arc<LogicalPlan>> {
-        // Scan has no input, so just return No with the original scan
-        Transformed::No(Arc::new(LogicalPlan::Scan(self.clone())))
-    }
-}
 
 impl ConnectedTraversal {
     pub fn rebuild_or_clone(
@@ -200,7 +217,7 @@ impl ConnectedTraversal {
 }
 
 impl Projection {
-    pub fn rebuild_or_clone(&self, input_tf: Transformed<Arc<LogicalPlan>>) -> Transformed<Arc<LogicalPlan>> {
+    pub fn rebuild_or_clone(&self, input_tf: Transformed<Arc<LogicalPlan>>, old_plan: Arc<LogicalPlan>) -> Transformed<Arc<LogicalPlan>> {
         match input_tf {
             Transformed::Yes(new_input) => {
                 let new_node = LogicalPlan::Projection(Projection {
@@ -209,15 +226,15 @@ impl Projection {
                 });
                 Transformed::Yes(Arc::new(new_node))
             }
-            Transformed::No(old_input) => {
-                Transformed::No(old_input.clone())
+            Transformed::No(_) => {
+                Transformed::No(old_plan.clone())
             }
         }
     }
 }
 
 impl OrderBy {
-    pub fn rebuild_or_clone(&self, input_tf: Transformed<Arc<LogicalPlan>>) -> Transformed<Arc<LogicalPlan>> {
+    pub fn rebuild_or_clone(&self, input_tf: Transformed<Arc<LogicalPlan>>, old_plan: Arc<LogicalPlan>) -> Transformed<Arc<LogicalPlan>> {
         match input_tf {
             Transformed::Yes(new_input) => {
                 let new_node = LogicalPlan::OrderBy(OrderBy {
@@ -226,15 +243,15 @@ impl OrderBy {
                 });
                 Transformed::Yes(Arc::new(new_node))
             }
-            Transformed::No(old_input) => {
-                Transformed::No(old_input.clone())
+            Transformed::No(_) => {
+                Transformed::No(old_plan.clone())
             }
         }
     }
 }
 
 impl Skip {
-    pub fn rebuild_or_clone(&self, input_tf: Transformed<Arc<LogicalPlan>>) -> Transformed<Arc<LogicalPlan>> {
+    pub fn rebuild_or_clone(&self, input_tf: Transformed<Arc<LogicalPlan>>, old_plan: Arc<LogicalPlan>) -> Transformed<Arc<LogicalPlan>> {
         match input_tf {
             Transformed::Yes(new_input) => {
                 let new_node = LogicalPlan::Skip(Skip {
@@ -243,15 +260,15 @@ impl Skip {
                 });
                 Transformed::Yes(Arc::new(new_node))
             }
-            Transformed::No(old_input) => {
-                Transformed::No(old_input.clone())
+            Transformed::No(_) => {
+                Transformed::No(old_plan.clone())
             }
         }
     }
 }
 
 impl Limit {
-    pub fn rebuild_or_clone(&self, input_tf: Transformed<Arc<LogicalPlan>>) -> Transformed<Arc<LogicalPlan>> {
+    pub fn rebuild_or_clone(&self, input_tf: Transformed<Arc<LogicalPlan>>, old_plan: Arc<LogicalPlan>) -> Transformed<Arc<LogicalPlan>> {
         match input_tf {
             Transformed::Yes(new_input) => {
                 let new_node = LogicalPlan::Limit(Limit {
@@ -260,16 +277,60 @@ impl Limit {
                 });
                 Transformed::Yes(Arc::new(new_node))
             }
-            Transformed::No(old_input) => {
-                Transformed::No(old_input.clone())
+            Transformed::No(_) => {
+                Transformed::No(old_plan.clone())
             }
         }
     }
 }
 
-impl<'a> From<crate::open_cypher_parser::ast::ReturnItem<'a>> for ReturnItem {
+impl GraphNode {
+    pub fn rebuild_or_clone(&self, input_tf: Transformed<Arc<LogicalPlan>>, self_tf: Transformed<Arc<LogicalPlan>>, old_plan: Arc<LogicalPlan>) -> Transformed<Arc<LogicalPlan>> {
+
+        let input_changed = input_tf.is_yes();
+        let self_changed =   self_tf.is_yes();
+
+        if input_changed | self_changed {
+            let new_graph_node = LogicalPlan::GraphNode(GraphNode { 
+                input: input_tf.get_plan(), 
+                self_plan: self_tf.get_plan(), 
+                alias: self.alias.clone(), 
+                down_connection: self.down_connection.clone()
+            });
+            Transformed::Yes(Arc::new(new_graph_node))
+        }else{
+            Transformed::No(old_plan.clone())
+        }
+    }
+}
+
+impl GraphRel {
+    pub fn rebuild_or_clone(&self, left_tf: Transformed<Arc<LogicalPlan>>, center_tf: Transformed<Arc<LogicalPlan>>, right_tf: Transformed<Arc<LogicalPlan>>,  old_plan: Arc<LogicalPlan>) -> Transformed<Arc<LogicalPlan>> {
+        let left_changed = left_tf.is_yes();
+        let right_changed = right_tf.is_yes();
+        let center_changed =  center_tf.is_yes();
+
+        if left_changed | right_changed | center_changed {
+            let new_graph_rel = LogicalPlan::GraphRel(GraphRel { 
+                left: left_tf.get_plan(), 
+                center: center_tf.get_plan(), 
+                right: right_tf.get_plan(),
+                alias: self.alias.clone(), 
+                left_connection: self.left_connection.clone(), 
+                right_connection: self.right_connection.clone(),
+                direction: self.direction.clone(),
+                is_rel_anchor: self.is_rel_anchor
+            });
+            Transformed::Yes(Arc::new(new_graph_rel))
+        }else{
+            Transformed::No(old_plan.clone())
+        }
+    }
+}
+
+impl<'a> From<crate::open_cypher_parser::ast::ReturnItem<'a>> for ProjectionItem {
     fn from(value: crate::open_cypher_parser::ast::ReturnItem<'a>) -> Self {
-        ReturnItem {
+        ProjectionItem {
             expression: value.expression.into(),
             col_alias: value.alias.map(|alias| ColumnAlias(alias.to_string())),
             belongs_to_table: None, // This will be set during planning phase
@@ -308,33 +369,42 @@ impl LogicalPlan {
         };
 
         if is_root {
-            writeln!(f, "{}", self.variant_name_with_scan())?;
+            writeln!(f, "\n{}", self.variant_name())?;
         } else {
-            writeln!(f, "{}{}{}", prefix, branch, self.variant_name_with_scan())?;
+            writeln!(f, "{}{}{}", prefix, branch, self.variant_name())?;
         }
 
         let mut children: Vec<&LogicalPlan> = vec![];
         match self {
             LogicalPlan::ConnectedTraversal(ct) => {
-                children.push(&ct.start_node);
-                children.push(&ct.relationship);
-                children.push(&ct.end_node);
+                        children.push(&ct.start_node);
+                        children.push(&ct.relationship);
+                        children.push(&ct.end_node);
+                    }
+            LogicalPlan::GraphNode(graph_node) => {
+                children.push(&graph_node.input);
+                children.push(&graph_node.self_plan);
             }
+            LogicalPlan::GraphRel(graph_rel) =>  {
+                children.push(&graph_rel.left);
+                children.push(&graph_rel.center);
+                children.push(&graph_rel.right);
+            },
             LogicalPlan::Filter(filter) => {
-                children.push(&filter.input);
-            }
+                        children.push(&filter.input);
+                    }
             LogicalPlan::Projection(proj) => {
-                children.push(&proj.input);
-            }
+                        children.push(&proj.input);
+                    }
             LogicalPlan::OrderBy(order_by) => {
-                children.push(&order_by.input);
-            }
+                        children.push(&order_by.input);
+                    }
             LogicalPlan::Skip(skip) => {
-                children.push(&skip.input);
-            }
+                        children.push(&skip.input);
+                    }
             LogicalPlan::Limit(limit) => {
-                children.push(&limit.input);
-            }
+                        children.push(&limit.input);
+                    }
             _ => {}
         }
 
@@ -345,17 +415,45 @@ impl LogicalPlan {
         Ok(())
     }
 
-    fn variant_name_with_scan(&self) -> String {
+    fn variant_name(&self) -> String {
         match self {
-            LogicalPlan::Scan(scan) => format!("Scan({})", scan.table_alias),
+            LogicalPlan::GraphNode(graph_node) => format!("Node({})", graph_node.alias),
+            // LogicalPlan::GraphRel(_) => "GraphRel".to_string(),
+            LogicalPlan::GraphRel(graph_rel) => format!("GraphRel({:?})(is_rel_anchor: {:?})", graph_rel.direction, graph_rel.is_rel_anchor),
+            // LogicalPlan::Scan(_) => "Scan".to_string(),
+            LogicalPlan::Scan(scan) => format!("scan({})", scan.table_alias),
             LogicalPlan::ConnectedTraversal(ct) => format!("ConnectedTraversal({:?})", ct.rel_direction),
-            LogicalPlan::Empty => "Empty".to_string(),
+            LogicalPlan::Empty => "".to_string(),
             LogicalPlan::Filter(_) => "Filter".to_string(),
             LogicalPlan::Projection(_) => "Projection".to_string(),
             LogicalPlan::OrderBy(_) => "OrderBy".to_string(),
             LogicalPlan::Skip(_) => "Skip".to_string(),
             LogicalPlan::Limit(_) => "Limit".to_string(),
         }
+    }
+}
+
+
+impl fmt::Display for PlanCtx {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "\n---- PlanCtx Starts Here ----")?;
+        for (alias, table_ctx) in &self.alias_table_ctx_map {
+            writeln!(f, "\n [{}]:", alias)?;
+            table_ctx.fmt_with_indent(f, 2)?;
+        }
+        writeln!(f, "\n---- PlanCtx Ends Here ----")?;
+        Ok(())
+    }
+}
+
+impl TableCtx {
+    fn fmt_with_indent(&self, f: &mut fmt::Formatter<'_>, indent: usize) -> fmt::Result {
+        let pad = " ".repeat(indent);
+        writeln!(f, "{}         label: {:?}", pad, self.label)?;
+        writeln!(f, "{}         properties: {:?}", pad, self.properties)?;
+        writeln!(f, "{}         filter_predicates: {:?}", pad, self.filter_predicates)?;
+        writeln!(f, "{}         projection_items: {:?}", pad, self.projection_items)?;
+        Ok(())
     }
 }
 

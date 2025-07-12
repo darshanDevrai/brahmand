@@ -7,10 +7,10 @@ use crate::{open_cypher_parser::ast::OpenCypherQueryAst, query_engine_v2::logica
 
 
 
-pub fn generate_logical_plan(query_ast: &OpenCypherQueryAst) -> Result<(Arc<LogicalPlan>, PlanCtx), PlannerError> {
+pub fn build_logical_plan(query_ast: &OpenCypherQueryAst) -> Result<(Arc<LogicalPlan>, PlanCtx), PlannerError> {
     // println!("\n\n query_ast {:#}", query_ast);
 
-    let mut logical_plan:LogicalPlan = LogicalPlan::Empty;
+    let mut logical_plan:Arc<LogicalPlan> = Arc::new(LogicalPlan::Empty);
     let mut plan_ctx = PlanCtx::default();
 
     if let Some(match_clause) = &query_ast.match_clause {
@@ -43,5 +43,5 @@ pub fn generate_logical_plan(query_ast: &OpenCypherQueryAst) -> Result<(Arc<Logi
 
    
 
-    Ok((Arc::new(logical_plan), plan_ctx))
+    Ok((logical_plan, plan_ctx))
 }

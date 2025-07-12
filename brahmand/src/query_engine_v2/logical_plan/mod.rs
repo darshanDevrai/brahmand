@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::{open_cypher_parser::ast::OpenCypherQueryAst, query_engine_v2::logical_plan::{errors::PlannerError, logical_plan::{LogicalPlan, PlanCtx}}};
 
 pub mod logical_plan;
-pub mod generator;
+pub mod plan_builder;
 mod match_clause;
 mod where_clause;
 mod return_clause;
@@ -14,5 +14,5 @@ pub mod errors;
 
 
 pub fn evaluate_query(query_ast: OpenCypherQueryAst<'_>) -> Result<(Arc<LogicalPlan>, PlanCtx), PlannerError> {
-    generator::generate_logical_plan(&query_ast)
+    plan_builder::build_logical_plan(&query_ast)
 }

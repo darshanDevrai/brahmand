@@ -10,23 +10,23 @@ use crate::{open_cypher_parser::ast::{LimitClause, SkipClause}, query_engine_v2:
 
 pub fn evaluate_skip_clause(
     skip_clause: &SkipClause,
-    plan: LogicalPlan,
-) -> LogicalPlan {
+    plan: Arc<LogicalPlan>,
+) -> Arc<LogicalPlan> {
     
-    LogicalPlan::Skip(Skip{
-        input: Arc::new(plan), 
+    Arc::new(LogicalPlan::Skip(Skip{
+        input: plan, 
         count: skip_clause.skip_item
-    })
+    }))
 }
 
 
 pub fn evaluate_limit_clause(
     limit_clause: &LimitClause,
-    plan: LogicalPlan,
-) -> LogicalPlan {
+    plan: Arc<LogicalPlan>,
+) -> Arc<LogicalPlan> {
     
-    LogicalPlan::Limit(Limit{
-        input: Arc::new(plan), 
+    Arc::new(LogicalPlan::Limit(Limit{
+        input: plan, 
         count: limit_clause.limit_item
-    })
+    }))
 }
