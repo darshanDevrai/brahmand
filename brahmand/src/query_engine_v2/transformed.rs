@@ -12,7 +12,6 @@ pub enum Transformed<T> {
 }
 
 impl<T> Transformed<T> {
-    /// Extracts the inner value in either case
     pub fn get_plan(self) -> T {
         match self {
             Transformed::Yes(plan) | Transformed::No(plan) => plan,

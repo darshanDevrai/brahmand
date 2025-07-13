@@ -22,6 +22,9 @@ pub enum LogicalPlan {
     /// Projection (returns) a set of expressions/columns.
     Projection (Projection),
 
+    /// Groupby a set of expressions/columns.
+    GroupBy (GroupBy),
+
     /// Orders rows by expressions.
     OrderBy (OrderBy),
 
@@ -46,7 +49,10 @@ pub struct TableCtx {
     pub label: Option<String>,
     pub properties: Vec<Property>,
     pub filter_predicates: Vec<PlanExpr>,
-    pub projection_items: Vec<ProjectionItem>
+    pub projection_items: Vec<ProjectionItem>,
+    pub is_rel: bool,
+    pub use_edge_list: bool,
+    pub explicit_alias: bool
 }
 
 #[derive(Debug, PartialEq, Clone,)]
@@ -113,10 +119,16 @@ pub struct Projection {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+pub struct GroupBy {
+    pub input: Arc<LogicalPlan>,
+    pub expressions: Vec<PlanExpr>,
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub struct ProjectionItem {
     pub expression: PlanExpr,
     pub col_alias: Option<ColumnAlias>,
-    pub belongs_to_table: Option<TableAlias>,
+    // pub belongs_to_table: Option<TableAlias>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -233,6 +245,23 @@ impl Projection {
     }
 }
 
+impl GroupBy {
+    pub fn rebuild_or_clone(&self, input_tf: Transformed<Arc<LogicalPlan>>, old_plan: Arc<LogicalPlan>) -> Transformed<Arc<LogicalPlan>> {
+        match input_tf {
+            Transformed::Yes(new_input) => {
+                let new_node = LogicalPlan::GroupBy(GroupBy {
+                    input: new_input.clone(),
+                    expressions: self.expressions.clone(),
+                });
+                Transformed::Yes(Arc::new(new_node))
+            }
+            Transformed::No(_) => {
+                Transformed::No(old_plan.clone())
+            }
+        }
+    }
+}
+
 impl OrderBy {
     pub fn rebuild_or_clone(&self, input_tf: Transformed<Arc<LogicalPlan>>, old_plan: Arc<LogicalPlan>) -> Transformed<Arc<LogicalPlan>> {
         match input_tf {
@@ -333,7 +362,7 @@ impl<'a> From<crate::open_cypher_parser::ast::ReturnItem<'a>> for ProjectionItem
         ProjectionItem {
             expression: value.expression.into(),
             col_alias: value.alias.map(|alias| ColumnAlias(alias.to_string())),
-            belongs_to_table: None, // This will be set during planning phase
+            // belongs_to_table: None, // This will be set during planning phase
         }
     }
 }
@@ -404,6 +433,9 @@ impl LogicalPlan {
                     }
             LogicalPlan::Limit(limit) => {
                         children.push(&limit.input);
+                    },
+            LogicalPlan::GroupBy(group_by) => {
+                        children.push(&group_by.input);
                     }
             _ => {}
         }
@@ -418,9 +450,7 @@ impl LogicalPlan {
     fn variant_name(&self) -> String {
         match self {
             LogicalPlan::GraphNode(graph_node) => format!("Node({})", graph_node.alias),
-            // LogicalPlan::GraphRel(_) => "GraphRel".to_string(),
             LogicalPlan::GraphRel(graph_rel) => format!("GraphRel({:?})(is_rel_anchor: {:?})", graph_rel.direction, graph_rel.is_rel_anchor),
-            // LogicalPlan::Scan(_) => "Scan".to_string(),
             LogicalPlan::Scan(scan) => format!("scan({})", scan.table_alias),
             LogicalPlan::ConnectedTraversal(ct) => format!("ConnectedTraversal({:?})", ct.rel_direction),
             LogicalPlan::Empty => "".to_string(),
@@ -429,6 +459,7 @@ impl LogicalPlan {
             LogicalPlan::OrderBy(_) => "OrderBy".to_string(),
             LogicalPlan::Skip(_) => "Skip".to_string(),
             LogicalPlan::Limit(_) => "Limit".to_string(),
+            LogicalPlan::GroupBy(_) => "GroupBy".to_string(),
         }
     }
 }
@@ -453,6 +484,9 @@ impl TableCtx {
         writeln!(f, "{}         properties: {:?}", pad, self.properties)?;
         writeln!(f, "{}         filter_predicates: {:?}", pad, self.filter_predicates)?;
         writeln!(f, "{}         projection_items: {:?}", pad, self.projection_items)?;
+        writeln!(f, "{}         is_rel: {:?}", pad, self.is_rel)?;
+        writeln!(f, "{}         use_edge_list: {:?}", pad, self.use_edge_list)?;
+        writeln!(f, "{}         explicit_alias: {:?}", pad, self.explicit_alias)?;
         Ok(())
     }
 }

@@ -7,6 +7,7 @@ pub mod expr;
 pub mod logical_plan;
 pub mod optimizer;
 pub mod transformed;
+pub mod analyzer;
 mod errors;
 
 pub fn get_query_type(query_ast: &OpenCypherQueryAst) -> QueryType {
@@ -29,16 +30,21 @@ pub fn evaluate_query(
 ) -> Result<(QueryType, Vec<String>, Option<GraphSchemaElement>), String> {
     // let query_type = get_query_type(&query_ast);
 
+    // println!("query_ast {:#}", query_ast);
+
     // if query_type == QueryType::Read {
         let logical_plan_res = logical_plan::evaluate_query(query_ast);
         match logical_plan_res {
             Ok((logical_plan, mut plan_ctx)) => {
-                // println!("\n{}", logical_plan);
+                println!("\n\n PLAN Before  {} \n\n", logical_plan);
                 // println!("\n plan_ctx {:?}",plan_ctx);
-                let logical_plan = optimizer::optimize(logical_plan, &mut plan_ctx);
+                let logical_plan = analyzer::initial_analyzing(logical_plan, &mut plan_ctx);
+                let logical_plan = optimizer::initial_optimization(logical_plan, &mut plan_ctx);
+                let logical_plan = analyzer::final_analyzing(logical_plan, &mut plan_ctx, current_graph_schema);
+                // let logical_plan = optimizer::final_optimization(logical_plan, &mut plan_ctx);
                 
-                // println!("\n\n plan_ctx after \n {:?}",plan_ctx);
-                // println!("\n plan after{}", logical_plan);
+                println!("\n\n plan_ctx after \n {}",plan_ctx);
+                println!("\n plan after{}", logical_plan);
             },
             Err(_) => {
 

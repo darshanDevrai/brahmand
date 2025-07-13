@@ -53,6 +53,10 @@ impl OptimizerPass for FilterPushDown {
                         let child_tf = self.optimize(projection.input.clone(), plan_ctx);
                         projection.rebuild_or_clone(child_tf, logical_plan.clone())
                     },
+            LogicalPlan::GroupBy(group_by   ) => {
+                        let child_tf = self.optimize(group_by.input.clone(), plan_ctx);
+                        group_by.rebuild_or_clone(child_tf, logical_plan.clone())
+                    },
             LogicalPlan::OrderBy(order_by) => {
                         let child_tf = self.optimize(order_by.input.clone(), plan_ctx);
                         order_by.rebuild_or_clone(child_tf, logical_plan.clone())

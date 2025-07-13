@@ -330,7 +330,9 @@ impl<'a> From<open_cypher_parser::ast::Expression<'a>> for PlanExpr {
                 if s == "*" {
                     PlanExpr::Star
                 }else{
-                    PlanExpr::Variable(s.to_string())
+                    // TODO revisit this 
+                    // PlanExpr::Variable(s.to_string())
+                    PlanExpr::TableAlias(TableAlias(s.to_string()))
                 }
             },
             Expression::Parameter(s) => PlanExpr::Parameter(s.to_string()),

@@ -107,6 +107,10 @@ impl AnchorNodeSelection {
                         let child_tf = self.anchor_traversal(anchor_node_alias, projection.input.clone(), plan_ctx);
                         projection.rebuild_or_clone(child_tf, logical_plan.clone())
             },
+            LogicalPlan::GroupBy(group_by   ) => {
+                let child_tf = self.anchor_traversal(anchor_node_alias, group_by.input.clone(), plan_ctx);
+                group_by.rebuild_or_clone(child_tf, logical_plan.clone())
+            },
             LogicalPlan::OrderBy(order_by) => {
                         let child_tf = self.anchor_traversal(anchor_node_alias, order_by.input.clone(), plan_ctx);
                         order_by.rebuild_or_clone(child_tf, logical_plan.clone())
