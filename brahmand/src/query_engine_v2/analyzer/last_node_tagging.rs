@@ -52,12 +52,6 @@ impl AnalyzerPass for LastNodeTagging {
                 Transformed::No(logical_plan.clone())
             },
             LogicalPlan::Empty => Transformed::No(logical_plan.clone()),
-            LogicalPlan::ConnectedTraversal(connected_traversal) => {
-                let start_tf = self.analyze(connected_traversal.start_node.clone(), plan_ctx);
-                let rel_tf = self.analyze(connected_traversal.relationship.clone(), plan_ctx);
-                let end_tf = self.analyze(connected_traversal.end_node.clone(), plan_ctx);
-                connected_traversal.rebuild_or_clone(start_tf, rel_tf, end_tf, logical_plan.clone())
-            },
             LogicalPlan::GraphJoins(graph_joins) => {
                 let child_tf = self.analyze(graph_joins.input.clone(), plan_ctx);
                 graph_joins.rebuild_or_clone(child_tf, logical_plan.clone())
@@ -128,12 +122,6 @@ impl LastNodeTagging {
                 Transformed::No(logical_plan.clone())
             },
             LogicalPlan::Empty => Transformed::No(logical_plan.clone()),
-            LogicalPlan::ConnectedTraversal(connected_traversal) => {
-                let left_tf = self.get_last_node(connected_traversal.start_node.clone(), last_node_alias);
-                let rel_tf = self.get_last_node(connected_traversal.relationship.clone(), last_node_alias);
-                let right_tf = self.get_last_node(connected_traversal.end_node.clone(), last_node_alias);
-                connected_traversal.rebuild_or_clone(left_tf, rel_tf, right_tf, logical_plan.clone())
-            },
             LogicalPlan::GraphJoins(graph_joins) => {
                 let child_tf = self.get_last_node(graph_joins.input.clone(), last_node_alias);
                 graph_joins.rebuild_or_clone(child_tf, logical_plan.clone())

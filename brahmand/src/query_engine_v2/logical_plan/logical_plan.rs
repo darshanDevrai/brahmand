@@ -13,9 +13,6 @@ pub enum LogicalPlan {
 
     GraphRel(GraphRel),
 
-    /// Traverses relationships from an input node set.
-    ConnectedTraversal (ConnectedTraversal),
-
     /// Filters rows based on a predicate.
     Filter (Filter),
 
@@ -196,36 +193,6 @@ impl Filter {
             Transformed::No(_) => {
                 Transformed::No(old_plan.clone())
             }
-        }
-    }
-}
-
-
-impl ConnectedTraversal {
-    pub fn rebuild_or_clone(
-        &self,
-        start_tf: Transformed<Arc<LogicalPlan>>,
-        rel_tf: Transformed<Arc<LogicalPlan>>,
-        end_tf: Transformed<Arc<LogicalPlan>>,
-        old_plan: Arc<LogicalPlan>
-    ) -> Transformed<Arc<LogicalPlan>> {
-
-        let start_changed = start_tf.is_yes();
-        let rel_changed =   rel_tf.is_yes();
-        let end_changed = end_tf.is_yes();
-
-        if start_changed | rel_changed | end_changed {
-            let new_node = LogicalPlan::ConnectedTraversal(ConnectedTraversal {
-                start_node: start_tf.get_plan(),
-                relationship: rel_tf.get_plan(),
-                end_node: end_tf.get_plan(),
-                rel_alias: self.rel_alias.clone(),
-                rel_direction: self.rel_direction.clone(),
-                nested_node_alias: self.nested_node_alias.clone(),
-            });
-            Transformed::Yes(Arc::new(new_node))
-        }else{
-            Transformed::No(old_plan.clone())
         }
     }
 }
@@ -448,11 +415,6 @@ impl LogicalPlan {
 
         let mut children: Vec<&LogicalPlan> = vec![];
         match self {
-            LogicalPlan::ConnectedTraversal(ct) => {
-                        children.push(&ct.start_node);
-                        children.push(&ct.relationship);
-                        children.push(&ct.end_node);
-                    }
             LogicalPlan::GraphNode(graph_node) => {
                 children.push(&graph_node.input);
                 // children.push(&graph_node.self_plan);
@@ -501,7 +463,6 @@ impl LogicalPlan {
             LogicalPlan::GraphNode(graph_node) => format!("Node({})", graph_node.alias),
             LogicalPlan::GraphRel(graph_rel) => format!("GraphRel({:?})(is_rel_anchor: {:?})", graph_rel.direction, graph_rel.is_rel_anchor),
             LogicalPlan::Scan(scan) => format!("scan({})", scan.table_alias),
-            LogicalPlan::ConnectedTraversal(ct) => format!("ConnectedTraversal({:?})", ct.rel_direction),
             LogicalPlan::Empty => "".to_string(),
             LogicalPlan::Filter(_) => "Filter".to_string(),
             LogicalPlan::Projection(_) => "Projection".to_string(),
@@ -531,11 +492,6 @@ impl LogicalPlan {
             LogicalPlan::GraphNode(graph_node) => {
                         graph_node.input.print_graph_rels();
                         // graph_node.self_plan.print_graph_rels();
-                    }
-            LogicalPlan::ConnectedTraversal(ct) => {
-                        ct.start_node.print_graph_rels();
-                        ct.relationship.print_graph_rels();
-                        ct.end_node.print_graph_rels();
                     }
             LogicalPlan::Filter(filter) => filter.input.print_graph_rels(),
             LogicalPlan::Projection(proj) => proj.input.print_graph_rels(),

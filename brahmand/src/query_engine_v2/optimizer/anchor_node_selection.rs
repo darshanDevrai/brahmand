@@ -106,12 +106,6 @@ impl AnchorNodeSelection {
                     Transformed::No(logical_plan.clone())
             },
             LogicalPlan::Empty => Transformed::No(logical_plan.clone()),
-            LogicalPlan::ConnectedTraversal(connected_traversal) => {
-                        let start_tf = self.anchor_traversal(anchor_node_alias.clone(), connected_traversal.start_node.clone(), plan_ctx);
-                        let rel_tf = self.anchor_traversal(anchor_node_alias.clone(), connected_traversal.relationship.clone(), plan_ctx);
-                        let end_tf = self.anchor_traversal(anchor_node_alias, connected_traversal.end_node.clone(), plan_ctx);
-                        connected_traversal.rebuild_or_clone(start_tf, rel_tf, end_tf, logical_plan.clone())
-            },
             LogicalPlan::GraphJoins(graph_joins) => {
                 let child_tf = self.anchor_traversal(anchor_node_alias, graph_joins.input.clone(), plan_ctx);
                 graph_joins.rebuild_or_clone(child_tf, logical_plan.clone())

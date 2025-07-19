@@ -137,7 +137,6 @@ impl RenderPlanBuilder for LogicalPlan {
                     left_node_cte_opt
                 }
             },
-            LogicalPlan::ConnectedTraversal(_) => None,
             LogicalPlan::Filter(filter) => filter.input.extract_last_node_cte(),
             LogicalPlan::Projection(projection) => projection.input.extract_last_node_cte(),
             LogicalPlan::GroupBy(group_by) => group_by.input.extract_last_node_cte(),
@@ -197,7 +196,6 @@ impl RenderPlanBuilder for LogicalPlan {
 
                 right_cte
             },
-            LogicalPlan::ConnectedTraversal(_) => vec![],
             LogicalPlan::Filter(filter) => filter.input.extract_ctes(last_node_alias),
             LogicalPlan::Projection(projection) => projection.input.extract_ctes(last_node_alias),
             LogicalPlan::GraphJoins(graph_joins) => graph_joins.input.extract_ctes(last_node_alias),
@@ -246,7 +244,6 @@ impl RenderPlanBuilder for LogicalPlan {
                 
                         left_select_items
                     },
-            LogicalPlan::ConnectedTraversal(_) => vec![],
             LogicalPlan::Filter(filter) => filter.input.extract_select_items(),
             LogicalPlan::Projection(projection) => {
                         projection.items.iter().map(|item| SelectItem {
@@ -289,7 +286,6 @@ impl RenderPlanBuilder for LogicalPlan {
                         }
 
                     },
-            LogicalPlan::ConnectedTraversal(_) => None,
             LogicalPlan::Filter(filter) => filter.input.extract_from(),
             LogicalPlan::Projection(projection) => projection.input.extract_from(),
             LogicalPlan::GraphJoins(graph_joins) => graph_joins.input.extract_from(),
@@ -322,7 +318,6 @@ impl RenderPlanBuilder for LogicalPlan {
                     None
                 }
             },
-            LogicalPlan::ConnectedTraversal(_) => None,
             LogicalPlan::Filter(filter) => Some(filter.predicate.clone().into()),
             LogicalPlan::Projection(projection) => projection.input.extract_filters(),
             LogicalPlan::GroupBy(group_by) => group_by.input.extract_filters(),
@@ -340,7 +335,6 @@ impl RenderPlanBuilder for LogicalPlan {
             LogicalPlan::Scan(_) => None,
             LogicalPlan::GraphNode(_) => None,
             LogicalPlan::GraphRel(_) => None,
-            LogicalPlan::ConnectedTraversal(_) => None,
             LogicalPlan::Filter(filter) => Some(filter.predicate.clone().into()),
             LogicalPlan::Projection(projection) => projection.input.extract_final_filters(),
             LogicalPlan::GroupBy(group_by) => group_by.input.extract_final_filters(),
@@ -366,7 +360,6 @@ impl RenderPlanBuilder for LogicalPlan {
         
                 left_join_items
             },
-            LogicalPlan::ConnectedTraversal(_) => vec![],
             LogicalPlan::Filter(filter) => filter.input.extract_joins(),
             LogicalPlan::Projection(projection) => projection.input.extract_joins(),
             LogicalPlan::GroupBy(group_by) => group_by.input.extract_joins(),
@@ -392,7 +385,6 @@ impl RenderPlanBuilder for LogicalPlan {
         
                 left_group_by_items
             },
-            LogicalPlan::ConnectedTraversal(_) => vec![],
             LogicalPlan::Filter(filter) => filter.input.extract_group_by(),
             LogicalPlan::Projection(projection) => projection.input.extract_group_by(),
             LogicalPlan::GroupBy(group_by) => group_by.expressions.iter().cloned().map(Into::into).collect(),//.collect::<Vec<RenderExpr>>(),
@@ -418,7 +410,6 @@ impl RenderPlanBuilder for LogicalPlan {
         
                 left_order_by_items
             },
-            LogicalPlan::ConnectedTraversal(_) => vec![],
             LogicalPlan::Filter(filter) => filter.input.extract_order_by(),
             LogicalPlan::Projection(projection) => projection.input.extract_order_by(),
             LogicalPlan::GroupBy(group_by) => group_by.input.extract_order_by(),
@@ -450,7 +441,6 @@ impl RenderPlanBuilder for LogicalPlan {
                     None
                 }
             },
-            LogicalPlan::ConnectedTraversal(_) => None,
             LogicalPlan::Filter(filter) => filter.input.extract_limit(),
             LogicalPlan::Projection(projection) => projection.input.extract_limit(),
             LogicalPlan::GroupBy(group_by) => group_by.input.extract_limit(),
@@ -482,7 +472,6 @@ impl RenderPlanBuilder for LogicalPlan {
                     None
                 }
             },
-            LogicalPlan::ConnectedTraversal(_) => None,
             LogicalPlan::Filter(filter) => filter.input.extract_skip(),
             LogicalPlan::Projection(projection) => projection.input.extract_skip(),
             LogicalPlan::GroupBy(group_by) => group_by.input.extract_skip(),

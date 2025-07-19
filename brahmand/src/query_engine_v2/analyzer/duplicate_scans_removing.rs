@@ -64,12 +64,6 @@ impl DuplicateScansRemoving {
                         Transformed::No(logical_plan.clone())
                     },
             LogicalPlan::Empty => Transformed::No(logical_plan.clone()),
-            LogicalPlan::ConnectedTraversal(connected_traversal) => {
-                        let left_tf = self.remove_duplicate_scans(connected_traversal.start_node.clone(), traversed);
-                        let rel_tf = self.remove_duplicate_scans(connected_traversal.relationship.clone(), traversed);
-                        let right_tf = self.remove_duplicate_scans(connected_traversal.end_node.clone(), traversed);
-                        connected_traversal.rebuild_or_clone(left_tf, rel_tf, right_tf, logical_plan.clone())
-                    },
             LogicalPlan::GraphJoins(graph_joins) => {
                         let child_tf = self.remove_duplicate_scans(graph_joins.input.clone(), traversed);
                         graph_joins.rebuild_or_clone(child_tf, logical_plan.clone())

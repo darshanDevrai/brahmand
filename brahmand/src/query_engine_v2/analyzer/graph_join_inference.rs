@@ -59,12 +59,6 @@ impl GraphJoinInference {
                 Transformed::No(logical_plan.clone())
             },
             LogicalPlan::Empty => Transformed::No(logical_plan.clone()),
-            LogicalPlan::ConnectedTraversal(connected_traversal) => {
-                let left_tf = self.build_graph_joins(connected_traversal.start_node.clone(), collected_graph_joins);
-                let rel_tf = self.build_graph_joins(connected_traversal.relationship.clone(), collected_graph_joins);
-                let right_tf = self.build_graph_joins(connected_traversal.end_node.clone(), collected_graph_joins);
-                connected_traversal.rebuild_or_clone(left_tf, rel_tf, right_tf, logical_plan.clone())
-            },
             LogicalPlan::GraphJoins(graph_joins) => {
                 let child_tf = self.build_graph_joins(graph_joins.input.clone(), collected_graph_joins);
                 graph_joins.rebuild_or_clone(child_tf, logical_plan.clone())
@@ -114,11 +108,6 @@ impl GraphJoinInference {
             },
             LogicalPlan::Scan(_) => (),
             LogicalPlan::Empty => (),
-            LogicalPlan::ConnectedTraversal(connected_traversal) => {
-                self.collect_graph_joins(connected_traversal.start_node.clone(), plan_ctx, graph_schema, collected_graph_joins, joined_entities);
-                self.collect_graph_joins(connected_traversal.relationship.clone(), plan_ctx, graph_schema, collected_graph_joins, joined_entities);
-                self.collect_graph_joins(connected_traversal.end_node.clone(), plan_ctx, graph_schema, collected_graph_joins, joined_entities);
-            },
             LogicalPlan::GraphJoins(graph_joins) => {
                 self.collect_graph_joins(graph_joins.input.clone(), plan_ctx, graph_schema, collected_graph_joins, joined_entities);
             },
