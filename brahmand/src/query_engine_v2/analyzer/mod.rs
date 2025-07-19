@@ -43,12 +43,6 @@ pub fn initial_analyzing(plan: Arc<LogicalPlan>, plan_ctx: &mut PlanCtx, current
 
     // println!("\n\n PLAN After  {:#?} \n\n", plan);
 
-
-    
-    
-
-
-
     // println!("\n plan_ctx After initial {} \n\n", plan_ctx);
     // println!("\n PLAN After {} \n\n", plan);
 

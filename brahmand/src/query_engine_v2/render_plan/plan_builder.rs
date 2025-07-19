@@ -85,8 +85,6 @@ fn clean_last_node_filters(filter_expr: RenderExpr) -> Option<RenderExpr> {
 
 pub(crate) trait RenderPlanBuilder {
 
-    // fn get_last_node_alias(&self) -> Option<String>;
-
     fn extract_last_node_cte(&self) -> Option<Cte>;
 
     fn extract_final_filters(&self) -> Option<RenderExpr>;
@@ -111,14 +109,13 @@ pub(crate) trait RenderPlanBuilder {
 
     fn to_render_plan(&self) -> RenderPlan;
 
-    fn to_no_cte_render_plan(&self) -> RenderPlan;
 }
 
 
 impl RenderPlanBuilder for LogicalPlan {
 
     fn extract_last_node_cte(&self) -> Option<Cte> {
-        // println!("\nextract_last_node_cte: {:?}", self);
+
         match &self {
             LogicalPlan::Empty => None,
             LogicalPlan::Scan(_) => None,
@@ -145,28 +142,20 @@ impl RenderPlanBuilder for LogicalPlan {
             LogicalPlan::Limit(limit) => limit.input.extract_last_node_cte(),
             LogicalPlan::GraphJoins(graph_joins) => graph_joins.input.extract_last_node_cte(),
             LogicalPlan::Cte(logical_cte) => {
-                // println!("\n HEREeeeeeee {:?} \n", logical_cte.input);
-                // TODO check if it is empty then throw error
                 let filters = logical_cte.input.extract_filters();
-                // println!("\n filters {:?} \n", filters);
+                // TODO check if it is empty then throw error
                 let select_items = logical_cte.input.extract_select_items();
-                // println!("\n select_items {:?} \n", select_items);
                 let from_table_opt = logical_cte.input.extract_from();
-                // println!("\n from_table {:?} \n", from_table);
 
                 let from_table = from_table_opt.unwrap();
-                // from_table.table_alias = None;
                 
                 let render_cte = Cte{ 
                     cte_name: logical_cte.name.clone(), 
                     select: SelectItems(select_items),
                     from: from_table, 
                     filters: FilterItems(filters)
-                    // filters: FilterItems(RenderExpr::Star)  
                 };
-                // println!("\n render_cte {:?} \n", render_cte);
                 Some(render_cte)
-                // None
             }
         }
     }
@@ -193,7 +182,6 @@ impl RenderPlanBuilder for LogicalPlan {
                     right_cte.append(&mut left_cte);
                 }
                 
-
                 right_cte
             },
             LogicalPlan::Filter(filter) => filter.input.extract_ctes(last_node_alias),
@@ -341,7 +329,7 @@ impl RenderPlanBuilder for LogicalPlan {
             LogicalPlan::OrderBy(order_by) => order_by.input.extract_final_filters(),
             LogicalPlan::Skip(skip) => skip.input.extract_final_filters(),
             LogicalPlan::Limit(limit) => limit.input.extract_final_filters(),
-            LogicalPlan::Cte(cte) => None,
+            LogicalPlan::Cte(_) => None,
             LogicalPlan::GraphJoins(graph_joins) => graph_joins.input.extract_final_filters(),
         }
     } 
@@ -495,7 +483,6 @@ impl RenderPlanBuilder for LogicalPlan {
         // TODO remove unwrap with error
         let last_node_cte = self.extract_last_node_cte();
 
-        // println!("\n last_node_cte {:?}\n ", last_node_cte);
 
         if last_node_cte.is_some() {
             let last_node_cte = last_node_cte.unwrap();
@@ -558,29 +545,5 @@ impl RenderPlanBuilder for LogicalPlan {
 
 
     }
-    
-    fn to_no_cte_render_plan(&self) -> RenderPlan {
-        
-        let final_select_items = self.extract_select_items();
-
-        let final_from = self.extract_from();
-
-        let final_filters = self.extract_filters();
-        
-        RenderPlan{
-            ctes: CteItems(vec![]),
-            select: SelectItems(final_select_items),
-            from: final_from.unwrap(),
-            joins: JoinItems(vec![]),
-            filters: FilterItems(final_filters),
-            group_by: GroupByExpressions(vec![]),
-            order_by: OrderByItems(vec![]),
-            limit: LimitItem(None),
-            skip: SkipItem(None),
-        }
-    }
-    
-      
-    
     
 }

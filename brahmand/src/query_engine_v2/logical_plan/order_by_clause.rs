@@ -1,13 +1,6 @@
 use std::sync::Arc;
 
-use crate::{open_cypher_parser::ast::OrderByClause, query_engine_v2::{expr::plan_expr::PlanExpr, logical_plan::logical_plan::{LogicalPlan, OrderBy, OrderByItem}}};
-
-
-
-
-
-
-
+use crate::{open_cypher_parser::ast::OrderByClause, query_engine_v2::logical_plan::logical_plan::{LogicalPlan, OrderBy, OrderByItem}};
 
 
 pub fn evaluate_order_by_clause<'a>(

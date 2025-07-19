@@ -39,7 +39,6 @@ impl AnalyzerPass for ProjectionTagging {
                         ProjectionItem{
                             expression: PlanExpr::TableAlias(table_alias.clone()),
                             col_alias: None,
-                            // belongs_to_table: Some(table_alias),
                         }
                     }).collect()
                 } else {
@@ -140,7 +139,6 @@ impl ProjectionTagging {
                     col_alias: None,
                     // belongs_to_table: Some(table_alias.clone()),
                 };
-                // table_ctx.projection_items.push(tagged_proj); // = vec![tagged_proj];
                 table_ctx.projection_items = vec![tagged_proj];
 
 
@@ -154,11 +152,9 @@ impl ProjectionTagging {
                     table_alias: table_alias.clone(),
                     column: Column("*".to_string()),
                 });
-                // item.belongs_to_table = Some(table_alias.clone())
             },
             PlanExpr::PropertyAccessExp(property_access) => {
                 let table_ctx = plan_ctx.alias_table_ctx_map.get_mut(&property_access.table_alias.0).unwrap();
-                // item.belongs_to_table = Some(TableAlias(property_access.table_alias.0.clone()));
                 table_ctx.insert_projection(item.clone());
 
             }
@@ -166,8 +162,7 @@ impl ProjectionTagging {
                 for operand in &operator_application.operands {
                     let mut operand_return_item = ProjectionItem {
                         expression: operand.clone(),
-                        col_alias: None,
-                        // belongs_to_table: None,
+                        col_alias: None
                     };
                     self.tag_projection(&mut operand_return_item, plan_ctx, graph_schema);
                 }
@@ -177,7 +172,6 @@ impl ProjectionTagging {
                     let mut arg_return_item = ProjectionItem {
                         expression: arg.clone(),
                         col_alias: None,
-                        // belongs_to_table: None,
                     };
                     self.tag_projection(&mut arg_return_item, plan_ctx, graph_schema);
                 }
@@ -194,7 +188,6 @@ impl ProjectionTagging {
                             let table_node_id = table_schema.node_id.column.clone();
                             item.expression = PlanExpr::AggregateFnCall(AggregateFnCall{
                                 name: aggregate_fn_call.name.clone(),
-                                // args: vec![PlanExpr::Column(Column(table_node_id))],
                                 args: vec![PlanExpr::PropertyAccessExp(PropertyAccess { table_alias: TableAlias(t_alias.to_string()), column: Column(table_node_id) })],
                             });
                         }
@@ -202,15 +195,6 @@ impl ProjectionTagging {
                 }
             },
             _ => ()
-            
-            // PlanExpr::Literal(literal) => todo!(),
-            // PlanExpr::Variable(_) => todo!(),
-            // PlanExpr::Star => todo!(),
-            // PlanExpr::ColumnAlias(column_alias) => todo!(),
-            // PlanExpr::Column(column) => todo!(),
-            // PlanExpr::Parameter(_) => todo!(),
-            // PlanExpr::List(plan_exprs) => todo!(),
-            // PlanExpr::PathPattern(path_pattern) => todo!(),
         }
         
     }

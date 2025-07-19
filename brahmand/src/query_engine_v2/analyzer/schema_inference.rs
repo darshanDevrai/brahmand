@@ -16,72 +16,6 @@ impl AnalyzerPass for SchemaInference {
         self.infer_schema(logical_plan.clone(), plan_ctx, graph_schema);
         
         self.push_inferred_table_names_to_scan(logical_plan, plan_ctx)
-        // match logical_plan.as_ref() {
-        //     LogicalPlan::Projection(projection) => {
-        //         let child_tf = self.analyze_with_graph_schema(projection.input.clone(), plan_ctx, graph_schema);
-        //         projection.rebuild_or_clone(child_tf, logical_plan.clone())
-        //     },
-        //     LogicalPlan::GraphNode(graph_node) => {
-        //         let child_tf = self.analyze_with_graph_schema(graph_node.input.clone(), plan_ctx, graph_schema);
-        //         // let self_tf = self.analyze_with_graph_schema(graph_node.self_plan.clone(), plan_ctx, graph_schema);
-        //         graph_node.rebuild_or_clone(child_tf, logical_plan.clone())
-        //     },
-        //     LogicalPlan::GraphRel(graph_rel) => {
-        //         // TODO remove unwrap and wrap it with result
-        //         let left_alias = graph_rel.left_connection.clone().unwrap();
-        //         let right_alias = graph_rel.right_connection.clone().unwrap();
-
-        //         let left_table_ctx = plan_ctx.alias_table_ctx_map.get(&left_alias).unwrap();
-        //         let rel_table_ctx = plan_ctx.alias_table_ctx_map.get(&graph_rel.alias).unwrap();
-        //         let right_table_ctx = plan_ctx.alias_table_ctx_map.get(&right_alias).unwrap();
-
-        //         let (left_label, rel_label, right_label) = self.infer_missing_labels(graph_schema, left_table_ctx, rel_table_ctx, right_table_ctx).unwrap();
-                
-        //         for (alias, label) in vec![(left_alias, left_label), (graph_rel.alias.clone(), rel_label), (right_alias, right_label)] {
-        //             let table_ctx = plan_ctx.alias_table_ctx_map.get_mut(&alias).unwrap();
-        //             table_ctx.label = Some(label);
-        //         }
-                
-        //         let left_tf = self.analyze_with_graph_schema(graph_rel.left.clone(), plan_ctx, graph_schema);
-        //         let center_tf = self.analyze_with_graph_schema(graph_rel.center.clone(), plan_ctx, graph_schema);
-        //         let right_tf = self.analyze_with_graph_schema(graph_rel.right.clone(), plan_ctx, graph_schema);
-        //         graph_rel.rebuild_or_clone(left_tf, center_tf, right_tf, logical_plan.clone())
-        //     },
-        //     LogicalPlan::Cte(cte   ) => {
-        //         let child_tf = self.analyze_with_graph_schema( cte.input.clone(), plan_ctx, graph_schema);
-        //         cte.rebuild_or_clone(child_tf, logical_plan.clone())
-        //     },
-        //     LogicalPlan::Scan(_) => {
-        //         Transformed::No(logical_plan.clone())
-        //     },
-        //     LogicalPlan::Empty => Transformed::No(logical_plan.clone()),
-        //     LogicalPlan::ConnectedTraversal(connected_traversal) => {
-        //         let left_tf = self.analyze_with_graph_schema(connected_traversal.start_node.clone(), plan_ctx, graph_schema);
-        //         let rel_tf = self.analyze_with_graph_schema(connected_traversal.relationship.clone(), plan_ctx, graph_schema);
-        //         let right_tf = self.analyze_with_graph_schema(connected_traversal.end_node.clone(), plan_ctx, graph_schema);
-        //         connected_traversal.rebuild_or_clone(left_tf, rel_tf, right_tf, logical_plan.clone())
-        //     },
-        //     LogicalPlan::Filter(filter) => {
-        //         let child_tf = self.analyze_with_graph_schema(filter.input.clone(), plan_ctx, graph_schema);
-        //         filter.rebuild_or_clone(child_tf, logical_plan.clone())
-        //     },
-        //     LogicalPlan::GroupBy(group_by   ) => {
-        //         let child_tf = self.analyze_with_graph_schema(group_by.input.clone(), plan_ctx, graph_schema);
-        //         group_by.rebuild_or_clone(child_tf, logical_plan.clone())
-        //     },
-        //     LogicalPlan::OrderBy(order_by) => {
-        //         let child_tf = self.analyze_with_graph_schema(order_by.input.clone(), plan_ctx, graph_schema);
-        //         order_by.rebuild_or_clone(child_tf, logical_plan.clone())
-        //     },
-        //     LogicalPlan::Skip(skip) => {
-        //         let child_tf = self.analyze_with_graph_schema(skip.input.clone(), plan_ctx, graph_schema);
-        //         skip.rebuild_or_clone(child_tf, logical_plan.clone())
-        //     },
-        //     LogicalPlan::Limit(limit) => {
-        //         let child_tf = self.analyze_with_graph_schema(limit.input.clone(), plan_ctx, graph_schema);
-        //         limit.rebuild_or_clone(child_tf, logical_plan.clone())
-        //     },
-        // }
     }
 }
 
@@ -154,7 +88,6 @@ impl SchemaInference {
             },
             LogicalPlan::GraphNode(graph_node) => {
                 let child_tf = self.infer_schema(graph_node.input.clone(), plan_ctx, graph_schema);
-                // let self_tf = self.infer_schema(graph_node.self_plan.clone(), plan_ctx, graph_schema);
                 graph_node.rebuild_or_clone(child_tf, logical_plan.clone())
             },
             LogicalPlan::GraphRel(graph_rel) => {
@@ -313,11 +246,6 @@ impl SchemaInference {
                 .label.clone()
                 .ok_or(AnalyzerError::MissingNodeLabel)?;
             for (_, relation_schema) in graph_schema.relationships.iter() {
-
-                // println!("\n");
-                // println!("relation_schema {:?}", relation_schema);
-                // println!("left_table_name {}", left_table_name);
-                // println!("right_table_name {}", right_table_name);
 
                 if (relation_schema.from_node == left_table_name
                     && relation_schema.to_node == right_table_name)
@@ -718,10 +646,6 @@ impl SchemaInference {
                         }
                         None
                     }
-            PlanExpr::Literal(_) => None,
-            PlanExpr::Variable(_) => None,
-            PlanExpr::Parameter(_) => None,
-            PlanExpr::List(_) => None,
             PlanExpr::ScalarFnCall(function_call) => {
                         for arg in &function_call.args {
                             if let Some(column_name) = self.get_column_name_from_plan_expr(arg) {
@@ -740,11 +664,6 @@ impl SchemaInference {
                     }
             PlanExpr::PropertyAccessExp(property_access) => Some(property_access.column.0.clone()),
             _ => None
-            // PlanExpr::PathPattern(_) => None,
-            // PlanExpr::Star => todo!(),
-            // PlanExpr::TableAlias(table_alias) => todo!(),
-            // PlanExpr::ColumnAlias(column_alias) => todo!(),
-            // PlanExpr::Column(column) => todo!(),
         }
     }
     

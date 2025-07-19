@@ -240,7 +240,7 @@ impl RenderExpr {
                 Literal::String(s)  => format!("'{}'", s), //format!("'{}'", s.replace('\'', "''")),
                 Literal::Null       => "NULL".into(),
             },
-            RenderExpr::Variable(name) | RenderExpr::Parameter(name) => name.clone(),
+            RenderExpr::Parameter(name) => name.clone(),
             RenderExpr::Star => "*".into(),
             RenderExpr::TableAlias(TableAlias(a))| RenderExpr::ColumnAlias(ColumnAlias(a)) | RenderExpr::Column(Column(a)) => a.clone(),
             RenderExpr::List(items) => {

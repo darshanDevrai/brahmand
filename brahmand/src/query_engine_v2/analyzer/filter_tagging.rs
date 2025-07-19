@@ -17,7 +17,6 @@ impl AnalyzerPass for FilterTagging {
         match logical_plan.as_ref() {
             LogicalPlan::GraphNode(graph_node) => {
                 let child_tf = self.analyze(graph_node.input.clone(), plan_ctx);
-                // let self_tf = self.analyze(graph_node.self_plan.clone(), plan_ctx);
                 graph_node.rebuild_or_clone(child_tf, logical_plan.clone())
             },
             LogicalPlan::GraphRel(graph_rel) => {
@@ -124,7 +123,6 @@ impl FilterTagging {
             if let Some(table_ctx) = plan_ctx.alias_table_ctx_map.get_mut(table_name) {
                 let converted_filters = self.convert_prop_acc_to_column(PlanExpr::OperatorApplicationExp(extracted_filter));
                 table_ctx.insert_filter(converted_filters);
-                // table_ctx.filter_predicates.push(PlanExpr::OperatorApplicationExp(extracted_filter));
 
                 if table_ctx.is_rel {
                     table_ctx.use_edge_list = true;
@@ -140,7 +138,6 @@ impl FilterTagging {
                 table_ctx.insert_projection(ProjectionItem {
                     expression: PlanExpr::PropertyAccessExp(prop_acc),
                     col_alias: None,
-                    // belongs_to_table: Some(table_alias),
                 });
                 
                 // If there is any filter on relationship then use edgelist of that relation.
@@ -235,15 +232,6 @@ impl FilterTagging {
                 // Update the operator application with the processed operands.
                 op_app.operands = new_operands;
     
-                // If we are not inside an Or, and at least one immediate operand is a PropertyAccessExp,
-                // then we want to extract this operator application.
-                // if !new_in_or
-                //    && op_app.operands.iter().any(|e| matches!(e, Expression::PropertyAccessExp(_))) {
-                //     // Add the current operator application to the extracted list.
-                //     extracted.push(op_app);
-                //     // Return None so that it is removed from the parent's operands.
-                //     return None;
-                // }
     
                 // TODO ALl aggregated functions will be evaluated in final where clause. We have to check what kind of fns we can put here.
                 // because if we put aggregated fns like count() then it will mess up the final result because we want the count of all joined entries in the set,

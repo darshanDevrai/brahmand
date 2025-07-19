@@ -11,7 +11,6 @@ mod return_clause;
 mod order_by_clause;
 mod skip_n_limit_clause;
 pub mod errors;
-// mod schema_inference;
 
 
 pub fn evaluate_query(query_ast: OpenCypherQueryAst<'_>) -> Result<(Arc<LogicalPlan>, PlanCtx), PlannerError> {

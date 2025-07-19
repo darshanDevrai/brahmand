@@ -46,10 +46,7 @@ impl AnchorNodeSelection {
             },
             LogicalPlan::GraphRel(graph_rel) => {
                 // if anchor node found at right side then it means we have found it at the end of the graph traversal. It is already a start node.
-                // if graph_rel.left_connection == Some(anchor_node_alias.clone()) {
-                //     let new_anchor_plan = Arc::new(LogicalPlan::GraphRel(GraphRel {is_anchor_graph_rel: true, ..graph_rel.clone()}));
-                //     return Transformed::Yes(new_anchor_plan);
-                // }
+                
                 // If found at left then we need to create a new plan and rotate the right side.
                 if graph_rel.left_connection == Some(anchor_node_alias.clone()) {
                     let new_anchor_plan = Arc::new(LogicalPlan::GraphRel(GraphRel {
@@ -61,7 +58,6 @@ impl AnchorNodeSelection {
                         // as we are rotating the nodes, we will rotate the connections as well
                         left_connection: graph_rel.right_connection.clone(),
                         right_connection: graph_rel.left_connection.clone(),
-                        // is_anchor_graph_rel: true,
                         is_rel_anchor: false
                     }));
                     let rotated_plan = self.rotate_plan(new_anchor_plan, graph_rel.right.clone());
@@ -80,7 +76,6 @@ impl AnchorNodeSelection {
                         // as we are rotating the nodes, we will rotate the connections as well
                         left_connection: graph_rel.right_connection.clone(),
                         right_connection: graph_rel.left_connection.clone(),
-                        // is_anchor_graph_rel: true,
                         is_rel_anchor: true
                     }));
                     let rotated_plan = self.rotate_plan(new_anchor_plan, graph_rel.right.clone());
@@ -150,7 +145,6 @@ impl AnchorNodeSelection {
                         direction: prev_graph_rel.direction.clone(),
                         left_connection: Some(graph_node.alias.clone()), 
                         right_connection: prev_graph_rel.right_connection.clone(),
-                        // is_anchor_graph_rel: prev_graph_rel.is_anchor_graph_rel,
                         is_rel_anchor: prev_graph_rel.is_rel_anchor
                     }));
                     return new_constructed_plan;
@@ -163,11 +157,6 @@ impl AnchorNodeSelection {
                 if let LogicalPlan::GraphRel(prev_graph_rel) = new_plan.as_ref() {
                     // check how the prev graph is connected to this current one
                     // We can do that by checking prev graph's left connected to current graph's left or right
-                    
-                    // println!("\n  prev_graph_rel.left_connection {:?} \n",  prev_graph_rel.left_connection);
-                    // println!("\n  prev_graph_rel.right_connection {:?} \n",  prev_graph_rel.right_connection);
-                    // println!("\n  graph_rel.left_connection {:?} \n",  graph_rel.left_connection);
-                    // println!("\n  graph_rel.right_connection {:?} \n",  graph_rel.right_connection);
                     let (prev_left, new_remaining) = if prev_graph_rel.left_connection == graph_rel.left_connection {
                         (graph_rel.left.clone(), graph_rel.right.clone())
                     } else {
@@ -186,16 +175,14 @@ impl AnchorNodeSelection {
                             direction: prev_graph_rel.direction.clone(), 
                             left_connection: prev_graph_rel.left_connection.clone(), 
                             right_connection: prev_graph_rel.right_connection.clone(),
-                            // is_anchor_graph_rel: prev_graph_rel.is_anchor_graph_rel,
                             is_rel_anchor: prev_graph_rel.is_rel_anchor 
                         })), 
                         alias: graph_rel.alias.clone(), 
                         direction: graph_rel.direction.clone().reverse(), 
-                        // left_connection: graph_rel.right_connection.clone(), 
-                        // right_connection: graph_rel.left_connection.clone(),
+                        // We don't need to rotate the left_conn and right_conn as we have done it at the anchor node.
+                        // Here we are respecting the connection pattern
                         left_connection: graph_rel.left_connection.clone(), 
                         right_connection: graph_rel.right_connection.clone(),
-                        // is_anchor_graph_rel: false,
                         is_rel_anchor: false
                     }));
 

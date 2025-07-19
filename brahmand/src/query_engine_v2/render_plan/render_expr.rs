@@ -16,37 +16,26 @@ use crate::query_engine_v2::expr::plan_expr::{
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum RenderExpr {
-    /// A literal, such as a number, string, boolean, or null.
     Literal(Literal),
-
-    /// A variable (e.g. n, x, or even backtick-quoted names).
-    Variable(String),
 
     Star,
 
-    /// Table Alias (e.g. (p)-[f:Follow]-(u), p, f and u are table alias expr).
     TableAlias(TableAlias),
 
     ColumnAlias(ColumnAlias),
 
-    /// Columns to use in projection.
     Column(Column),
 
-    /// A parameter, such as `$param` or `$0`.
     Parameter(String),
 
-    /// A list literal: a vector of expressions.
     List(Vec<RenderExpr>),
 
     AggregateFnCall(AggregateFnCall),
 
-    /// A function call, e.g. length(p) or nodes(p).
     ScalarFnCall(ScalarFnCall),
 
-    /// Property access.
     PropertyAccessExp(PropertyAccess),
 
-    /// An operator application, e.g. 1 + 2 or 3 < 4.
     OperatorApplicationExp(OperatorApplication),
 
     InSubquery(InSubquery) 
@@ -56,19 +45,6 @@ pub enum RenderExpr {
 pub struct InSubquery {
     pub expr:   Box<RenderExpr>,
     pub subplan: Box<RenderPlan>,
-}
-
-// #[derive(Debug, PartialEq, Clone)]
-// pub struct InSubquerySubPlan {
-
-// }
-
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum Direction {
-    Outgoing,
-    Incoming,
-    Either,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -147,7 +123,6 @@ impl From<PlanExpr> for RenderExpr {
     fn from(expr: PlanExpr) -> Self {
         match expr {
             PlanExpr::Literal(lit) => RenderExpr::Literal(lit.into()),
-            PlanExpr::Variable(s) => RenderExpr::Variable(s),
             PlanExpr::Star => RenderExpr::Star,
             PlanExpr::TableAlias(alias) => RenderExpr::TableAlias(alias.into()),
             PlanExpr::ColumnAlias(alias) => RenderExpr::ColumnAlias(alias.into()),
@@ -267,14 +242,3 @@ impl From<LogicalAggregateFnCall> for AggregateFnCall {
         }
     }
 }
-
-
-// impl From<LogicalInSubquery> for InSubquery {
-//     fn from(subq: LogicalInSubquery) -> Self {
-//         InSubquery {
-//             expr: Box::new(RenderExpr::from(*subq.expr)),
-//             subplan: Box::new(),
-//             // subplan: Box::new(RenderPlan::from(subq.subplan)),
-//         }
-//     }
-// }

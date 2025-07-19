@@ -6,43 +6,29 @@ use crate::query_engine_v2::{expr::plan_expr::{ColumnAlias, Direction, OperatorA
 #[derive(Debug, PartialEq, Clone)]
 pub enum LogicalPlan {
     Empty,
-    /// Scans nodes of a given label (node type). Used as a leaf for MATCH patterns.
+    
     Scan (Scan),
 
     GraphNode(GraphNode),
 
     GraphRel(GraphRel),
 
-    /// Filters rows based on a predicate.
     Filter (Filter),
 
-    /// Projection (returns) a set of expressions/columns.
     Projection (Projection),
 
-    /// Groupby a set of expressions/columns.
     GroupBy (GroupBy),
 
-    /// Orders rows by expressions.
     OrderBy (OrderBy),
 
-    /// Skips a number of rows (Cypher SKIP).
     Skip (Skip),
 
-    /// Limits the result set (Cypher LIMIT).
     Limit (Limit),
 
     Cte(Cte),
 
     GraphJoins(GraphJoins)
 
-    // /// (Optional) Supports WITH or subquery blocks
-    // With (With),
-
-    // /// (Optional) Union of two plans (for Cypher UNION).
-    // Union (Union),
-
-    // /// (Optional) Subquery block
-    // Subquery (Subquery),
 }
 
 
@@ -51,13 +37,11 @@ pub enum LogicalPlan {
 pub struct Scan {
     pub table_alias: String,
     pub table_name: Option<String>,
-    // pub properties: Option<Vec<Property>>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct GraphNode {
     pub input: Arc<LogicalPlan>,
-    // pub self_plan: Arc<LogicalPlan>,
     pub alias: String,
     pub down_connection: Option<String>
 }
@@ -71,7 +55,6 @@ pub struct GraphRel {
     pub direction: Direction,
     pub left_connection: Option<String>,
     pub right_connection: Option<String>,
-    // pub is_anchor_graph_rel: bool,
     pub is_rel_anchor: bool
 }
 
@@ -127,7 +110,6 @@ pub struct GroupBy {
 pub struct ProjectionItem {
     pub expression: PlanExpr,
     pub col_alias: Option<ColumnAlias>,
-    // pub belongs_to_table: Option<TableAlias>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -159,25 +141,6 @@ pub enum OrderByOrder {
     Asc,
     Desc,
 }
-
-// #[derive(Debug, PartialEq, Clone)]
-// pub struct With {
-//     pub input: Arc<LogicalPlan>,
-//     pub items: Vec<ReturnItem>,
-// }
-
-// #[derive(Debug, PartialEq, Clone)]
-// pub struct Union {
-//     pub left: Arc<LogicalPlan>,
-//     pub right: Arc<LogicalPlan>,
-//     pub all: bool,
-// }
-
-// #[derive(Debug, PartialEq, Clone)]
-// pub struct Subquery {
-//     pub input: Arc<LogicalPlan>,
-//     pub items: Vec<ReturnItem>,
-// }
 
 impl Filter {
     pub fn rebuild_or_clone(&self, input_tf: Transformed<Arc<LogicalPlan>>, old_plan: Arc<LogicalPlan>) -> Transformed<Arc<LogicalPlan>> {
@@ -471,38 +434,7 @@ impl LogicalPlan {
             LogicalPlan::Limit(_) => "Limit".to_string(),
             LogicalPlan::GroupBy(_) => "GroupBy".to_string(),
             LogicalPlan::Cte(cte) => format!("Cte({})", cte.name),
-            LogicalPlan::GraphJoins(graph_joins) => "GraphJoins".to_string(),
-        }
-    }
-
-    pub fn print_graph_rels(&self) {
-        match self {
-            LogicalPlan::GraphRel(graph_rel) => {
-                        println!(
-                            "GraphRel(alias: {}, left_connection: {:?}, right_connection: {:?})",
-                            graph_rel.alias,
-                            graph_rel.left_connection,
-                            graph_rel.right_connection
-                        );
-                        // Recursively print children
-                        graph_rel.left.print_graph_rels();
-                        graph_rel.center.print_graph_rels();
-                        graph_rel.right.print_graph_rels();
-                    }
-            LogicalPlan::GraphNode(graph_node) => {
-                        graph_node.input.print_graph_rels();
-                        // graph_node.self_plan.print_graph_rels();
-                    }
-            LogicalPlan::Filter(filter) => filter.input.print_graph_rels(),
-            LogicalPlan::Projection(proj) => proj.input.print_graph_rels(),
-            LogicalPlan::OrderBy(order_by) => order_by.input.print_graph_rels(),
-            LogicalPlan::Skip(skip) => skip.input.print_graph_rels(),
-            LogicalPlan::Limit(limit) => limit.input.print_graph_rels(),
-            LogicalPlan::Empty => { /* do nothing */ }
-            LogicalPlan::Scan(_) => { /* do nothing */ }
-            LogicalPlan::GroupBy(group_by) => group_by.input.print_graph_rels(),
-            LogicalPlan::Cte(cte) => cte.input.print_graph_rels(),
-            LogicalPlan::GraphJoins(graph_joins) => graph_joins.input.print_graph_rels(),
+            LogicalPlan::GraphJoins(_) => "GraphJoins".to_string(),
         }
     }
 }

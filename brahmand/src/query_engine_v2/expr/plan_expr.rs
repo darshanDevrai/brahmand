@@ -9,9 +9,6 @@ pub enum PlanExpr {
     /// A literal, such as a number, string, boolean, or null.
     Literal(Literal),
 
-    /// A variable (e.g. n, x, or even backtick-quoted names).
-    Variable(String),
-
     Star,
 
     /// Table Alias (e.g. (p)-[f:Follow]-(u), p, f and u are table alias expr).
@@ -379,19 +376,6 @@ impl fmt::Display for Literal {
             Literal::Boolean(b) => write!(f, "{}", b),
             Literal::String(s) => write!(f, "{}", s),
             Literal::Null => write!(f, "null"),
-        }
-    }
-}
-
-impl PlanExpr {
-    pub fn as_str(&self) -> String {
-        match self {
-            PlanExpr::Literal(lit) => lit.to_string(),
-            PlanExpr::Star => "*".to_string(),
-            PlanExpr::TableAlias(alias) => alias.to_string(),
-            PlanExpr::ColumnAlias(alias) => alias.to_string(),
-            PlanExpr::Column(col) => col.to_string(),
-            _ => "<complex expr>".to_string(),
         }
     }
 }

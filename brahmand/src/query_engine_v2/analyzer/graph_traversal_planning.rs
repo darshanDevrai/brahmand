@@ -22,18 +22,13 @@ impl AnalyzerPass for GraphTRaversalPlanning {
             },
             LogicalPlan::GraphNode(graph_node) => {
                 let child_tf = self.analyze_with_graph_schema(graph_node.input.clone(), plan_ctx, graph_schema);
-                // let self_tf = self.analyze_with_graph_schema(graph_node.self_plan.clone(), plan_ctx, graph_schema);
                 graph_node.rebuild_or_clone(child_tf, logical_plan.clone())
             },
             LogicalPlan::GraphRel(graph_rel) => {
 
-                // if let LogicalPlan::GraphNode(_) = graph_rel.right.as_ref() {
                 if !matches!(graph_rel.right.as_ref(), LogicalPlan::GraphRel(_)) {
-                // if graph_rel.is_anchor_graph_rel {
-                    // println!("\n Anchor node found {:?} \n", graph_rel);
                     let (new_graph_rel, ctxs_to_update) = self.infer_anchor_traversal(graph_rel, plan_ctx, graph_schema);
 
-                    
                     for ctx in ctxs_to_update.into_iter() {
                         let table_ctx = plan_ctx.alias_table_ctx_map.get_mut(&ctx.alias).unwrap();
                         table_ctx.label = Some(ctx.label);
@@ -55,12 +50,10 @@ impl AnalyzerPass for GraphTRaversalPlanning {
                         ..graph_rel.clone()
                     };
                     let (new_graph_rel, ctxs_to_update) = self.infer_intermediate_traversal(&updated_graph_rel, plan_ctx, graph_schema);
-                    // println!("\n ctxs_to_update {:#?} \n ",ctxs_to_update);
 
                     for mut ctx in ctxs_to_update.into_iter() {
                         let table_ctx = plan_ctx.alias_table_ctx_map.get_mut(&ctx.alias).unwrap();
                         table_ctx.label = Some(ctx.label);
-                        // table_ctx.projection_items.append(&mut ctx.projections);
                         if let Some(plan_expr) = ctx.insubquery {
                             table_ctx.filter_predicates.push(plan_expr);
                         } 
@@ -414,10 +407,6 @@ impl GraphTRaversalPlanning {
                 right_cte_name.clone(),
                 right_node_id_column.clone());
 
-                // right_insubquery = self.build_insubquery(right_node_id_column,
-                //     rel_cte_name.clone(),
-                //     "from_id".to_string());
-
                 left_insubquery = self.build_insubquery(left_node_id_column,
                     rel_cte_name.clone(),
                     "to_id".to_string());
@@ -427,22 +416,10 @@ impl GraphTRaversalPlanning {
                 right_cte_name.clone(),
                 right_node_id_column.clone());
 
-                // right_insubquery = self.build_insubquery(right_node_id_column,
-                //     rel_cte_name.clone(),
-                //     "to_id".to_string());
-
                 left_insubquery = self.build_insubquery(left_node_id_column,
                     rel_cte_name.clone(),
                     "from_id".to_string());
             }
-
-            // let right_ctx_to_update = CtxToUpdate {
-            //     alias: right_alias.to_string(),
-            //     label: right_label,
-            //     projections: right_projections,
-            //     insubquery: None,
-            // };
-            // ctxs_to_update.push(right_ctx_to_update);
 
             let rel_ctx_to_update = CtxToUpdate {
                 alias: rel_alias.to_string(),
@@ -475,20 +452,12 @@ impl GraphTRaversalPlanning {
             let new_rel_label = self.get_relationship_table_name(right_label.clone(), left_label.clone(), rel_label, graph_rel.direction.clone(), rel_schema).unwrap();
             let rel_cte_name = format!("{}_{}", new_rel_label, rel_alias);
 
-            // let right_ctx_to_update = CtxToUpdate {
-            //     alias: right_alias.to_string(),
-            //     label: right_label,
-            //     projections: right_projections,
-            //     insubquery: None,
-            // };
-            // ctxs_to_update.push(right_ctx_to_update);
 
             let rel_proj_input: Vec<(String, Option<ColumnAlias>)> = vec![
                 ("from_id".to_string(), None),
                 ("arrayJoin(bitmapToArray(to_id))".to_string(), Some(ColumnAlias("to_id".to_string())))
             ];
             let rel_projections = self.build_projections(rel_proj_input);
-            // println!("\n right_cte_name {:?}",right_cte_name);
             let rel_insubquery = self.build_insubquery("from_id".to_string(),
                 right_cte_name.clone(),
                 right_node_id_column);

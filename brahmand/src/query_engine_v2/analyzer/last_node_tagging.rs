@@ -74,79 +74,12 @@ impl AnalyzerPass for LastNodeTagging {
             },
         }
 
-
-        // let mut last_node_alias:Option<String> = None;   
-        // let transformed_plan = self.get_last_node(logical_plan, &mut last_node_alias);
-
-        // println!("last_node_plan -> {:?}", last_node_alias);
-
-        // transformed_plan
-
     }
 }
 
 impl LastNodeTagging {
     pub fn new() -> Self {
         LastNodeTagging
-    }
-
-    fn get_last_node(&self, logical_plan: Arc<LogicalPlan>, last_node_alias: &mut Option<String>) -> Transformed<Arc<LogicalPlan>> {
-        match logical_plan.as_ref() {
-            LogicalPlan::Projection(projection) => {
-
-                let child_tf = self.get_last_node(projection.input.clone(), last_node_alias);
-                projection.rebuild_or_clone(child_tf, logical_plan.clone())
-            },
-            LogicalPlan::GraphNode(graph_node) => {
-                // If only single node is there then graph_node is the last one
-                if last_node_alias.is_none() {
-                    *last_node_alias = Some(graph_node.alias.clone());
-                    // the parent CTE will be removed at Cte's rebuild_or_clone method
-                    return Transformed::Yes(Arc::new(LogicalPlan::Empty));
-                }
-                Transformed::No(logical_plan.clone())
-
-            },
-            LogicalPlan::GraphRel(graph_rel) => {
-                // first Graph rel's left part is the last node
-                let left_tf = self.get_last_node(graph_rel.left.clone(), last_node_alias);
-                let center_tf = self.get_last_node(graph_rel.center.clone(), last_node_alias); 
-                let right_tf = self.get_last_node(graph_rel.right.clone(), last_node_alias);  
-                graph_rel.rebuild_or_clone(left_tf, center_tf, right_tf, logical_plan.clone())
-            },
-            LogicalPlan::Cte(cte   ) => {
-                let child_tf = self.get_last_node( cte.input.clone(), last_node_alias);
-                cte.rebuild_or_clone(child_tf, logical_plan.clone())
-            },
-            LogicalPlan::Scan(_) => {
-                Transformed::No(logical_plan.clone())
-            },
-            LogicalPlan::Empty => Transformed::No(logical_plan.clone()),
-            LogicalPlan::GraphJoins(graph_joins) => {
-                let child_tf = self.get_last_node(graph_joins.input.clone(), last_node_alias);
-                graph_joins.rebuild_or_clone(child_tf, logical_plan.clone())
-            },
-            LogicalPlan::Filter(filter) => {
-                let child_tf = self.get_last_node(filter.input.clone(), last_node_alias);
-                filter.rebuild_or_clone(child_tf, logical_plan.clone())
-            },
-            LogicalPlan::GroupBy(group_by   ) => {
-                let child_tf = self.get_last_node(group_by.input.clone(), last_node_alias);
-                group_by.rebuild_or_clone(child_tf, logical_plan.clone())
-            },
-            LogicalPlan::OrderBy(order_by) => {
-                let child_tf = self.get_last_node(order_by.input.clone(), last_node_alias);
-                order_by.rebuild_or_clone(child_tf, logical_plan.clone())
-            },
-            LogicalPlan::Skip(skip) => {
-                let child_tf = self.get_last_node(skip.input.clone(), last_node_alias);
-                skip.rebuild_or_clone(child_tf, logical_plan.clone())
-            },
-            LogicalPlan::Limit(limit) => {
-                let child_tf = self.get_last_node(limit.input.clone(), last_node_alias);
-                limit.rebuild_or_clone(child_tf, logical_plan.clone())
-            },
-        }
     }
     
 }

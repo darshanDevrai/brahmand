@@ -1,11 +1,4 @@
-use crate::query_engine_v2::{expr::plan_expr::PropertyAccess, render_plan::render_expr::{ColumnAlias, OperatorApplication, RenderExpr}};
-
-// use crate::query_engine_v2::expr::plan_expr::{
-//     Literal as LogicalLiteral, TableAlias as LogicalTableAlias, ColumnAlias as LogicalColumnAlias,
-//     Column as LogicalColumn, OperatorApplication as LogicalOperatorApplication, Operator as LogicalOperator,
-//     PropertyAccess as LogicalPropertyAccess, ScalarFnCall as LogicalScalarFnCall,
-//     AggregateFnCall as LogicalAggregateFnCall, InSubquery as LogicalInSubquery
-// };
+use crate::query_engine_v2::render_plan::render_expr::{ColumnAlias, OperatorApplication, RenderExpr};
 
 use crate::query_engine_v2::logical_plan::logical_plan::{
     OrderByOrder as LogicalOrderByOrder, OrderByItem as LogicalOrderByItem, Join as LogicalJoin
@@ -33,7 +26,6 @@ pub struct SelectItems(pub Vec<SelectItem>);
 pub struct SelectItem {
     pub expression: RenderExpr,
     pub col_alias: Option<ColumnAlias>,
-    // pub belongs_to_table: Option<TableAlias>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -44,10 +36,6 @@ pub struct FromTable {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct FilterItems(pub Option<RenderExpr>);
-// pub struct FilterItems {
-//     items: Vec<RenderExpr>,
-//     in_sub_query: Option<InSubquery>
-// }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct GroupByExpressions(pub Vec<RenderExpr>);
@@ -97,15 +85,11 @@ pub struct SubquerySubPlan {
     pub from: FromTable,
 }
 
-
 #[derive(Debug, PartialEq, Clone)]
 pub struct LimitItem(pub Option<i64>);
 
-
 #[derive(Debug, PartialEq, Clone)]
 pub struct SkipItem(pub Option<i64>);
-
-
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct OrderByItems(pub Vec<OrderByItem>);

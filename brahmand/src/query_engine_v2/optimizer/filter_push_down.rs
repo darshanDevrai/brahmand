@@ -13,7 +13,6 @@ impl OptimizerPass for FilterPushDown {
         match logical_plan.as_ref() {
             LogicalPlan::GraphNode(graph_node) => {
                 let child_tf = self.optimize(graph_node.input.clone(), plan_ctx);
-                // let self_tf = self.optimize(graph_node.self_plan.clone(), plan_ctx);
                 graph_node.rebuild_or_clone(child_tf, logical_plan.clone())
             },
             LogicalPlan::GraphRel(graph_rel) => {
@@ -36,7 +35,6 @@ impl OptimizerPass for FilterPushDown {
                                     input: logical_plan.clone(),
                                     predicate: combined_predicate
                                 }));
-                                // table_ctx.filter_predicates.clear();
                                 return Transformed::Yes(new_proj)
                             }
                         }

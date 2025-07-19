@@ -13,9 +13,7 @@ impl AnalyzerPass for GroupByBuilding {
     fn analyze(&self, logical_plan: Arc<LogicalPlan>, plan_ctx: &mut PlanCtx) -> Transformed<Arc<LogicalPlan>> {
         match logical_plan.as_ref() {
             LogicalPlan::Projection(projection) => {
-                
                 let non_agg_projections: Vec<ProjectionItem> = projection.items.iter().filter(|item| !matches!(item.expression, PlanExpr::AggregateFnCall(_))).cloned().collect();
-                
 
                 if non_agg_projections.len() < projection.items.len() && !non_agg_projections.is_empty() {
                     // aggregate fns found. Build the groupby plan here
@@ -34,7 +32,6 @@ impl AnalyzerPass for GroupByBuilding {
             },
             LogicalPlan::GraphNode(graph_node) => {
                 let child_tf = self.analyze(graph_node.input.clone(), plan_ctx);
-                // let self_tf = self.analyze(graph_node.self_plan.clone(), plan_ctx);
                 graph_node.rebuild_or_clone(child_tf, logical_plan.clone())
             },
             LogicalPlan::GraphRel(graph_rel) => {

@@ -8,7 +8,6 @@ use crate::{open_cypher_parser::ast::OpenCypherQueryAst, query_engine_v2::logica
 
 
 pub fn build_logical_plan(query_ast: &OpenCypherQueryAst) -> Result<(Arc<LogicalPlan>, PlanCtx), PlannerError> {
-    // println!("\n\n query_ast {:#}", query_ast);
 
     let mut logical_plan:Arc<LogicalPlan> = Arc::new(LogicalPlan::Empty);
     let mut plan_ctx = PlanCtx::default();

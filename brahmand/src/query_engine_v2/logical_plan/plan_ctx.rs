@@ -1,10 +1,6 @@
 use std::{collections::HashMap, fmt};
 
-use crate::query_engine_v2::{expr::plan_expr::{Column, OperatorApplication, PlanExpr, Property, PropertyAccess}, logical_plan::logical_plan::ProjectionItem};
-
-
-
-
+use crate::query_engine_v2::{expr::plan_expr::{PlanExpr, Property}, logical_plan::logical_plan::ProjectionItem};
 
 
 #[derive(Debug, PartialEq, Clone)]
@@ -16,7 +12,6 @@ pub struct TableCtx {
     pub is_rel: bool,
     pub use_edge_list: bool,
     pub explicit_alias: bool,
-    // pub cte_name: String
 }
 
 impl TableCtx {
@@ -29,7 +24,6 @@ impl TableCtx {
             is_rel: is_rel, 
             use_edge_list: false, 
             explicit_alias: explicit_alias, 
-            // cte_name: "".to_string() 
         }       
     }
 
@@ -57,7 +51,6 @@ impl TableCtx {
 #[derive(Debug, PartialEq, Clone,)]
 pub struct PlanCtx {
     pub alias_table_ctx_map: HashMap<String, TableCtx>,
-    // pub graph_joins: Vec<GraphJoin>,
     pub last_node: String
 }
 
@@ -69,7 +62,6 @@ impl PlanCtx {
     pub fn default() -> Self {
         PlanCtx {
             alias_table_ctx_map: HashMap::new(),
-            // graph_joins: vec![],
             last_node: "".to_string()
         }
     }
@@ -83,12 +75,6 @@ impl fmt::Display for PlanCtx {
             writeln!(f, "\n [{}]:", alias)?;
             table_ctx.fmt_with_indent(f, 2)?;
         }
-        // writeln!(f, "\n-- Graph Joins --")?;
-        // for join in &self.graph_joins {
-        //     writeln!(f, "\ntable_name: {}", join.table_name)?;
-        //     writeln!(f, "table_alias: {}", join.table_alias)?;
-        //     writeln!(f, "--- joining_on: {:?}", join.joining_on)?;
-        // }
         writeln!(f, "\n-- Last Node = ({})", self.last_node)?;
         writeln!(f, "\n---- PlanCtx Ends Here ----")?;
         Ok(())
@@ -105,7 +91,6 @@ impl TableCtx {
         writeln!(f, "{}         is_rel: {:?}", pad, self.is_rel)?;
         writeln!(f, "{}         use_edge_list: {:?}", pad, self.use_edge_list)?;
         writeln!(f, "{}         explicit_alias: {:?}", pad, self.explicit_alias)?;
-        // writeln!(f, "{}         cte_name: {:?}", pad, self.cte_name)?;
         Ok(())
     }
 }
