@@ -15,7 +15,7 @@ use crate::{
     open_cypher_parser::{self},
     query_engine::{
         // self,
-        types::{GraphSchemaElement, QueryType, TraversalMode},
+        self, types::{GraphSchemaElement, QueryType, TraversalMode}
     }, query_engine_v2,
 };
 

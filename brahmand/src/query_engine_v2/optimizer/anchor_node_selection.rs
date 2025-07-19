@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::query_engine_v2::{logical_plan::logical_plan::{GraphRel, LogicalPlan, PlanCtx}, optimizer::optimizer_pass::OptimizerPass, transformed::Transformed};
+use crate::query_engine_v2::{logical_plan::{logical_plan::{GraphRel, LogicalPlan}, plan_ctx::PlanCtx}, optimizer::optimizer_pass::OptimizerPass, transformed::Transformed};
 
 
 
@@ -12,7 +12,6 @@ impl OptimizerPass for AnchorNodeSelection {
 
     fn optimize(&self, logical_plan: Arc<LogicalPlan>, plan_ctx: &mut PlanCtx) -> Transformed<Arc<LogicalPlan>> {
         if let Some(anchor_node_alias) = self.find_anchor_node(plan_ctx) {
-            println!("\n\nAnchor_node is {}", anchor_node_alias);
             return self.anchor_traversal(anchor_node_alias, logical_plan, plan_ctx);
         }
 
@@ -27,10 +26,14 @@ impl AnchorNodeSelection {
     }
 
     fn find_anchor_node(&self, plan_ctx: &PlanCtx) -> Option<String> {
-        plan_ctx.alias_table_ctx_map
+        let (alias, ctx) = plan_ctx.alias_table_ctx_map
             .iter()
-            .max_by_key(|(_, ctx)| ctx.filter_predicates.len())
-            .map(|(alias, _)| alias.clone())
+            .max_by_key(|(_, ctx)| ctx.filter_predicates.len())?;
+        if ctx.filter_predicates.is_empty() {
+            None
+        } else {
+            Some(alias.clone())
+        }
     }
 
 
@@ -38,12 +41,16 @@ impl AnchorNodeSelection {
         match logical_plan.as_ref() {
             LogicalPlan::GraphNode(graph_node) => {
                 let child_tf = self.anchor_traversal(anchor_node_alias.clone(), graph_node.input.clone(), plan_ctx);
-                let self_tf = self.anchor_traversal(anchor_node_alias, graph_node.self_plan.clone(), plan_ctx);
-                graph_node.rebuild_or_clone(child_tf, self_tf, logical_plan.clone())
+                // let self_tf = self.anchor_traversal(anchor_node_alias, graph_node.self_plan.clone(), plan_ctx);
+                graph_node.rebuild_or_clone(child_tf, logical_plan.clone())
             },
             LogicalPlan::GraphRel(graph_rel) => {
-                // if anchor node found at right side then it means we have found it at the end of the graph traversal. It is already a start node. 
-                // Now we need to create a new plan and rotate the right side.
+                // if anchor node found at right side then it means we have found it at the end of the graph traversal. It is already a start node.
+                // if graph_rel.left_connection == Some(anchor_node_alias.clone()) {
+                //     let new_anchor_plan = Arc::new(LogicalPlan::GraphRel(GraphRel {is_anchor_graph_rel: true, ..graph_rel.clone()}));
+                //     return Transformed::Yes(new_anchor_plan);
+                // }
+                // If found at left then we need to create a new plan and rotate the right side.
                 if graph_rel.left_connection == Some(anchor_node_alias.clone()) {
                     let new_anchor_plan = Arc::new(LogicalPlan::GraphRel(GraphRel {
                         left: Arc::new(LogicalPlan::Empty),
@@ -54,6 +61,7 @@ impl AnchorNodeSelection {
                         // as we are rotating the nodes, we will rotate the connections as well
                         left_connection: graph_rel.right_connection.clone(),
                         right_connection: graph_rel.left_connection.clone(),
+                        // is_anchor_graph_rel: true,
                         is_rel_anchor: false
                     }));
                     let rotated_plan = self.rotate_plan(new_anchor_plan, graph_rel.right.clone());
@@ -72,6 +80,7 @@ impl AnchorNodeSelection {
                         // as we are rotating the nodes, we will rotate the connections as well
                         left_connection: graph_rel.right_connection.clone(),
                         right_connection: graph_rel.left_connection.clone(),
+                        // is_anchor_graph_rel: true,
                         is_rel_anchor: true
                     }));
                     let rotated_plan = self.rotate_plan(new_anchor_plan, graph_rel.right.clone());
@@ -89,6 +98,10 @@ impl AnchorNodeSelection {
                 }
             
             },
+            LogicalPlan::Cte(cte   ) => {
+                let child_tf = self.anchor_traversal(anchor_node_alias, cte.input.clone(), plan_ctx);
+                cte.rebuild_or_clone(child_tf, logical_plan.clone())
+            },
             LogicalPlan::Scan(_) => {
                     Transformed::No(logical_plan.clone())
             },
@@ -98,6 +111,10 @@ impl AnchorNodeSelection {
                         let rel_tf = self.anchor_traversal(anchor_node_alias.clone(), connected_traversal.relationship.clone(), plan_ctx);
                         let end_tf = self.anchor_traversal(anchor_node_alias, connected_traversal.end_node.clone(), plan_ctx);
                         connected_traversal.rebuild_or_clone(start_tf, rel_tf, end_tf, logical_plan.clone())
+            },
+            LogicalPlan::GraphJoins(graph_joins) => {
+                let child_tf = self.anchor_traversal(anchor_node_alias, graph_joins.input.clone(), plan_ctx);
+                graph_joins.rebuild_or_clone(child_tf, logical_plan.clone())
             },
             LogicalPlan::Filter(filter) => {
                         let child_tf = self.anchor_traversal(anchor_node_alias, filter.input.clone(), plan_ctx);
@@ -139,6 +156,7 @@ impl AnchorNodeSelection {
                         direction: prev_graph_rel.direction.clone(),
                         left_connection: Some(graph_node.alias.clone()), 
                         right_connection: prev_graph_rel.right_connection.clone(),
+                        // is_anchor_graph_rel: prev_graph_rel.is_anchor_graph_rel,
                         is_rel_anchor: prev_graph_rel.is_rel_anchor
                     }));
                     return new_constructed_plan;
@@ -151,11 +169,17 @@ impl AnchorNodeSelection {
                 if let LogicalPlan::GraphRel(prev_graph_rel) = new_plan.as_ref() {
                     // check how the prev graph is connected to this current one
                     // We can do that by checking prev graph's left connected to current graph's left or right
+                    
+                    // println!("\n  prev_graph_rel.left_connection {:?} \n",  prev_graph_rel.left_connection);
+                    // println!("\n  prev_graph_rel.right_connection {:?} \n",  prev_graph_rel.right_connection);
+                    // println!("\n  graph_rel.left_connection {:?} \n",  graph_rel.left_connection);
+                    // println!("\n  graph_rel.right_connection {:?} \n",  graph_rel.right_connection);
                     let (prev_left, new_remaining) = if prev_graph_rel.left_connection == graph_rel.left_connection {
                         (graph_rel.left.clone(), graph_rel.right.clone())
                     } else {
                         (graph_rel.right.clone(), graph_rel.left.clone())
                     };
+
 
                     let new_constructed_plan = Arc::new(LogicalPlan::GraphRel(GraphRel { 
                         left: Arc::new(LogicalPlan::Empty), 
@@ -168,12 +192,16 @@ impl AnchorNodeSelection {
                             direction: prev_graph_rel.direction.clone(), 
                             left_connection: prev_graph_rel.left_connection.clone(), 
                             right_connection: prev_graph_rel.right_connection.clone(),
+                            // is_anchor_graph_rel: prev_graph_rel.is_anchor_graph_rel,
                             is_rel_anchor: prev_graph_rel.is_rel_anchor 
                         })), 
                         alias: graph_rel.alias.clone(), 
                         direction: graph_rel.direction.clone().reverse(), 
-                        left_connection: graph_rel.right_connection.clone(), 
-                        right_connection: graph_rel.left_connection.clone(),
+                        // left_connection: graph_rel.right_connection.clone(), 
+                        // right_connection: graph_rel.left_connection.clone(),
+                        left_connection: graph_rel.left_connection.clone(), 
+                        right_connection: graph_rel.right_connection.clone(),
+                        // is_anchor_graph_rel: false,
                         is_rel_anchor: false
                     }));
 

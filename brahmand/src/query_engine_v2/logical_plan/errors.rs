@@ -32,4 +32,7 @@ pub enum PlannerError {
     InvalidPropAccessInReturnClause,
     #[error("Invalid property access found in order by clause.")]
     InvalidPropAccessInOrderByClause,
+
+    #[error("Disconnected pattern found.")]
+    DisconnectedPatternFound,
 }

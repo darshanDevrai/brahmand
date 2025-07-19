@@ -1,7 +1,7 @@
 
 use std::{collections::HashMap, sync::Arc, fmt};
 
-use crate::query_engine_v2::{expr::plan_expr::{ColumnAlias, Direction, PlanExpr, Property, TableAlias}, transformed::Transformed};
+use crate::query_engine_v2::{expr::plan_expr::{ColumnAlias, Direction, OperatorApplication, PlanExpr, Property, TableAlias}, transformed::Transformed};
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum LogicalPlan {
@@ -34,6 +34,10 @@ pub enum LogicalPlan {
     /// Limits the result set (Cypher LIMIT).
     Limit (Limit),
 
+    Cte(Cte),
+
+    GraphJoins(GraphJoins)
+
     // /// (Optional) Supports WITH or subquery blocks
     // With (With),
 
@@ -44,30 +48,7 @@ pub enum LogicalPlan {
     // Subquery (Subquery),
 }
 
-#[derive(Debug, PartialEq, Clone)]
-pub struct TableCtx {
-    pub label: Option<String>,
-    pub properties: Vec<Property>,
-    pub filter_predicates: Vec<PlanExpr>,
-    pub projection_items: Vec<ProjectionItem>,
-    pub is_rel: bool,
-    pub use_edge_list: bool,
-    pub explicit_alias: bool
-}
 
-#[derive(Debug, PartialEq, Clone,)]
-pub struct PlanCtx {
-    pub alias_table_ctx_map: HashMap<String, TableCtx>,
-}
-
-
-impl PlanCtx {
-    pub fn default() -> Self {
-        PlanCtx {
-            alias_table_ctx_map: HashMap::new()
-        }
-    }
-}
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Scan {
@@ -79,7 +60,7 @@ pub struct Scan {
 #[derive(Debug, PartialEq, Clone)]
 pub struct GraphNode {
     pub input: Arc<LogicalPlan>,
-    pub self_plan: Arc<LogicalPlan>,
+    // pub self_plan: Arc<LogicalPlan>,
     pub alias: String,
     pub down_connection: Option<String>
 }
@@ -93,7 +74,28 @@ pub struct GraphRel {
     pub direction: Direction,
     pub left_connection: Option<String>,
     pub right_connection: Option<String>,
+    // pub is_anchor_graph_rel: bool,
     pub is_rel_anchor: bool
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct Cte {
+    pub input: Arc<LogicalPlan>,
+    pub name: String
+}
+
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct GraphJoins {
+    pub input: Arc<LogicalPlan>,
+    pub joins: Vec<Join>,
+}
+
+#[derive(Debug, PartialEq, Clone,)]
+pub struct Join {
+    pub table_name: String,
+    pub table_alias: String,
+    pub joining_on: Vec<OperatorApplication>
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -152,11 +154,11 @@ pub struct Limit {
 #[derive(Debug, PartialEq, Clone)]
 pub struct OrderByItem {
     pub expression: PlanExpr,
-    pub order: OrerByOrder,
+    pub order: OrderByOrder,
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum OrerByOrder {
+pub enum OrderByOrder {
     Asc,
     Desc,
 }
@@ -314,21 +316,21 @@ impl Limit {
 }
 
 impl GraphNode {
-    pub fn rebuild_or_clone(&self, input_tf: Transformed<Arc<LogicalPlan>>, self_tf: Transformed<Arc<LogicalPlan>>, old_plan: Arc<LogicalPlan>) -> Transformed<Arc<LogicalPlan>> {
-
-        let input_changed = input_tf.is_yes();
-        let self_changed =   self_tf.is_yes();
-
-        if input_changed | self_changed {
-            let new_graph_node = LogicalPlan::GraphNode(GraphNode { 
-                input: input_tf.get_plan(), 
-                self_plan: self_tf.get_plan(), 
-                alias: self.alias.clone(), 
-                down_connection: self.down_connection.clone()
-            });
-            Transformed::Yes(Arc::new(new_graph_node))
-        }else{
-            Transformed::No(old_plan.clone())
+    // pub fn rebuild_or_clone(&self, input_tf: Transformed<Arc<LogicalPlan>>, self_tf: Transformed<Arc<LogicalPlan>>, old_plan: Arc<LogicalPlan>) -> Transformed<Arc<LogicalPlan>> {
+    pub fn rebuild_or_clone(&self, input_tf: Transformed<Arc<LogicalPlan>>, old_plan: Arc<LogicalPlan>) -> Transformed<Arc<LogicalPlan>> {
+        match input_tf {
+            Transformed::Yes(new_input) => {
+                let new_graph_node = LogicalPlan::GraphNode(GraphNode { 
+                    input: new_input.clone(), 
+                    // self_plan: self_tf.get_plan(), 
+                    alias: self.alias.clone(), 
+                    down_connection: self.down_connection.clone()
+                });
+                Transformed::Yes(Arc::new(new_graph_node))
+            }
+            Transformed::No(_) => {
+                Transformed::No(old_plan.clone())
+            }
         }
     }
 }
@@ -348,11 +350,52 @@ impl GraphRel {
                 left_connection: self.left_connection.clone(), 
                 right_connection: self.right_connection.clone(),
                 direction: self.direction.clone(),
+                // is_anchor_graph_rel: self.is_anchor_graph_rel,
                 is_rel_anchor: self.is_rel_anchor
             });
             Transformed::Yes(Arc::new(new_graph_rel))
         }else{
             Transformed::No(old_plan.clone())
+        }
+    }
+}
+
+
+impl Cte {
+    pub fn rebuild_or_clone(&self, input_tf: Transformed<Arc<LogicalPlan>>, old_plan: Arc<LogicalPlan>) -> Transformed<Arc<LogicalPlan>> {
+        match input_tf {
+            Transformed::Yes(new_input) => {
+                // if new input is empty then remove the CTE 
+                if matches!(new_input.as_ref(), LogicalPlan::Empty) {
+                    Transformed::Yes(new_input.clone())
+                }else{
+                    let new_node = LogicalPlan::Cte(Cte {
+                        input: new_input.clone(),
+                        name: self.name.clone(),
+                    });
+                    Transformed::Yes(Arc::new(new_node))
+                }
+            }
+            Transformed::No(_) => {
+                Transformed::No(old_plan.clone())
+            }
+        }
+    }
+}
+
+impl GraphJoins {
+    pub fn rebuild_or_clone(&self, input_tf: Transformed<Arc<LogicalPlan>>, old_plan: Arc<LogicalPlan>) -> Transformed<Arc<LogicalPlan>> {
+        match input_tf {
+            Transformed::Yes(new_input) => {
+                let new_graph_joins = LogicalPlan::GraphJoins(GraphJoins { 
+                    input: new_input.clone(), 
+                    joins: self.joins.clone()
+                });
+                Transformed::Yes(Arc::new(new_graph_joins))
+            }
+            Transformed::No(_) => {
+                Transformed::No(old_plan.clone())
+            }
         }
     }
 }
@@ -376,8 +419,8 @@ impl<'a> From<crate::open_cypher_parser::ast::OrderByItem<'a>> for OrderByItem {
                 value.expression.into()
             },
             order: match value.order {
-                crate::open_cypher_parser::ast::OrerByOrder::Asc => OrerByOrder::Asc,
-                crate::open_cypher_parser::ast::OrerByOrder::Desc => OrerByOrder::Desc,
+                crate::open_cypher_parser::ast::OrerByOrder::Asc => OrderByOrder::Asc,
+                crate::open_cypher_parser::ast::OrerByOrder::Desc => OrderByOrder::Desc,
             },
         }
     }
@@ -412,7 +455,7 @@ impl LogicalPlan {
                     }
             LogicalPlan::GraphNode(graph_node) => {
                 children.push(&graph_node.input);
-                children.push(&graph_node.self_plan);
+                // children.push(&graph_node.self_plan);
             }
             LogicalPlan::GraphRel(graph_rel) =>  {
                 children.push(&graph_rel.left);
@@ -425,6 +468,9 @@ impl LogicalPlan {
             LogicalPlan::Projection(proj) => {
                         children.push(&proj.input);
                     }
+            LogicalPlan::GraphJoins(graph_join) => {
+                    children.push(&graph_join.input);
+                }
             LogicalPlan::OrderBy(order_by) => {
                         children.push(&order_by.input);
                     }
@@ -437,6 +483,9 @@ impl LogicalPlan {
             LogicalPlan::GroupBy(group_by) => {
                         children.push(&group_by.input);
                     }
+            LogicalPlan::Cte(cte) => {
+                children.push(&cte.input);
+            }
             _ => {}
         }
 
@@ -460,35 +509,47 @@ impl LogicalPlan {
             LogicalPlan::Skip(_) => "Skip".to_string(),
             LogicalPlan::Limit(_) => "Limit".to_string(),
             LogicalPlan::GroupBy(_) => "GroupBy".to_string(),
+            LogicalPlan::Cte(cte) => format!("Cte({})", cte.name),
+            LogicalPlan::GraphJoins(graph_joins) => "GraphJoins".to_string(),
+        }
+    }
+
+    pub fn print_graph_rels(&self) {
+        match self {
+            LogicalPlan::GraphRel(graph_rel) => {
+                        println!(
+                            "GraphRel(alias: {}, left_connection: {:?}, right_connection: {:?})",
+                            graph_rel.alias,
+                            graph_rel.left_connection,
+                            graph_rel.right_connection
+                        );
+                        // Recursively print children
+                        graph_rel.left.print_graph_rels();
+                        graph_rel.center.print_graph_rels();
+                        graph_rel.right.print_graph_rels();
+                    }
+            LogicalPlan::GraphNode(graph_node) => {
+                        graph_node.input.print_graph_rels();
+                        // graph_node.self_plan.print_graph_rels();
+                    }
+            LogicalPlan::ConnectedTraversal(ct) => {
+                        ct.start_node.print_graph_rels();
+                        ct.relationship.print_graph_rels();
+                        ct.end_node.print_graph_rels();
+                    }
+            LogicalPlan::Filter(filter) => filter.input.print_graph_rels(),
+            LogicalPlan::Projection(proj) => proj.input.print_graph_rels(),
+            LogicalPlan::OrderBy(order_by) => order_by.input.print_graph_rels(),
+            LogicalPlan::Skip(skip) => skip.input.print_graph_rels(),
+            LogicalPlan::Limit(limit) => limit.input.print_graph_rels(),
+            LogicalPlan::Empty => { /* do nothing */ }
+            LogicalPlan::Scan(_) => { /* do nothing */ }
+            LogicalPlan::GroupBy(group_by) => group_by.input.print_graph_rels(),
+            LogicalPlan::Cte(cte) => cte.input.print_graph_rels(),
+            LogicalPlan::GraphJoins(graph_joins) => graph_joins.input.print_graph_rels(),
         }
     }
 }
 
-
-impl fmt::Display for PlanCtx {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "\n---- PlanCtx Starts Here ----")?;
-        for (alias, table_ctx) in &self.alias_table_ctx_map {
-            writeln!(f, "\n [{}]:", alias)?;
-            table_ctx.fmt_with_indent(f, 2)?;
-        }
-        writeln!(f, "\n---- PlanCtx Ends Here ----")?;
-        Ok(())
-    }
-}
-
-impl TableCtx {
-    fn fmt_with_indent(&self, f: &mut fmt::Formatter<'_>, indent: usize) -> fmt::Result {
-        let pad = " ".repeat(indent);
-        writeln!(f, "{}         label: {:?}", pad, self.label)?;
-        writeln!(f, "{}         properties: {:?}", pad, self.properties)?;
-        writeln!(f, "{}         filter_predicates: {:?}", pad, self.filter_predicates)?;
-        writeln!(f, "{}         projection_items: {:?}", pad, self.projection_items)?;
-        writeln!(f, "{}         is_rel: {:?}", pad, self.is_rel)?;
-        writeln!(f, "{}         use_edge_list: {:?}", pad, self.use_edge_list)?;
-        writeln!(f, "{}         explicit_alias: {:?}", pad, self.explicit_alias)?;
-        Ok(())
-    }
-}
 
 

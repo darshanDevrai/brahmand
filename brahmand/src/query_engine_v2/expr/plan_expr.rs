@@ -1,5 +1,5 @@
-use crate::open_cypher_parser::{self, ast::Expression};
-use std::fmt;
+use crate::{open_cypher_parser::{self, ast::Expression}, query_engine_v2::logical_plan::logical_plan::LogicalPlan};
+use std::{fmt, sync::Arc};
 
 
 
@@ -41,6 +41,14 @@ pub enum PlanExpr {
 
     /// A path-pattern, for instance: (a)-[]->()<-[]-(b)
     PathPattern(PathPattern),
+
+    InSubquery(InSubquery) 
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct InSubquery {
+    pub expr:   Box<PlanExpr>,
+    pub subplan: Arc<LogicalPlan>,
 }
 
 
@@ -244,7 +252,7 @@ impl<'a> From<open_cypher_parser::ast::OperatorApplication<'a>> for OperatorAppl
 
 impl<'a> From<open_cypher_parser::ast::FunctionCall<'a>> for PlanExpr {
     fn from(value: open_cypher_parser::ast::FunctionCall<'a>) -> Self {
-        let agg_fns = ["count", "min", "max", "avg", "sum", "collect"];
+        let agg_fns = ["count", "min", "max", "avg", "sum"];
         let name_lower = value.name.to_lowercase();
         if agg_fns.contains(&name_lower.as_str()) {
             PlanExpr::AggregateFnCall(AggregateFnCall {

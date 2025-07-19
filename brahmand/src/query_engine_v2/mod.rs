@@ -1,6 +1,6 @@
 
 
-use crate::{open_cypher_parser::ast::OpenCypherQueryAst, query_engine::types::{GraphSchema, GraphSchemaElement, QueryType, TraversalMode}};
+use crate::{open_cypher_parser::ast::OpenCypherQueryAst, query_engine::types::{GraphSchema, GraphSchemaElement, QueryType, TraversalMode}, query_engine_v2::render_plan::plan_builder::RenderPlanBuilder};
 
 
 pub mod expr;
@@ -8,6 +8,9 @@ pub mod logical_plan;
 pub mod optimizer;
 pub mod transformed;
 pub mod analyzer;
+pub mod render_plan;
+pub mod clickhouse_query_generator;
+// pub mod types;
 mod errors;
 
 pub fn get_query_type(query_ast: &OpenCypherQueryAst) -> QueryType {
@@ -28,7 +31,7 @@ pub fn evaluate_query(
     traversal_mode: &TraversalMode,
     current_graph_schema: &GraphSchema,
 ) -> Result<(QueryType, Vec<String>, Option<GraphSchemaElement>), String> {
-    // let query_type = get_query_type(&query_ast);
+    let query_type = get_query_type(&query_ast);
 
     // println!("query_ast {:#}", query_ast);
 
@@ -36,18 +39,30 @@ pub fn evaluate_query(
         let logical_plan_res = logical_plan::evaluate_query(query_ast);
         match logical_plan_res {
             Ok((logical_plan, mut plan_ctx)) => {
-                println!("\n\n PLAN Before  {} \n\n", logical_plan);
-                // println!("\n plan_ctx {:?}",plan_ctx);
-                let logical_plan = analyzer::initial_analyzing(logical_plan, &mut plan_ctx);
+                // println!("\n\n PLAN Before  {} \n\n", logical_plan);
+                // println!("\n plan_ctx {}",plan_ctx);
+                let logical_plan = analyzer::initial_analyzing(logical_plan, &mut plan_ctx, current_graph_schema);
+                // logical_plan.print_graph_rels();
                 let logical_plan = optimizer::initial_optimization(logical_plan, &mut plan_ctx);
+                // logical_plan.print_graph_rels();
                 let logical_plan = analyzer::final_analyzing(logical_plan, &mut plan_ctx, current_graph_schema);
-                // let logical_plan = optimizer::final_optimization(logical_plan, &mut plan_ctx);
+                let logical_plan = optimizer::final_optimization(logical_plan, &mut plan_ctx);
                 
-                println!("\n\n plan_ctx after \n {}",plan_ctx);
+                // println!("\n\n plan_ctx after \n {}",plan_ctx);
                 println!("\n plan after{}", logical_plan);
-            },
-            Err(_) => {
 
+                let render_plan = logical_plan.to_render_plan();
+
+                // println!("\n render_planr{}", render_plan);
+
+                let sql_query = clickhouse_query_generator::generate_sql(render_plan);
+
+                Ok((query_type, vec![sql_query], None))
+
+            },
+            Err(e) => {
+                println!("Error - {:?}", e);
+                Err(e.to_string())
             }
         }
 
@@ -70,6 +85,6 @@ pub fn evaluate_query(
 
     //     Ok((query_type, ddl_queries, Some(graph_schema_element)))
     // } else {
-        Err("www".to_string())
+        // Err("www".to_string())
     // }
 }

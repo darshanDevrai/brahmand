@@ -33,4 +33,7 @@ pub enum AnalyzerError {
     NoNodeSchemaFound,
     #[error("Not enough information. Labels are required to identify nodes and relationships")]
     NotEnoughLabels,
+
+    // #[error("Non CTE plan found. Expected CTE.")]
+    // NonCTEPlanFound,
 }

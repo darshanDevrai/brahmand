@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::query_engine_v2::{analyzer::analyzer_pass::AnalyzerPass, expr::plan_expr::{Column, PlanExpr, PropertyAccess, TableAlias}, logical_plan::logical_plan::{LogicalPlan, PlanCtx, Projection, ProjectionItem}, transformed::Transformed};
+use crate::{query_engine::types::GraphSchema, query_engine_v2::{analyzer::analyzer_pass::AnalyzerPass, expr::plan_expr::{AggregateFnCall, Column, PlanExpr, PropertyAccess, TableAlias}, logical_plan::{logical_plan::{LogicalPlan, Projection, ProjectionItem}, plan_ctx::PlanCtx}, transformed::Transformed}};
 
 
 
@@ -16,8 +16,7 @@ impl AnalyzerPass for ProjectionTagging {
     // in the final projection, put all explicit alias.* 
 
     // If there is any projection on relationship then use edgelist of that relation.
-
-    fn analyze(&self, logical_plan: Arc<LogicalPlan>, plan_ctx: &mut PlanCtx) -> Transformed<Arc<LogicalPlan>> {
+    fn analyze_with_graph_schema(&self, logical_plan: Arc<LogicalPlan>, plan_ctx: &mut PlanCtx, graph_schema: &GraphSchema) -> Transformed<Arc<LogicalPlan>> {
         match logical_plan.as_ref() {
             LogicalPlan::Projection(projection) => {
                 // handler select all. e.g. -
@@ -48,7 +47,7 @@ impl AnalyzerPass for ProjectionTagging {
                 };
 
                 for item in &mut proj_items_to_mutate  {
-                    self.tag_projection(item, plan_ctx);
+                    self.tag_projection(item, plan_ctx, graph_schema);
                 }
 
                 Transformed::Yes(Arc::new(LogicalPlan::Projection(Projection{
@@ -57,44 +56,52 @@ impl AnalyzerPass for ProjectionTagging {
                 })))
             },
             LogicalPlan::GraphNode(graph_node) => {
-                let child_tf = self.analyze(graph_node.input.clone(), plan_ctx);
-                let self_tf = self.analyze(graph_node.self_plan.clone(), plan_ctx);
-                graph_node.rebuild_or_clone(child_tf, self_tf, logical_plan.clone())
+                let child_tf = self.analyze_with_graph_schema(graph_node.input.clone(), plan_ctx, graph_schema);
+                // let self_tf = self.analyze_with_graph_schema(graph_node.self_plan.clone(), plan_ctx);
+                graph_node.rebuild_or_clone(child_tf, logical_plan.clone())
             },
             LogicalPlan::GraphRel(graph_rel) => {
-                let left_tf = self.analyze(graph_rel.left.clone(), plan_ctx);
-                let center_tf = self.analyze(graph_rel.center.clone(), plan_ctx);
-                let right_tf = self.analyze(graph_rel.right.clone(), plan_ctx);
+                let left_tf = self.analyze_with_graph_schema(graph_rel.left.clone(), plan_ctx, graph_schema);
+                let center_tf = self.analyze_with_graph_schema(graph_rel.center.clone(), plan_ctx, graph_schema);
+                let right_tf = self.analyze_with_graph_schema(graph_rel.right.clone(), plan_ctx, graph_schema);
                 graph_rel.rebuild_or_clone(left_tf, center_tf, right_tf, logical_plan.clone())
             },
-            LogicalPlan::Scan(scan) => {
+            LogicalPlan::Cte(cte   ) => {
+                let child_tf = self.analyze_with_graph_schema( cte.input.clone(), plan_ctx, graph_schema);
+                cte.rebuild_or_clone(child_tf, logical_plan.clone())
+            },
+            LogicalPlan::Scan(_) => {
                 Transformed::No(logical_plan.clone())
             },
             LogicalPlan::Empty => Transformed::No(logical_plan.clone()),
             LogicalPlan::ConnectedTraversal(connected_traversal) => {
-                let start_tf = self.analyze(connected_traversal.start_node.clone(), plan_ctx);
-                let rel_tf = self.analyze(connected_traversal.relationship.clone(), plan_ctx);
-                let end_tf = self.analyze(connected_traversal.end_node.clone(), plan_ctx);
+                let start_tf = self.analyze_with_graph_schema(connected_traversal.start_node.clone(), plan_ctx, graph_schema);
+                let rel_tf = self.analyze_with_graph_schema(connected_traversal.relationship.clone(), plan_ctx, graph_schema);
+                let end_tf = self.analyze_with_graph_schema(connected_traversal.end_node.clone(), plan_ctx, graph_schema);
                 connected_traversal.rebuild_or_clone(start_tf, rel_tf, end_tf, logical_plan.clone())
             },
+            LogicalPlan::GraphJoins(graph_joins) => {
+                let child_tf = self.analyze_with_graph_schema(graph_joins.input.clone(), plan_ctx, graph_schema);
+                graph_joins.rebuild_or_clone(child_tf, logical_plan.clone())
+            },
             LogicalPlan::Filter(filter) => {
-                let child_tf = self.analyze(filter.input.clone(), plan_ctx);
+                let child_tf = self.analyze_with_graph_schema(filter.input.clone(), plan_ctx, graph_schema);
                 filter.rebuild_or_clone(child_tf, logical_plan.clone())
             },
             LogicalPlan::GroupBy(group_by   ) => {
-                let child_tf = self.analyze(group_by.input.clone(), plan_ctx);
+                let child_tf = self.analyze_with_graph_schema(group_by.input.clone(), plan_ctx, graph_schema);
                 group_by.rebuild_or_clone(child_tf, logical_plan.clone())
             },
             LogicalPlan::OrderBy(order_by) => {
-                let child_tf = self.analyze(order_by.input.clone(), plan_ctx);
+                let child_tf = self.analyze_with_graph_schema(order_by.input.clone(), plan_ctx, graph_schema);
                 order_by.rebuild_or_clone(child_tf, logical_plan.clone())
             },
             LogicalPlan::Skip(skip) => {
-                let child_tf = self.analyze(skip.input.clone(), plan_ctx);
+                let child_tf = self.analyze_with_graph_schema(skip.input.clone(), plan_ctx, graph_schema);
                 skip.rebuild_or_clone(child_tf, logical_plan.clone())
             },
             LogicalPlan::Limit(limit) => {
-                let child_tf = self.analyze(limit.input.clone(), plan_ctx);
+                let child_tf = self.analyze_with_graph_schema(limit.input.clone(), plan_ctx, graph_schema);
                 limit.rebuild_or_clone(child_tf, logical_plan.clone())
             },
         }
@@ -128,7 +135,7 @@ impl ProjectionTagging {
             .collect()
     }
 
-    fn tag_projection(&self, item: &mut ProjectionItem, plan_ctx: &mut PlanCtx) {
+    fn tag_projection(&self, item: &mut ProjectionItem, plan_ctx: &mut PlanCtx, graph_schema: &GraphSchema) {
         match item.expression.clone() {
             PlanExpr::TableAlias(table_alias) => {
                 // if just table alias i.e MATCH (p:Post) Return p; then For final overall projection keep p.* and for p's projection keep *. 
@@ -139,7 +146,10 @@ impl ProjectionTagging {
                     col_alias: None,
                     // belongs_to_table: Some(table_alias.clone()),
                 };
+                // table_ctx.projection_items.push(tagged_proj); // = vec![tagged_proj];
                 table_ctx.projection_items = vec![tagged_proj];
+
+
                 // if table_ctx is of relation then mark use_edge_list = true
                 if table_ctx.is_rel {
                     table_ctx.use_edge_list = true;
@@ -155,7 +165,8 @@ impl ProjectionTagging {
             PlanExpr::PropertyAccessExp(property_access) => {
                 let table_ctx = plan_ctx.alias_table_ctx_map.get_mut(&property_access.table_alias.0).unwrap();
                 // item.belongs_to_table = Some(TableAlias(property_access.table_alias.0.clone()));
-                table_ctx.projection_items.push(item.clone());
+                table_ctx.insert_projection(item.clone());
+
             }
             PlanExpr::OperatorApplicationExp(operator_application) => {
                 for operand in &operator_application.operands {
@@ -164,7 +175,7 @@ impl ProjectionTagging {
                         col_alias: None,
                         // belongs_to_table: None,
                     };
-                    self.tag_projection(&mut operand_return_item, plan_ctx);
+                    self.tag_projection(&mut operand_return_item, plan_ctx, graph_schema);
                 }
             },
             PlanExpr::ScalarFnCall(scalar_fn_call) => {
@@ -174,20 +185,28 @@ impl ProjectionTagging {
                         col_alias: None,
                         // belongs_to_table: None,
                     };
-                    self.tag_projection(&mut arg_return_item, plan_ctx);
+                    self.tag_projection(&mut arg_return_item, plan_ctx, graph_schema);
                 }
             },
             // For now I am not tagging Aggregate fns, but I will tag later for aggregate pushdown when I implement the aggregate push down optimization
-            // PlanExpr::AggregateFnCall(aggregate_fn_call) => {
-            //     for arg in &aggregate_fn_call.args {
-            //         let mut arg_return_item = ProjectionItem {
-            //             expression: arg.clone(),
-            //             col_alias: None,
-            //             belongs_to_table: None,
-            //         };
-            //         self.tag_projection(&mut arg_return_item, plan_ctx);
-            //     }
-            // },
+            // For now if there is a tableAlias in agg fn args and fn name is Count then convert the table alias to node Id
+            PlanExpr::AggregateFnCall(aggregate_fn_call) => {
+                for arg in &aggregate_fn_call.args {
+                    if let PlanExpr::TableAlias(TableAlias(t_alias)) = arg {
+                        if aggregate_fn_call.name.to_lowercase() == "count" {
+                            let table_ctx = plan_ctx.alias_table_ctx_map.get_mut(t_alias).unwrap();
+                            let table_label = table_ctx.label.clone().unwrap();
+                            let table_schema = graph_schema.nodes.get(&table_label).unwrap();
+                            let table_node_id = table_schema.node_id.column.clone();
+                            item.expression = PlanExpr::AggregateFnCall(AggregateFnCall{
+                                name: aggregate_fn_call.name.clone(),
+                                // args: vec![PlanExpr::Column(Column(table_node_id))],
+                                args: vec![PlanExpr::PropertyAccessExp(PropertyAccess { table_alias: TableAlias(t_alias.to_string()), column: Column(table_node_id) })],
+                            });
+                        }
+                    }
+                }
+            },
             _ => ()
             
             // PlanExpr::Literal(literal) => todo!(),

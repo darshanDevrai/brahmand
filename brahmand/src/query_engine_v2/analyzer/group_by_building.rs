@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::query_engine_v2::{analyzer::analyzer_pass::AnalyzerPass, expr::plan_expr::PlanExpr, logical_plan::logical_plan::{GroupBy, LogicalPlan, PlanCtx, ProjectionItem}, transformed::Transformed};
+use crate::query_engine_v2::{analyzer::analyzer_pass::AnalyzerPass, expr::plan_expr::PlanExpr, logical_plan::{logical_plan::{GroupBy, LogicalPlan, ProjectionItem}, plan_ctx::PlanCtx}, transformed::Transformed};
 
 
 
@@ -17,7 +17,7 @@ impl AnalyzerPass for GroupByBuilding {
                 let non_agg_projections: Vec<ProjectionItem> = projection.items.iter().filter(|item| !matches!(item.expression, PlanExpr::AggregateFnCall(_))).cloned().collect();
                 
 
-                if non_agg_projections.len() < projection.items.len() {
+                if non_agg_projections.len() < projection.items.len() && !non_agg_projections.is_empty() {
                     // aggregate fns found. Build the groupby plan here
                     return Transformed::Yes(Arc::new(LogicalPlan::GroupBy(GroupBy{
                         input: logical_plan.clone(),
@@ -34,14 +34,18 @@ impl AnalyzerPass for GroupByBuilding {
             },
             LogicalPlan::GraphNode(graph_node) => {
                 let child_tf = self.analyze(graph_node.input.clone(), plan_ctx);
-                let self_tf = self.analyze(graph_node.self_plan.clone(), plan_ctx);
-                graph_node.rebuild_or_clone(child_tf, self_tf, logical_plan.clone())
+                // let self_tf = self.analyze(graph_node.self_plan.clone(), plan_ctx);
+                graph_node.rebuild_or_clone(child_tf, logical_plan.clone())
             },
             LogicalPlan::GraphRel(graph_rel) => {
                 let left_tf = self.analyze(graph_rel.left.clone(), plan_ctx);
                 let center_tf = self.analyze(graph_rel.center.clone(), plan_ctx);
                 let right_tf = self.analyze(graph_rel.right.clone(), plan_ctx);
                 graph_rel.rebuild_or_clone(left_tf, center_tf, right_tf, logical_plan.clone())
+            },
+            LogicalPlan::Cte(cte   ) => {
+                let child_tf = self.analyze( cte.input.clone(), plan_ctx);
+                cte.rebuild_or_clone(child_tf, logical_plan.clone())
             },
             LogicalPlan::Scan(_) => {
                 Transformed::No(logical_plan.clone())
@@ -52,6 +56,10 @@ impl AnalyzerPass for GroupByBuilding {
                 let rel_tf = self.analyze(connected_traversal.relationship.clone(), plan_ctx);
                 let end_tf = self.analyze(connected_traversal.end_node.clone(), plan_ctx);
                 connected_traversal.rebuild_or_clone(start_tf, rel_tf, end_tf, logical_plan.clone())
+            },
+            LogicalPlan::GraphJoins(graph_joins) => {
+                let child_tf = self.analyze(graph_joins.input.clone(), plan_ctx);
+                graph_joins.rebuild_or_clone(child_tf, logical_plan.clone())
             },
             LogicalPlan::Filter(filter) => {
                 let child_tf = self.analyze(filter.input.clone(), plan_ctx);

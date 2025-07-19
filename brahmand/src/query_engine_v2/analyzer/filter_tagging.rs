@@ -1,6 +1,6 @@
 use std::{collections::HashSet, sync::Arc};
 
-use crate::query_engine_v2::{analyzer::analyzer_pass::AnalyzerPass, expr::plan_expr::{AggregateFnCall, Operator, OperatorApplication, PlanExpr, PropertyAccess, ScalarFnCall}, logical_plan::logical_plan::{Filter, LogicalPlan, PlanCtx, ProjectionItem}, transformed::Transformed};
+use crate::query_engine_v2::{analyzer::analyzer_pass::AnalyzerPass, expr::plan_expr::{AggregateFnCall, Column, Operator, OperatorApplication, PlanExpr, PropertyAccess, ScalarFnCall}, logical_plan::{logical_plan::{Filter, LogicalPlan, ProjectionItem}, plan_ctx::PlanCtx}, transformed::Transformed};
 
 
 
@@ -17,14 +17,18 @@ impl AnalyzerPass for FilterTagging {
         match logical_plan.as_ref() {
             LogicalPlan::GraphNode(graph_node) => {
                 let child_tf = self.analyze(graph_node.input.clone(), plan_ctx);
-                let self_tf = self.analyze(graph_node.self_plan.clone(), plan_ctx);
-                graph_node.rebuild_or_clone(child_tf, self_tf, logical_plan.clone())
+                // let self_tf = self.analyze(graph_node.self_plan.clone(), plan_ctx);
+                graph_node.rebuild_or_clone(child_tf, logical_plan.clone())
             },
             LogicalPlan::GraphRel(graph_rel) => {
                 let left_tf = self.analyze(graph_rel.left.clone(), plan_ctx);
                 let center_tf = self.analyze(graph_rel.center.clone(), plan_ctx);
                 let right_tf = self.analyze(graph_rel.right.clone(), plan_ctx);
                 graph_rel.rebuild_or_clone(left_tf, center_tf, right_tf, logical_plan.clone())
+            },
+            LogicalPlan::Cte(cte   ) => {
+                let child_tf = self.analyze( cte.input.clone(), plan_ctx);
+                cte.rebuild_or_clone(child_tf, logical_plan.clone())
             },
             LogicalPlan::Empty => Transformed::No(logical_plan.clone()),
             LogicalPlan::Scan(_) => Transformed::No(logical_plan.clone()),
@@ -34,6 +38,10 @@ impl AnalyzerPass for FilterTagging {
                         let end_tf = self.analyze(connected_traversal.end_node.clone(), plan_ctx);
                         connected_traversal.rebuild_or_clone(start_tf, rel_tf, end_tf, logical_plan.clone())
                     },
+            LogicalPlan::GraphJoins(graph_joins) => {
+                let child_tf = self.analyze(graph_joins.input.clone(), plan_ctx);
+                graph_joins.rebuild_or_clone(child_tf, logical_plan.clone())
+            },
             LogicalPlan::Filter(filter) => {
                         let child_tf = self.analyze(filter.input.clone(), plan_ctx);
                         // call filter tagging and get new filter
@@ -119,8 +127,14 @@ impl FilterTagging {
                 }
             }
 
-            if let Some(table_data) = plan_ctx.alias_table_ctx_map.get_mut(table_name) {
-                table_data.filter_predicates.push(PlanExpr::OperatorApplicationExp(extracted_filter));
+            if let Some(table_ctx) = plan_ctx.alias_table_ctx_map.get_mut(table_name) {
+                let converted_filters = self.convert_prop_acc_to_column(PlanExpr::OperatorApplicationExp(extracted_filter));
+                table_ctx.insert_filter(converted_filters);
+                // table_ctx.filter_predicates.push(PlanExpr::OperatorApplicationExp(extracted_filter));
+
+                if table_ctx.is_rel {
+                    table_ctx.use_edge_list = true;
+                }
             }
 
         }
@@ -129,7 +143,7 @@ impl FilterTagging {
         for prop_acc in extracted_projections {
             let table_alias = prop_acc.table_alias.clone();
             if let Some(table_ctx) = plan_ctx.alias_table_ctx_map.get_mut(&table_alias.0){
-                table_ctx.projection_items.push(ProjectionItem {
+                table_ctx.insert_projection(ProjectionItem {
                     expression: PlanExpr::PropertyAccessExp(prop_acc),
                     col_alias: None,
                     // belongs_to_table: Some(table_alias),
@@ -147,6 +161,57 @@ impl FilterTagging {
         remaining
 
 
+    }
+
+    fn convert_prop_acc_to_column(&self, expr: PlanExpr) -> PlanExpr {
+        match expr {
+            PlanExpr::PropertyAccessExp(property_access) => {
+                PlanExpr::Column(property_access.column) 
+            },
+            PlanExpr::OperatorApplicationExp(op_app) => {
+                let mut new_operands: Vec<PlanExpr> = vec![];
+                for operand in op_app.operands {
+                    let new_operand = self.convert_prop_acc_to_column(operand);
+                    new_operands.push(new_operand);
+                }
+                PlanExpr::OperatorApplicationExp(OperatorApplication { operator: op_app.operator, operands: new_operands })
+            },
+            PlanExpr::List(exprs) => {
+                let mut new_exprs = Vec::new();
+                for sub_expr in exprs {
+
+                    let new_expr = self.convert_prop_acc_to_column(sub_expr);
+                    new_exprs.push(new_expr);
+
+                }
+                PlanExpr::List(new_exprs)
+            },
+            PlanExpr::ScalarFnCall(fc) => {
+                let mut new_args = Vec::new();
+                for arg in fc.args {
+                    let new_arg =  self.convert_prop_acc_to_column(arg);
+                    new_args.push(new_arg);
+
+                }
+                PlanExpr::ScalarFnCall(ScalarFnCall {
+                    name: fc.name,
+                    args: new_args,
+                })
+            }
+
+            PlanExpr::AggregateFnCall(fc) =>{
+                let mut new_args = Vec::new();
+                for arg in fc.args {
+                    let new_arg =  self.convert_prop_acc_to_column(arg);
+                    new_args.push(new_arg);
+                }
+                PlanExpr::AggregateFnCall(AggregateFnCall {
+                    name: fc.name,
+                    args: new_args,
+                })
+            }
+            other => other,
+        }
     }
 
     fn process_expr(

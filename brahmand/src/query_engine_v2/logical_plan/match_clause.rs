@@ -1,8 +1,8 @@
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use uuid::Uuid;
 
-use crate::{open_cypher_parser::ast::{ConnectedPattern, MatchClause, NodePattern, PathPattern}, query_engine_v2::{expr::plan_expr::{Column, Direction, Literal, Operator, OperatorApplication, PlanExpr, Property}, logical_plan::logical_plan::{ConnectedTraversal, GraphNode, GraphRel, LogicalPlan, PlanCtx, Scan, Skip, TableCtx}}};
+use crate::{open_cypher_parser::ast::{ConnectedPattern, MatchClause, NodePattern, PathPattern}, query_engine_v2::{expr::plan_expr::{Column, Operator, OperatorApplication, PlanExpr, Property}, logical_plan::{logical_plan::{GraphNode, GraphRel, LogicalPlan, Scan}, plan_ctx::{PlanCtx, TableCtx}}}};
 use super::errors::PlannerError;
 
 
@@ -43,30 +43,37 @@ fn convert_properties_to_operator_application(plan_ctx: &mut PlanCtx) {
 
     for (_,table_ctx) in plan_ctx.alias_table_ctx_map.iter_mut() {
         let mut extracted_props = convert_properties(std::mem::take(&mut table_ctx.properties));
+        if !extracted_props.is_empty() {
+            table_ctx.use_edge_list = true;
+        }
         table_ctx.filter_predicates.append(&mut extracted_props); 
     }
 
 }
 
 
-fn traverse_connected_pattern<'a>(connected_patterns: &Vec<ConnectedPattern<'a>>, mut plan: Arc<LogicalPlan>, plan_ctx: &mut PlanCtx) -> Arc<LogicalPlan> {
+fn generate_id()-> String {
+    format!("a{}",Uuid::new_v4().to_string()[..10].to_string().replace("-", ""))
+}
+
+fn traverse_connected_pattern<'a>(connected_patterns: &Vec<ConnectedPattern<'a>>, mut plan: Arc<LogicalPlan>, plan_ctx: &mut PlanCtx, path_pattern_idx: usize) -> Result<Arc<LogicalPlan>, PlannerError> {
     
 
     for connected_pattern in connected_patterns {
-
+        
 
         let start_node_ref = connected_pattern.start_node.borrow();
         let start_node_label = start_node_ref.label.map(|val| val.to_string());
-        let start_node_alias = if let Some(alias) = start_node_ref.name { alias.to_string()} else {Uuid::new_v4().to_string()};
+        let start_node_alias = if let Some(alias) = start_node_ref.name { alias.to_string()} else {generate_id()};
         let mut start_node_props = start_node_ref.properties.clone().map(|props| props.into_iter().map(Property::from).collect()).unwrap_or_else(Vec::new);
         
         let rel = &connected_pattern.relationship;
-        let rel_alias = if let Some(alias) = rel.name { alias.to_string()} else {Uuid::new_v4().to_string()};
+        let rel_alias = if let Some(alias) = rel.name { alias.to_string()} else {generate_id()};
         let rel_label = rel.label.map(|val| val.to_string());
         let rel_properties = rel.properties.clone().map(|props| props.into_iter().map(Property::from).collect()).unwrap_or_else(Vec::new);
 
         let end_node_ref = connected_pattern.end_node.borrow();
-        let end_node_alias = if let Some(alias) = end_node_ref.name { alias.to_string()} else {Uuid::new_v4().to_string()};
+        let end_node_alias = if let Some(alias) = end_node_ref.name { alias.to_string()} else {generate_id()};
         let end_node_label = end_node_ref.label.map(|val| val.to_string());
         let mut end_node_props = end_node_ref.properties.clone().map(|props| props.into_iter().map(Property::from).collect()).unwrap_or_else(Vec::new);
         
@@ -81,13 +88,14 @@ fn traverse_connected_pattern<'a>(connected_patterns: &Vec<ConnectedPattern<'a>>
             }
 
             let end_graph_node = GraphNode {
-                input: Arc::new(LogicalPlan::Empty),
-                self_plan: generate_scan(end_node_alias.clone(), None),
+                input: generate_scan(end_node_alias.clone(), None),
+                // input: Arc::new(LogicalPlan::Empty),
+                // self_plan: generate_scan(end_node_alias.clone(), None),
                 alias: end_node_alias.clone(),
                 down_connection: Some(rel_alias.clone()),
             };
-            plan_ctx.alias_table_ctx_map.insert(end_node_alias.clone(), TableCtx { label: end_node_label, properties: end_node_props, filter_predicates: vec![], projection_items: vec![], is_rel: false, use_edge_list: false, explicit_alias: end_node_ref.name.is_some() });
-
+            // plan_ctx.alias_table_ctx_map.insert(end_node_alias.clone(), TableCtx { label: end_node_label, properties: end_node_props, filter_predicates: vec![], projection_items: vec![], is_rel: false, use_edge_list: false, explicit_alias: end_node_ref.name.is_some() });
+            plan_ctx.alias_table_ctx_map.insert(end_node_alias.clone(),TableCtx::build(end_node_label, end_node_props, false, end_node_ref.name.is_some()));
 
             let graph_rel_node = GraphRel{
                 left: Arc::new(LogicalPlan::GraphNode(end_graph_node)),
@@ -97,12 +105,14 @@ fn traverse_connected_pattern<'a>(connected_patterns: &Vec<ConnectedPattern<'a>>
                 direction: rel.direction.clone().into(),
                 left_connection: Some(end_node_alias),
                 right_connection: Some(start_node_alias),
+                // is_anchor_graph_rel: false,
                 is_rel_anchor: false
             };
-            plan_ctx.alias_table_ctx_map.insert(rel_alias, TableCtx { label: rel_label, properties: rel_properties, filter_predicates: vec![], projection_items: vec![], is_rel: true, use_edge_list: false, explicit_alias: rel.name.is_some()  });
+            // plan_ctx.alias_table_ctx_map.insert(rel_alias, TableCtx { label: rel_label, properties: rel_properties, filter_predicates: vec![], projection_items: vec![], is_rel: true, use_edge_list: false, explicit_alias: rel.name.is_some()  });
+            plan_ctx.alias_table_ctx_map.insert(rel_alias,TableCtx::build(rel_label, rel_properties, true, rel.name.is_some()));
 
             
-            return Arc::new(LogicalPlan::GraphRel(graph_rel_node));
+            plan = Arc::new(LogicalPlan::GraphRel(graph_rel_node));
         }
         // if end alias already present in ctx map, it means the current nested connected pattern's end node will be connecting at right side plan and start node will be at the left
         else if let Some(table_ctx) = plan_ctx.alias_table_ctx_map.get_mut(&end_node_alias) {
@@ -114,13 +124,14 @@ fn traverse_connected_pattern<'a>(connected_patterns: &Vec<ConnectedPattern<'a>>
             }
 
             let start_graph_node = GraphNode {
-                input: Arc::new(LogicalPlan::Empty),
-                self_plan: generate_scan(start_node_alias.clone(), None),
+                input: generate_scan(start_node_alias.clone(), None),
+                // input: Arc::new(LogicalPlan::Empty),
+                // self_plan: generate_scan(start_node_alias.clone(), None),
                 alias: start_node_alias.clone(),
                 down_connection: Some(rel_alias.clone()),
             };
-            plan_ctx.alias_table_ctx_map.insert(start_node_alias.clone(), TableCtx { label: start_node_label, properties: start_node_props, filter_predicates: vec![], projection_items: vec![], is_rel: false, use_edge_list: false, explicit_alias: start_node_ref.name.is_some() });
-
+            // plan_ctx.alias_table_ctx_map.insert(start_node_alias.clone(), TableCtx { label: start_node_label, properties: start_node_props, filter_predicates: vec![], projection_items: vec![], is_rel: false, use_edge_list: false, explicit_alias: start_node_ref.name.is_some() });
+            plan_ctx.alias_table_ctx_map.insert(start_node_alias.clone(),TableCtx::build(start_node_label, start_node_props, false, start_node_ref.name.is_some()));
 
             let graph_rel_node = GraphRel{
                 left: Arc::new(LogicalPlan::GraphNode(start_graph_node)),
@@ -130,33 +141,44 @@ fn traverse_connected_pattern<'a>(connected_patterns: &Vec<ConnectedPattern<'a>>
                 direction: rel.direction.clone().into(),
                 left_connection: Some(start_node_alias),
                 right_connection: Some(end_node_alias),
+                // is_anchor_graph_rel: false,
                 is_rel_anchor: false
             };
-            plan_ctx.alias_table_ctx_map.insert(rel_alias, TableCtx { label: rel_label, properties: rel_properties, filter_predicates: vec![], projection_items: vec![], is_rel: true, use_edge_list: false, explicit_alias: rel.name.is_some() });
-
+            // plan_ctx.alias_table_ctx_map.insert(rel_alias, TableCtx { label: rel_label, properties: rel_properties, filter_predicates: vec![], projection_items: vec![], is_rel: true, use_edge_list: false, explicit_alias: rel.name.is_some() });
+            plan_ctx.alias_table_ctx_map.insert(rel_alias,TableCtx::build(rel_label, rel_properties, true, rel.name.is_some()));
            
-            return Arc::new(LogicalPlan::GraphRel(graph_rel_node));
+            plan = Arc::new(LogicalPlan::GraphRel(graph_rel_node));
 
         }
         // not connected with existing nodes
         else {
 
+            // if two comma separated patterns found and they are not connected to each other i.e. there is no common node alias between them then throw error.
+            if path_pattern_idx > 0 {
+                // throw error
+                return Err(PlannerError::DisconnectedPatternFound);
+            }
+
             // we will keep start graph node at the right side and end at the left side
             let start_graph_node = GraphNode {
-                input: plan.clone(), // or Arc::new(LogicalPlan::Empty)
-                self_plan: generate_scan(start_node_alias.clone(), None),
+                input: generate_scan(start_node_alias.clone(), None),
+                // input: plan.clone(), // or Arc::new(LogicalPlan::Empty)
+                // self_plan: generate_scan(start_node_alias.clone(), None),
                 alias: start_node_alias.clone(),
                 down_connection: None,
             };
-            plan_ctx.alias_table_ctx_map.insert(start_node_alias.clone(), TableCtx { label: start_node_label, properties: start_node_props, filter_predicates: vec![], projection_items: vec![], is_rel: false, use_edge_list: false, explicit_alias: start_node_ref.name.is_some()  });
+            // plan_ctx.alias_table_ctx_map.insert(start_node_alias.clone(), TableCtx { label: start_node_label, properties: start_node_props, filter_predicates: vec![], projection_items: vec![], is_rel: false, use_edge_list: false, explicit_alias: start_node_ref.name.is_some()  });
+            plan_ctx.alias_table_ctx_map.insert(start_node_alias.clone(),TableCtx::build(start_node_label, start_node_props, false, start_node_ref.name.is_some()));
 
             let end_graph_node = GraphNode {
-                input: plan.clone(), // or Arc::new(LogicalPlan::Empty)
-                self_plan: generate_scan(end_node_alias.clone(), None),
+                input: generate_scan(end_node_alias.clone(), None),
+                // input: plan.clone(), // or Arc::new(LogicalPlan::Empty)
+                // self_plan: generate_scan(end_node_alias.clone(), None),
                 alias: end_node_alias.clone(),
                 down_connection: Some(rel_alias.clone()),
             };
-            plan_ctx.alias_table_ctx_map.insert(end_node_alias.clone(), TableCtx { label: end_node_label, properties: end_node_props, filter_predicates: vec![], projection_items: vec![], is_rel: false, use_edge_list: false, explicit_alias: end_node_ref.name.is_some()  });
+            // plan_ctx.alias_table_ctx_map.insert(end_node_alias.clone(), TableCtx { label: end_node_label, properties: end_node_props, filter_predicates: vec![], projection_items: vec![], is_rel: false, use_edge_list: false, explicit_alias: end_node_ref.name.is_some()  });
+            plan_ctx.alias_table_ctx_map.insert(end_node_alias.clone(),TableCtx::build(end_node_label, end_node_props, false, end_node_ref.name.is_some()));
 
 
             let graph_rel_node = GraphRel{
@@ -167,9 +189,11 @@ fn traverse_connected_pattern<'a>(connected_patterns: &Vec<ConnectedPattern<'a>>
                 direction: rel.direction.clone().into(),
                 left_connection: Some(end_node_alias),
                 right_connection: Some(start_node_alias),
+                // is_anchor_graph_rel: false,
                 is_rel_anchor: false
             };
-            plan_ctx.alias_table_ctx_map.insert(rel_alias, TableCtx { label: rel_label, properties: rel_properties, filter_predicates: vec![], projection_items: vec![], is_rel: true, use_edge_list: false, explicit_alias: rel.name.is_some()  });
+            // plan_ctx.alias_table_ctx_map.insert(rel_alias, TableCtx { label: rel_label, properties: rel_properties, filter_predicates: vec![], projection_items: vec![], is_rel: true, use_edge_list: false, explicit_alias: rel.name.is_some()  });
+            plan_ctx.alias_table_ctx_map.insert(rel_alias,TableCtx::build(rel_label, rel_properties, true, rel.name.is_some()));
 
             
             plan =  Arc::new(LogicalPlan::GraphRel(graph_rel_node));
@@ -177,7 +201,7 @@ fn traverse_connected_pattern<'a>(connected_patterns: &Vec<ConnectedPattern<'a>>
 
     }
 
-    plan
+    Ok(plan)
 }
 
 // fn traverse_connected_pattern<'a>(connected_patterns: &Vec<ConnectedPattern<'a>>, mut plan: LogicalPlan, plan_ctx: &mut PlanCtx) -> LogicalPlan {
@@ -284,11 +308,13 @@ fn traverse_node_pattern(node_pattern: &NodePattern, plan: Arc<LogicalPlan>, pla
         }
         return Ok(plan);
     }else{
-        plan_ctx.alias_table_ctx_map.insert(node_alias.clone(), TableCtx { label: node_label, properties: node_props, filter_predicates: vec![], projection_items: vec![], is_rel: false, use_edge_list: false, explicit_alias: node_pattern.name.is_some() });
+        // plan_ctx.alias_table_ctx_map.insert(node_alias.clone(), TableCtx { label: node_label, properties: node_props, filter_predicates: vec![], projection_items: vec![], is_rel: false, use_edge_list: false, explicit_alias: node_pattern.name.is_some() });
+        plan_ctx.alias_table_ctx_map.insert(node_alias.clone(),TableCtx::build(node_label, node_props, false, node_pattern.name.is_some()));
 
         let graph_node = GraphNode {
-            input: LogicalPlan::Empty.into(),
-            self_plan: generate_scan(node_alias.clone(), None),
+            input: generate_scan(node_alias.clone(), None),
+            // input: LogicalPlan::Empty.into(),
+            // self_plan: generate_scan(node_alias.clone(), None),
             alias: node_alias,
             down_connection: None,
         };
@@ -341,13 +367,13 @@ pub fn evaluate_match_clause<'a>(
     // let mut logical_plan: LogicalPlan;
     // let mut plan:LogicalPlan = LogicalPlan::Empty;
     // let mut plan_ctx = PlanCtx::default();
-    for path_pattern in &match_clause.path_patterns {
+    for (idx, path_pattern) in match_clause.path_patterns.iter().enumerate() {
         match path_pattern {
             PathPattern::Node(node_pattern) => {
                 plan = traverse_node_pattern(node_pattern, plan, &mut plan_ctx)?;
             }
             PathPattern::ConnectedPattern(connected_patterns) => {
-                plan = traverse_connected_pattern(connected_patterns, plan, &mut plan_ctx);
+                plan = traverse_connected_pattern(connected_patterns, plan, &mut plan_ctx, idx)?;
             }
         }
     }

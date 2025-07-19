@@ -50,7 +50,7 @@ pub fn evaluate_query(
         };
 
         let sql_queries = ch_query_generator::generate_read_query(query_ir, traversal_mode)?;
-        // println!("\nsql_queries {:}", sql_queries.join("\n"));
+        println!("\nsql_queries {:}", sql_queries.join("\n"));
 
         Ok((query_type, sql_queries, None))
     } else if query_type == QueryType::Ddl {
