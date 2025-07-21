@@ -10,6 +10,7 @@ pub mod transformed;
 pub mod analyzer;
 pub mod render_plan;
 pub mod clickhouse_query_generator;
+pub mod plan_ctx;
 // pub mod types;
 mod errors;
 

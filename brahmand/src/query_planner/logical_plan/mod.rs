@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
-use crate::{open_cypher_parser::ast::OpenCypherQueryAst, query_planner::logical_plan::{errors::PlannerError, logical_plan::LogicalPlan, plan_ctx::PlanCtx}};
+use crate::{open_cypher_parser::ast::OpenCypherQueryAst, query_planner::logical_plan::{errors::PlannerError, logical_plan::LogicalPlan}};
+
+use super::plan_ctx::plan_ctx::PlanCtx;
 
 pub mod logical_plan;
-pub mod plan_ctx;
 pub mod plan_builder;
 mod match_clause;
 mod where_clause;

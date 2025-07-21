@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use uuid::Uuid;
 
-use crate::{open_cypher_parser::ast::{ConnectedPattern, MatchClause, NodePattern, PathPattern}, query_planner::{expr::plan_expr::{Column, Operator, OperatorApplication, PlanExpr, Property}, logical_plan::{logical_plan::{GraphNode, GraphRel, LogicalPlan, Scan}, plan_ctx::{PlanCtx, TableCtx}}}};
+use crate::{open_cypher_parser::ast::{ConnectedPattern, MatchClause, NodePattern, PathPattern}, query_planner::{expr::plan_expr::{Column, Operator, OperatorApplication, PlanExpr, Property}, logical_plan::logical_plan::{GraphNode, GraphRel, LogicalPlan, Scan}, plan_ctx::plan_ctx::{PlanCtx, TableCtx}}};
 use super::errors::PlannerError;
 
 

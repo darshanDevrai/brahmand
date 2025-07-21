@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
-use crate::query_planner::{logical_plan::{logical_plan::LogicalPlan, plan_ctx::PlanCtx}, optimizer::{anchor_node_selection::AnchorNodeSelection, filter_push_down::FilterPushDown, optimizer_pass::OptimizerPass, projection_push_down::ProjectionPushDown}};
+use crate::query_planner::{logical_plan::{logical_plan::LogicalPlan}, optimizer::{anchor_node_selection::AnchorNodeSelection, filter_push_down::FilterPushDown, optimizer_pass::OptimizerPass, projection_push_down::ProjectionPushDown}};
+
+use super::plan_ctx::plan_ctx::PlanCtx;
 
 
 
