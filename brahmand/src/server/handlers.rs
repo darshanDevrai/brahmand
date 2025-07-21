@@ -16,7 +16,7 @@ use crate::{
     query_engine::{
         // self,
         self, types::{GraphSchemaElement, QueryType, TraversalMode}
-    }, query_engine_v2,
+    }, query_planner,
 };
 
 
@@ -51,7 +51,7 @@ pub async fn query_handler(
 
     // TODO convert this error to axum error with proper message. Expose the module name in traces but not to users
     let (query_type, ch_sql_queries, graph_schema_element_opt) =
-        query_engine_v2::evaluate_query(cypher_ast, &traversal_mode, &graph_schema).map_err(|e| {
+        query_planner::evaluate_query(cypher_ast, &traversal_mode, &graph_schema).map_err(|e| {
             (
                 axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                 format!("Brahmand Error: {}", e),

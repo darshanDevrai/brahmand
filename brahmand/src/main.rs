@@ -1,6 +1,6 @@
 mod open_cypher_parser;
 mod query_engine;
-mod query_engine_v2;
+mod query_planner;
 mod server;
 
 #[tokio::main]
