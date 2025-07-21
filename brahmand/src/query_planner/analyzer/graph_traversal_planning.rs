@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use crate::{query_engine::types::{GraphSchema, RelationshipSchema}, query_planner::{analyzer::{analyzer_pass::AnalyzerPass, errors::AnalyzerError}, expr::plan_expr::{Column, ColumnAlias, Direction, InSubquery, PlanExpr, PropertyAccess}, logical_plan::logical_plan::{Cte, GraphRel, LogicalPlan, Projection, ProjectionItem, Scan}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed}};
+use crate::{query_engine::types::{GraphSchema, RelationshipSchema}, query_planner::{analyzer::{analyzer_pass::AnalyzerPass, errors::AnalyzerError}, logical_expr::logical_expr::{Column, ColumnAlias, Direction, InSubquery, LogicalExpr, PropertyAccess}, logical_plan::logical_plan::{Cte, GraphRel, LogicalPlan, Projection, ProjectionItem, Scan}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed}};
 
 
 
@@ -104,7 +104,7 @@ pub struct CtxToUpdate {
     alias: String,
     label: String,
     projections: Vec<ProjectionItem>,
-    insubquery: Option<PlanExpr>,
+    insubquery: Option<LogicalExpr>,
 }
 
 impl GraphTRaversalPlanning {
@@ -141,11 +141,11 @@ impl GraphTRaversalPlanning {
         let left_cte_name = format!("{}_{}",left_label, left_alias);
         let right_cte_name = format!("{}_{}", right_label, right_alias);
 
-        let star_found = right_ctx.projection_items.iter().any(|item| item.expression == PlanExpr::Star);
+        let star_found = right_ctx.projection_items.iter().any(|item| item.expression == LogicalExpr::Star);
         let node_id_found = right_ctx.projection_items.iter().any(|item| {
             match &item.expression {
-                PlanExpr::Column(Column(col)) => col == &right_node_id_column,
-                PlanExpr::PropertyAccessExp(PropertyAccess { column, .. }) => &column.0 == &right_node_id_column,
+                LogicalExpr::Column(Column(col)) => col == &right_node_id_column,
+                LogicalExpr::PropertyAccessExp(PropertyAccess { column, .. }) => column.0 == right_node_id_column,
                 _ => false,
             }
         });
@@ -157,11 +157,11 @@ impl GraphTRaversalPlanning {
         };
         
 
-        let star_found = left_ctx.projection_items.iter().any(|item| item.expression == PlanExpr::Star);
+        let star_found = left_ctx.projection_items.iter().any(|item| item.expression == LogicalExpr::Star);
         let node_id_found = left_ctx.projection_items.iter().any(|item| {
             match &item.expression {
-                PlanExpr::Column(Column(col)) => col == &left_node_id_column,
-                PlanExpr::PropertyAccessExp(PropertyAccess { column, .. }) => &column.0 == &left_node_id_column,
+                LogicalExpr::Column(Column(col)) => col == &left_node_id_column,
+                LogicalExpr::PropertyAccessExp(PropertyAccess { column, .. }) => column.0 == left_node_id_column,
                 _ => false,
             }
         });
@@ -175,7 +175,7 @@ impl GraphTRaversalPlanning {
         if rel_ctx.use_edge_list {
             let rel_cte_name = format!("{}_{}", rel_label, rel_alias);
             
-            let star_found = rel_ctx.projection_items.iter().any(|item| item.expression == PlanExpr::Star);
+            let star_found = rel_ctx.projection_items.iter().any(|item| item.expression == LogicalExpr::Star);
             let rel_proj_input: Vec<(String, Option<ColumnAlias>)> = if !star_found {
                 vec![
                     (format!("from_{}", rel_schema.from_node), Some(ColumnAlias("from_id".to_string()))),
@@ -184,9 +184,9 @@ impl GraphTRaversalPlanning {
             } else { vec![] };
 
             let rel_projections:Vec<ProjectionItem> = self.build_projections(rel_proj_input);
-            let rel_insubquery: PlanExpr;
-            let right_insubquery: PlanExpr;
-            let left_insubquery: PlanExpr;
+            let rel_insubquery: LogicalExpr;
+            let right_insubquery: LogicalExpr;
+            let left_insubquery: LogicalExpr;
             // when using edge list, we need to check which node joins to "from_id" and which node joins to "to_id"
             if rel_schema.from_node == right_schema.table_name {
                 rel_insubquery = self.build_insubquery("from_id".to_string(),
@@ -370,11 +370,11 @@ impl GraphTRaversalPlanning {
         let right_cte_name = format!("{}_{}", right_label, right_alias);
 
 
-        let star_found = left_ctx.projection_items.iter().any(|item| item.expression == PlanExpr::Star);
+        let star_found = left_ctx.projection_items.iter().any(|item| item.expression == LogicalExpr::Star);
         let node_id_found = left_ctx.projection_items.iter().any(|item| {
             match &item.expression {
-                PlanExpr::Column(Column(col)) => col == &left_node_id_column,
-                PlanExpr::PropertyAccessExp(PropertyAccess { column, .. }) => &column.0 == &left_node_id_column,
+                LogicalExpr::Column(Column(col)) => col == &left_node_id_column,
+                LogicalExpr::PropertyAccessExp(PropertyAccess { column, .. }) => column.0 == left_node_id_column,
                 _ => false,
             }
         });
@@ -389,7 +389,7 @@ impl GraphTRaversalPlanning {
         if rel_ctx.use_edge_list {
             let rel_cte_name = format!("{}_{}", rel_label, rel_alias);
             
-            let star_found = rel_ctx.projection_items.iter().any(|item| item.expression == PlanExpr::Star);
+            let star_found = rel_ctx.projection_items.iter().any(|item| item.expression == LogicalExpr::Star);
             let rel_proj_input: Vec<(String, Option<ColumnAlias>)> = if !star_found {
                 vec![
                     (format!("from_{}", rel_schema.from_node), Some(ColumnAlias("from_id".to_string()))),
@@ -398,9 +398,9 @@ impl GraphTRaversalPlanning {
             } else { vec![] };
 
             let rel_projections:Vec<ProjectionItem> = self.build_projections(rel_proj_input);
-            let rel_insubquery: PlanExpr;
-            // let right_insubquery: PlanExpr;
-            let left_insubquery: PlanExpr;
+            let rel_insubquery: LogicalExpr;
+            // let right_insubquery: LogicalExpr;
+            let left_insubquery: LogicalExpr;
             // when using edge list, we need to check which node joins to "from_id" and which node joins to "to_id"
             if rel_schema.from_node == right_schema.table_name {
                 rel_insubquery = self.build_insubquery("from_id".to_string(),
@@ -499,16 +499,16 @@ impl GraphTRaversalPlanning {
     fn build_projections(&self, items: Vec<(String, Option<ColumnAlias>)>) -> Vec<ProjectionItem> {
         items.into_iter().map(|(expr_str, alias)| {
             ProjectionItem{
-                expression: PlanExpr::Column(Column(expr_str)),
+                expression: LogicalExpr::Column(Column(expr_str)),
                 col_alias: alias,
             }
         }).collect()
     }
 
 
-    fn build_insubquery(&self, sub_in_exp: String, sub_plan_table: String, sub_plan_column: String) -> PlanExpr{
-        PlanExpr::InSubquery(InSubquery{
-            expr: Box::new(PlanExpr::Column(Column(sub_in_exp))),
+    fn build_insubquery(&self, sub_in_exp: String, sub_plan_table: String, sub_plan_column: String) -> LogicalExpr{
+        LogicalExpr::InSubquery(InSubquery{
+            expr: Box::new(LogicalExpr::Column(Column(sub_in_exp))),
             subplan: self.get_subplan(sub_plan_table, sub_plan_column)
         })
     }
@@ -519,7 +519,7 @@ impl GraphTRaversalPlanning {
                 table_alias: "".to_string(),
                 table_name: Some(table_name),
             })),
-            items: vec![ProjectionItem{ expression: PlanExpr::Column(Column(table_column)), col_alias: None }],
+            items: vec![ProjectionItem{ expression: LogicalExpr::Column(Column(table_column)), col_alias: None }],
         }))
     } 
 

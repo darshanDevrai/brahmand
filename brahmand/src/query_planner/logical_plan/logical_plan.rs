@@ -1,7 +1,7 @@
 
-use std::{collections::HashMap, sync::Arc, fmt};
+use std::{sync::Arc, fmt};
 
-use crate::query_planner::{expr::plan_expr::{ColumnAlias, Direction, OperatorApplication, PlanExpr, Property, TableAlias}, transformed::Transformed};
+use crate::query_planner::{logical_expr::logical_expr::{ColumnAlias, Direction, OperatorApplication, LogicalExpr, Property, TableAlias}, transformed::Transformed};
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum LogicalPlan {
@@ -91,7 +91,7 @@ pub struct ConnectedTraversal {
 #[derive(Debug, PartialEq, Clone)]
 pub struct Filter {
     pub input: Arc<LogicalPlan>,
-    pub predicate: PlanExpr,
+    pub predicate: LogicalExpr,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -103,12 +103,12 @@ pub struct Projection {
 #[derive(Debug, PartialEq, Clone)]
 pub struct GroupBy {
     pub input: Arc<LogicalPlan>,
-    pub expressions: Vec<PlanExpr>,
+    pub expressions: Vec<LogicalExpr>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct ProjectionItem {
-    pub expression: PlanExpr,
+    pub expression: LogicalExpr,
     pub col_alias: Option<ColumnAlias>,
 }
 
@@ -132,7 +132,7 @@ pub struct Limit {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct OrderByItem {
-    pub expression: PlanExpr,
+    pub expression: LogicalExpr,
     pub order: OrderByOrder,
 }
 
@@ -344,7 +344,7 @@ impl<'a> From<crate::open_cypher_parser::ast::OrderByItem<'a>> for OrderByItem {
     fn from(value: crate::open_cypher_parser::ast::OrderByItem<'a>) -> Self {
         OrderByItem {
             expression: if let crate::open_cypher_parser::ast::Expression::Variable(var) = value.expression {
-                PlanExpr::ColumnAlias(ColumnAlias(var.to_string()))
+                LogicalExpr::ColumnAlias(ColumnAlias(var.to_string()))
             } else{
                 value.expression.into()
             },

@@ -1,7 +1,7 @@
 use crate::query_planner::render_plan::plan_builder::RenderPlanBuilder;
-use crate::query_planner::{expr::plan_expr::PlanExpr, render_plan::render_plan::RenderPlan};
+use crate::query_planner::{logical_expr::logical_expr::LogicalExpr, render_plan::render_plan::RenderPlan};
 
-use crate::query_planner::expr::plan_expr::{
+use crate::query_planner::logical_expr::logical_expr::{
     Literal as LogicalLiteral, TableAlias as LogicalTableAlias, ColumnAlias as LogicalColumnAlias,
     Column as LogicalColumn, OperatorApplication as LogicalOperatorApplication, Operator as LogicalOperator,
     PropertyAccess as LogicalPropertyAccess, ScalarFnCall as LogicalScalarFnCall,
@@ -119,23 +119,23 @@ pub struct AggregateFnCall {
 
 
 
-impl From<PlanExpr> for RenderExpr {
-    fn from(expr: PlanExpr) -> Self {
+impl From<LogicalExpr> for RenderExpr {
+    fn from(expr: LogicalExpr) -> Self {
         match expr {
-            PlanExpr::Literal(lit) => RenderExpr::Literal(lit.into()),
-            PlanExpr::Star => RenderExpr::Star,
-            PlanExpr::TableAlias(alias) => RenderExpr::TableAlias(alias.into()),
-            PlanExpr::ColumnAlias(alias) => RenderExpr::ColumnAlias(alias.into()),
-            PlanExpr::Column(col) => RenderExpr::Column(col.into()),
-            PlanExpr::Parameter(s) => RenderExpr::Parameter(s),
-            PlanExpr::List(exprs) => RenderExpr::List(exprs.into_iter().map(RenderExpr::from).collect()),
-            PlanExpr::AggregateFnCall(agg) => RenderExpr::AggregateFnCall(agg.into()),
-            PlanExpr::ScalarFnCall(fn_call) => RenderExpr::ScalarFnCall(fn_call.into()),
-            PlanExpr::PropertyAccessExp(pa) => RenderExpr::PropertyAccessExp(pa.into()),
-            PlanExpr::OperatorApplicationExp(op) => RenderExpr::OperatorApplicationExp(op.into()),
-            PlanExpr::InSubquery(subq) => RenderExpr::InSubquery(subq.into()),
+            LogicalExpr::Literal(lit) => RenderExpr::Literal(lit.into()),
+            LogicalExpr::Star => RenderExpr::Star,
+            LogicalExpr::TableAlias(alias) => RenderExpr::TableAlias(alias.into()),
+            LogicalExpr::ColumnAlias(alias) => RenderExpr::ColumnAlias(alias.into()),
+            LogicalExpr::Column(col) => RenderExpr::Column(col.into()),
+            LogicalExpr::Parameter(s) => RenderExpr::Parameter(s),
+            LogicalExpr::List(exprs) => RenderExpr::List(exprs.into_iter().map(RenderExpr::from).collect()),
+            LogicalExpr::AggregateFnCall(agg) => RenderExpr::AggregateFnCall(agg.into()),
+            LogicalExpr::ScalarFnCall(fn_call) => RenderExpr::ScalarFnCall(fn_call.into()),
+            LogicalExpr::PropertyAccessExp(pa) => RenderExpr::PropertyAccessExp(pa.into()),
+            LogicalExpr::OperatorApplicationExp(op) => RenderExpr::OperatorApplicationExp(op.into()),
+            LogicalExpr::InSubquery(subq) => RenderExpr::InSubquery(subq.into()),
             // PathPattern is not present in RenderExpr
-            _ => unimplemented!("Conversion for this PlanExpr variant is not implemented"),
+            _ => unimplemented!("Conversion for this LogicalExpr variant is not implemented"),
         }
     }
 }

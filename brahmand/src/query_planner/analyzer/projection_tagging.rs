@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{query_engine::types::GraphSchema, query_planner::{analyzer::analyzer_pass::AnalyzerPass, expr::plan_expr::{AggregateFnCall, Column, PlanExpr, PropertyAccess, TableAlias}, logical_plan::logical_plan::{LogicalPlan, Projection, ProjectionItem}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed}};
+use crate::{query_engine::types::GraphSchema, query_planner::{analyzer::analyzer_pass::AnalyzerPass, logical_expr::logical_expr::{AggregateFnCall, Column, LogicalExpr, PropertyAccess, TableAlias}, logical_plan::logical_plan::{LogicalPlan, Projection, ProjectionItem}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed}};
 
 
 
@@ -30,14 +30,14 @@ impl AnalyzerPass for ProjectionTagging {
                 // RETURN u, c, p;
                 // 
                 // To achieve this we will convert `RETURN *` into `RETURN u, c, p`   
-                // let mut proj_items_to_mutate:Vec<ProjectionItem> = if projection.items.len() == 1 && projection.items.first().unwrap().expression == PlanExpr::Star {
+                // let mut proj_items_to_mutate:Vec<ProjectionItem> = if projection.items.len() == 1 && projection.items.first().unwrap().expression == LogicalExpr::Star {
                 let mut proj_items_to_mutate:Vec<ProjectionItem> = if self.select_all_present(&projection.items) {
                     // we will create projection items with only table alias as return item. tag_projection will handle the proper tagging and overall projection manupulation.
                     let explicit_aliases = self.get_explicit_aliases(plan_ctx);
                     explicit_aliases.iter().map(|exp_alias| {
                         let table_alias = TableAlias(exp_alias.clone());
                         ProjectionItem{
-                            expression: PlanExpr::TableAlias(table_alias.clone()),
+                            expression: LogicalExpr::TableAlias(table_alias.clone()),
                             col_alias: None,
                         }
                     }).collect()
@@ -112,7 +112,7 @@ impl ProjectionTagging {
     }
 
     fn select_all_present(&self, projection_items: &Vec<ProjectionItem>) -> bool {
-        projection_items.iter().any(|item| item.expression == PlanExpr::Star)
+        projection_items.iter().any(|item| item.expression == LogicalExpr::Star)
     }
 
     fn get_explicit_aliases(&self, plan_ctx: &mut PlanCtx) -> Vec<String> {
@@ -130,12 +130,12 @@ impl ProjectionTagging {
 
     fn tag_projection(&self, item: &mut ProjectionItem, plan_ctx: &mut PlanCtx, graph_schema: &GraphSchema) {
         match item.expression.clone() {
-            PlanExpr::TableAlias(table_alias) => {
+            LogicalExpr::TableAlias(table_alias) => {
                 // if just table alias i.e MATCH (p:Post) Return p; then For final overall projection keep p.* and for p's projection keep *. 
 
                 let table_ctx = plan_ctx.alias_table_ctx_map.get_mut(&table_alias.0).unwrap();
                 let tagged_proj = ProjectionItem {
-                    expression: PlanExpr::Star,
+                    expression: LogicalExpr::Star,
                     col_alias: None,
                     // belongs_to_table: Some(table_alias.clone()),
                 };
@@ -148,17 +148,17 @@ impl ProjectionTagging {
                 }
 
                 // update the overall projection
-                item.expression = PlanExpr::PropertyAccessExp(PropertyAccess{
+                item.expression = LogicalExpr::PropertyAccessExp(PropertyAccess{
                     table_alias: table_alias.clone(),
                     column: Column("*".to_string()),
                 });
             },
-            PlanExpr::PropertyAccessExp(property_access) => {
+            LogicalExpr::PropertyAccessExp(property_access) => {
                 let table_ctx = plan_ctx.alias_table_ctx_map.get_mut(&property_access.table_alias.0).unwrap();
                 table_ctx.insert_projection(item.clone());
 
             }
-            PlanExpr::OperatorApplicationExp(operator_application) => {
+            LogicalExpr::OperatorApplicationExp(operator_application) => {
                 for operand in &operator_application.operands {
                     let mut operand_return_item = ProjectionItem {
                         expression: operand.clone(),
@@ -167,7 +167,7 @@ impl ProjectionTagging {
                     self.tag_projection(&mut operand_return_item, plan_ctx, graph_schema);
                 }
             },
-            PlanExpr::ScalarFnCall(scalar_fn_call) => {
+            LogicalExpr::ScalarFnCall(scalar_fn_call) => {
                 for arg in &scalar_fn_call.args {
                     let mut arg_return_item = ProjectionItem {
                         expression: arg.clone(),
@@ -178,17 +178,17 @@ impl ProjectionTagging {
             },
             // For now I am not tagging Aggregate fns, but I will tag later for aggregate pushdown when I implement the aggregate push down optimization
             // For now if there is a tableAlias in agg fn args and fn name is Count then convert the table alias to node Id
-            PlanExpr::AggregateFnCall(aggregate_fn_call) => {
+            LogicalExpr::AggregateFnCall(aggregate_fn_call) => {
                 for arg in &aggregate_fn_call.args {
-                    if let PlanExpr::TableAlias(TableAlias(t_alias)) = arg {
+                    if let LogicalExpr::TableAlias(TableAlias(t_alias)) = arg {
                         if aggregate_fn_call.name.to_lowercase() == "count" {
                             let table_ctx = plan_ctx.alias_table_ctx_map.get_mut(t_alias).unwrap();
                             let table_label = table_ctx.label.clone().unwrap();
                             let table_schema = graph_schema.nodes.get(&table_label).unwrap();
                             let table_node_id = table_schema.node_id.column.clone();
-                            item.expression = PlanExpr::AggregateFnCall(AggregateFnCall{
+                            item.expression = LogicalExpr::AggregateFnCall(AggregateFnCall{
                                 name: aggregate_fn_call.name.clone(),
-                                args: vec![PlanExpr::PropertyAccessExp(PropertyAccess { table_alias: TableAlias(t_alias.to_string()), column: Column(table_node_id) })],
+                                args: vec![LogicalExpr::PropertyAccessExp(PropertyAccess { table_alias: TableAlias(t_alias.to_string()), column: Column(table_node_id) })],
                             });
                         }
                     }

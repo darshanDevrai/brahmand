@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{open_cypher_parser::ast::WhereClause, query_planner::{expr::plan_expr::PlanExpr, logical_plan::logical_plan::{Filter, LogicalPlan}}};
+use crate::{open_cypher_parser::ast::WhereClause, query_planner::{logical_expr::logical_expr::LogicalExpr, logical_plan::logical_plan::{Filter, LogicalPlan}}};
 
 
 pub fn evaluate_where_clause<'a>(
@@ -8,7 +8,7 @@ pub fn evaluate_where_clause<'a>(
     plan: Arc<LogicalPlan>,
 ) -> Arc<LogicalPlan> {
     
-    let predicates:PlanExpr = where_clause.conditions.clone().into();
+    let predicates:LogicalExpr = where_clause.conditions.clone().into();
     Arc::new(LogicalPlan::Filter(Filter{
         input: plan, 
         predicate: predicates

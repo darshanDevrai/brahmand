@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{query_engine::types::{GraphSchema, RelationshipSchema}, query_planner::{analyzer::{analyzer_pass::AnalyzerPass, errors::AnalyzerError}, expr::plan_expr::PlanExpr, logical_plan::logical_plan::{LogicalPlan, ProjectionItem, Scan}, plan_ctx::plan_ctx::{PlanCtx, TableCtx}, transformed::Transformed}};
+use crate::{query_engine::types::{GraphSchema, RelationshipSchema}, query_planner::{analyzer::{analyzer_pass::AnalyzerPass, errors::AnalyzerError}, logical_expr::logical_expr::LogicalExpr, logical_plan::logical_plan::{LogicalPlan, ProjectionItem, Scan}, plan_ctx::plan_ctx::{PlanCtx, TableCtx}, transformed::Transformed}};
 
 
 
@@ -612,10 +612,10 @@ impl SchemaInference {
 
     fn get_column_name_from_filter_predicates(
         &self,
-        filter_predicates: &Vec<PlanExpr>,
+        filter_predicates: &Vec<LogicalExpr>,
     ) -> Option<String> {
         for filter_predicate in filter_predicates.iter() {
-            if let PlanExpr::OperatorApplicationExp(op_app) = filter_predicate {
+            if let LogicalExpr::OperatorApplicationExp(op_app) = filter_predicate {
                 for operand in &op_app.operands {
                     if let Some(column_name) = self.get_column_name_from_plan_expr(operand) {
                         return Some(column_name);
@@ -636,9 +636,9 @@ impl SchemaInference {
     }
 
 
-    fn get_column_name_from_plan_expr(&self, exp: &PlanExpr) -> Option<String> {
+    fn get_column_name_from_plan_expr(&self, exp: &LogicalExpr) -> Option<String> {
         match exp {
-            PlanExpr::OperatorApplicationExp(op_ex) => {
+            LogicalExpr::OperatorApplicationExp(op_ex) => {
                         for operand in &op_ex.operands {
                             if let Some(column_name) = self.get_column_name_from_plan_expr(operand) {
                                 return Some(column_name);
@@ -646,7 +646,7 @@ impl SchemaInference {
                         }
                         None
                     }
-            PlanExpr::ScalarFnCall(function_call) => {
+            LogicalExpr::ScalarFnCall(function_call) => {
                         for arg in &function_call.args {
                             if let Some(column_name) = self.get_column_name_from_plan_expr(arg) {
                                 return Some(column_name);
@@ -654,7 +654,7 @@ impl SchemaInference {
                         }
                         None
                     },
-            PlanExpr::AggregateFnCall(function_call) => {
+            LogicalExpr::AggregateFnCall(function_call) => {
                         for arg in &function_call.args {
                             if let Some(column_name) = self.get_column_name_from_plan_expr(arg) {
                                 return Some(column_name);
@@ -662,7 +662,7 @@ impl SchemaInference {
                         }
                         None
                     }
-            PlanExpr::PropertyAccessExp(property_access) => Some(property_access.column.0.clone()),
+            LogicalExpr::PropertyAccessExp(property_access) => Some(property_access.column.0.clone()),
             _ => None
         }
     }

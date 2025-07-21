@@ -3,7 +3,7 @@
 use crate::{open_cypher_parser::ast::OpenCypherQueryAst, query_engine::types::{GraphSchema, GraphSchemaElement, QueryType, TraversalMode}, query_planner::render_plan::plan_builder::RenderPlanBuilder};
 
 
-pub mod expr;
+pub mod logical_expr;
 pub mod logical_plan;
 pub mod optimizer;
 pub mod transformed;

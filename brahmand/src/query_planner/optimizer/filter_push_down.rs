@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::query_planner::{expr::plan_expr::{Operator, OperatorApplication, PlanExpr}, logical_plan::logical_plan::{Filter, LogicalPlan}, optimizer::optimizer_pass::OptimizerPass, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed};
+use crate::query_planner::{logical_expr::logical_expr::{Operator, OperatorApplication, LogicalExpr}, logical_plan::logical_plan::{Filter, LogicalPlan}, optimizer::optimizer_pass::OptimizerPass, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed};
 
 
 
@@ -80,13 +80,13 @@ impl FilterPushDown {
         FilterPushDown
     }
 
-    pub fn get_combined_predicate(&self, filter_items: Vec<PlanExpr>) -> Option<PlanExpr> {
+    pub fn get_combined_predicate(&self, filter_items: Vec<LogicalExpr>) -> Option<LogicalExpr> {
         let mut iter = filter_items.into_iter();
         let first = iter.next();
 
         let combined = first.map(|first_expr| {
             iter.fold(first_expr, |acc, expr| {
-                PlanExpr::OperatorApplicationExp(OperatorApplication {
+                LogicalExpr::OperatorApplicationExp(OperatorApplication {
                     operator: Operator::And,
                     operands: vec![acc, expr],
                 })

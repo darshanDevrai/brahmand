@@ -1,6 +1,6 @@
 use std::{collections::HashSet, sync::Arc};
 
-use crate::{query_engine::types::GraphSchema, query_planner::{analyzer::{analyzer_pass::AnalyzerPass, errors::AnalyzerError}, expr::plan_expr::{Column, Operator, OperatorApplication, PlanExpr, PropertyAccess, TableAlias}, logical_plan::logical_plan::{GraphJoins, GraphRel, Join, LogicalPlan}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed}};
+use crate::{query_engine::types::GraphSchema, query_planner::{analyzer::{analyzer_pass::AnalyzerPass, errors::AnalyzerError}, logical_expr::logical_expr::{Column, Operator, OperatorApplication, LogicalExpr, PropertyAccess, TableAlias}, logical_plan::logical_plan::{GraphJoins, GraphRel, Join, LogicalPlan}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed}};
 
 
 
@@ -179,8 +179,8 @@ impl GraphJoinInference {
                             OperatorApplication{
                                 operator: Operator::Equal,
                                 operands: vec![
-                                    PlanExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(rel_alias.to_string()), column: Column("from_id".to_string()) }),
-                                    PlanExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(right_alias.to_string()), column: Column(right_node_id_column.clone()) })
+                                    LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(rel_alias.to_string()), column: Column("from_id".to_string()) }),
+                                    LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(right_alias.to_string()), column: Column(right_node_id_column.clone()) })
                                 ]
                             }
                         ],
@@ -193,8 +193,8 @@ impl GraphJoinInference {
                             OperatorApplication{
                                 operator: Operator::Equal,
                                 operands: vec![
-                                    PlanExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(left_alias.to_string()), column: Column(left_node_id_column.clone()) }),
-                                    PlanExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(rel_alias.to_string()), column: Column("to_id".to_string()) })
+                                    LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(left_alias.to_string()), column: Column(left_node_id_column.clone()) }),
+                                    LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(rel_alias.to_string()), column: Column("to_id".to_string()) })
                                 ]
                             }
                         ],
@@ -205,8 +205,8 @@ impl GraphJoinInference {
                             OperatorApplication{
                                 operator: Operator::Equal,
                                 operands: vec![
-                                    PlanExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(rel_alias.to_string()), column: Column("to_id".to_string()) }),
-                                    PlanExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(left_alias.to_string()), column: Column(left_node_id_column) }),
+                                    LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(rel_alias.to_string()), column: Column("to_id".to_string()) }),
+                                    LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(left_alias.to_string()), column: Column(left_node_id_column) }),
                                 ]
                             };
                         rel_graph_join.joining_on.push(rel_to_right_graph_join_keys);
@@ -237,8 +237,8 @@ impl GraphJoinInference {
                             OperatorApplication{
                                 operator: Operator::Equal,
                                 operands: vec![
-                                    PlanExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(rel_alias.to_string()), column: Column("to_id".to_string()) }),
-                                    PlanExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(left_alias.to_string()), column: Column(left_node_id_column.clone()) })
+                                    LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(rel_alias.to_string()), column: Column("to_id".to_string()) }),
+                                    LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(left_alias.to_string()), column: Column(left_node_id_column.clone()) })
                                 ]
                             }
                         ],
@@ -251,8 +251,8 @@ impl GraphJoinInference {
                             OperatorApplication{
                                 operator: Operator::Equal,
                                 operands: vec![
-                                    PlanExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(right_alias.to_string()), column: Column(right_node_id_column.clone()) }),
-                                    PlanExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(rel_alias.to_string()), column: Column("from_id".to_string()) })
+                                    LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(right_alias.to_string()), column: Column(right_node_id_column.clone()) }),
+                                    LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(rel_alias.to_string()), column: Column("from_id".to_string()) })
                                 ]
                             }
                         ],
@@ -263,8 +263,8 @@ impl GraphJoinInference {
                             OperatorApplication{
                                 operator: Operator::Equal,
                                 operands: vec![
-                                    PlanExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(rel_alias.to_string()), column: Column("from_id".to_string()) }),
-                                    PlanExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(right_alias.to_string()), column: Column(right_node_id_column) }),
+                                    LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(rel_alias.to_string()), column: Column("from_id".to_string()) }),
+                                    LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(right_alias.to_string()), column: Column(right_node_id_column) }),
                                 ]
                             };
                         rel_graph_join.joining_on.push(rel_to_right_graph_join_keys);
@@ -296,8 +296,8 @@ impl GraphJoinInference {
                             OperatorApplication{
                                 operator: Operator::Equal,
                                 operands: vec![
-                                    PlanExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(rel_alias.to_string()), column: Column("to_id".to_string()) }),
-                                    PlanExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(right_alias.to_string()), column: Column(right_node_id_column.clone()) })
+                                    LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(rel_alias.to_string()), column: Column("to_id".to_string()) }),
+                                    LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(right_alias.to_string()), column: Column(right_node_id_column.clone()) })
                                 ]
                             }
                         ],
@@ -310,8 +310,8 @@ impl GraphJoinInference {
                             OperatorApplication{
                                 operator: Operator::Equal,
                                 operands: vec![
-                                    PlanExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(left_alias.to_string()), column: Column(left_node_id_column.clone()) }),
-                                    PlanExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(rel_alias.to_string()), column: Column("from_id".to_string()) })
+                                    LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(left_alias.to_string()), column: Column(left_node_id_column.clone()) }),
+                                    LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(rel_alias.to_string()), column: Column("from_id".to_string()) })
                                 ]
                             }
                         ],
@@ -322,8 +322,8 @@ impl GraphJoinInference {
                             OperatorApplication{
                                 operator: Operator::Equal,
                                 operands: vec![
-                                    PlanExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(rel_alias.to_string()), column: Column("from_id".to_string()) }),
-                                    PlanExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(left_alias.to_string()), column: Column(left_node_id_column) }),
+                                    LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(rel_alias.to_string()), column: Column("from_id".to_string()) }),
+                                    LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(left_alias.to_string()), column: Column(left_node_id_column) }),
                                 ]
                             };
                         rel_graph_join.joining_on.push(rel_to_right_graph_join_keys);
@@ -352,8 +352,8 @@ impl GraphJoinInference {
                             OperatorApplication{
                                 operator: Operator::Equal,
                                 operands: vec![
-                                    PlanExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(rel_alias.to_string()), column: Column("from_id".to_string()) }),
-                                    PlanExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(left_alias.to_string()), column: Column(left_node_id_column.clone()) })
+                                    LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(rel_alias.to_string()), column: Column("from_id".to_string()) }),
+                                    LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(left_alias.to_string()), column: Column(left_node_id_column.clone()) })
                                 ]
                             }
                         ],
@@ -366,8 +366,8 @@ impl GraphJoinInference {
                             OperatorApplication{
                                 operator: Operator::Equal,
                                 operands: vec![
-                                    PlanExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(right_alias.to_string()), column: Column(right_node_id_column.clone()) }),
-                                    PlanExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(rel_alias.to_string()), column: Column("to_id".to_string()) })
+                                    LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(right_alias.to_string()), column: Column(right_node_id_column.clone()) }),
+                                    LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(rel_alias.to_string()), column: Column("to_id".to_string()) })
                                 ]
                             }
                         ],
@@ -378,8 +378,8 @@ impl GraphJoinInference {
                             OperatorApplication{
                                 operator: Operator::Equal,
                                 operands: vec![
-                                    PlanExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(rel_alias.to_string()), column: Column("to_id".to_string()) }),
-                                    PlanExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(right_alias.to_string()), column: Column(right_node_id_column) }),
+                                    LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(rel_alias.to_string()), column: Column("to_id".to_string()) }),
+                                    LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(right_alias.to_string()), column: Column(right_node_id_column) }),
                                 ]
                             };
                         rel_graph_join.joining_on.push(rel_to_right_graph_join_keys);
@@ -410,8 +410,8 @@ impl GraphJoinInference {
                         OperatorApplication{
                             operator: Operator::Equal,
                             operands: vec![
-                                PlanExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(rel_alias.to_string()), column: Column("from_id".to_string()) }),
-                                PlanExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(right_alias.to_string()), column: Column(right_node_id_column.clone()) })
+                                LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(rel_alias.to_string()), column: Column("from_id".to_string()) }),
+                                LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(right_alias.to_string()), column: Column(right_node_id_column.clone()) })
                             ]
                         }
                     ],
@@ -424,8 +424,8 @@ impl GraphJoinInference {
                         OperatorApplication{
                             operator: Operator::Equal,
                             operands: vec![
-                                PlanExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(left_alias.to_string()), column: Column(left_node_id_column.clone()) }),
-                                PlanExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(rel_alias.to_string()), column: Column("to_id".to_string()) })
+                                LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(left_alias.to_string()), column: Column(left_node_id_column.clone()) }),
+                                LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(rel_alias.to_string()), column: Column("to_id".to_string()) })
                             ]
                         }
                     ],
@@ -436,8 +436,8 @@ impl GraphJoinInference {
                         OperatorApplication{
                             operator: Operator::Equal,
                             operands: vec![
-                                PlanExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(rel_alias.to_string()), column: Column("to_id".to_string()) }),
-                                PlanExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(left_alias.to_string()), column: Column(left_node_id_column) }),
+                                LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(rel_alias.to_string()), column: Column("to_id".to_string()) }),
+                                LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(left_alias.to_string()), column: Column(left_node_id_column) }),
                             ]
                         };
                     rel_graph_join.joining_on.push(rel_to_right_graph_join_keys);
@@ -468,8 +468,8 @@ impl GraphJoinInference {
                         OperatorApplication{
                             operator: Operator::Equal,
                             operands: vec![
-                                PlanExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(rel_alias.to_string()), column: Column("to_id".to_string()) }),
-                                PlanExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(left_alias.to_string()), column: Column(left_node_id_column.clone()) })
+                                LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(rel_alias.to_string()), column: Column("to_id".to_string()) }),
+                                LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(left_alias.to_string()), column: Column(left_node_id_column.clone()) })
                             ]
                         }
                     ],
@@ -482,8 +482,8 @@ impl GraphJoinInference {
                         OperatorApplication{
                             operator: Operator::Equal,
                             operands: vec![
-                                PlanExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(right_alias.to_string()), column: Column(right_node_id_column.clone()) }),
-                                PlanExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(rel_alias.to_string()), column: Column("from_id".to_string()) })
+                                LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(right_alias.to_string()), column: Column(right_node_id_column.clone()) }),
+                                LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(rel_alias.to_string()), column: Column("from_id".to_string()) })
                             ]
                         }
                     ],
@@ -494,8 +494,8 @@ impl GraphJoinInference {
                         OperatorApplication{
                             operator: Operator::Equal,
                             operands: vec![
-                                PlanExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(rel_alias.to_string()), column: Column("from_id".to_string()) }),
-                                PlanExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(right_alias.to_string()), column: Column(right_node_id_column) }),
+                                LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(rel_alias.to_string()), column: Column("from_id".to_string()) }),
+                                LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(right_alias.to_string()), column: Column(right_node_id_column) }),
                             ]
                         };
                     rel_graph_join.joining_on.push(rel_to_right_graph_join_keys);

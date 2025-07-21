@@ -5,7 +5,7 @@ use std::{fmt, sync::Arc};
 
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum PlanExpr {
+pub enum LogicalExpr {
     /// A literal, such as a number, string, boolean, or null.
     Literal(Literal),
 
@@ -23,7 +23,7 @@ pub enum PlanExpr {
     Parameter(String),
 
     /// A list literal: a vector of expressions.
-    List(Vec<PlanExpr>),
+    List(Vec<LogicalExpr>),
 
     AggregateFnCall(AggregateFnCall),
 
@@ -44,7 +44,7 @@ pub enum PlanExpr {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct InSubquery {
-    pub expr:   Box<PlanExpr>,
+    pub expr:   Box<LogicalExpr>,
     pub subplan: Arc<LogicalPlan>,
 }
 
@@ -116,7 +116,7 @@ pub enum Operator {
 #[derive(Debug, PartialEq, Clone)]
 pub struct OperatorApplication {
     pub operator: Operator,
-    pub operands: Vec<PlanExpr>,
+    pub operands: Vec<LogicalExpr>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -128,13 +128,13 @@ pub struct PropertyAccess {
 #[derive(Debug, PartialEq, Clone)]
 pub struct ScalarFnCall {
     pub name: String,
-    pub args: Vec<PlanExpr>,
+    pub args: Vec<LogicalExpr>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct AggregateFnCall {
     pub name: String,
-    pub args: Vec<PlanExpr>,
+    pub args: Vec<LogicalExpr>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -242,24 +242,24 @@ impl<'a> From<open_cypher_parser::ast::OperatorApplication<'a>> for OperatorAppl
     fn from(value: open_cypher_parser::ast::OperatorApplication<'a>) -> Self {
         OperatorApplication {
             operator: Operator::from(value.operator),
-            operands: value.operands.into_iter().map(|expr| PlanExpr::from(expr)).collect(),
+            operands: value.operands.into_iter().map(|expr| LogicalExpr::from(expr)).collect(),
         }
     }
 }
 
-impl<'a> From<open_cypher_parser::ast::FunctionCall<'a>> for PlanExpr {
+impl<'a> From<open_cypher_parser::ast::FunctionCall<'a>> for LogicalExpr {
     fn from(value: open_cypher_parser::ast::FunctionCall<'a>) -> Self {
         let agg_fns = ["count", "min", "max", "avg", "sum"];
         let name_lower = value.name.to_lowercase();
         if agg_fns.contains(&name_lower.as_str()) {
-            PlanExpr::AggregateFnCall(AggregateFnCall {
+            LogicalExpr::AggregateFnCall(AggregateFnCall {
                 name: value.name,
-                args: value.args.into_iter().map(PlanExpr::from).collect(),
+                args: value.args.into_iter().map(LogicalExpr::from).collect(),
             })
         } else {
-            PlanExpr::ScalarFnCall(ScalarFnCall {
+            LogicalExpr::ScalarFnCall(ScalarFnCall {
                 name: value.name,
-                args: value.args.into_iter().map(PlanExpr::from).collect(),
+                args: value.args.into_iter().map(LogicalExpr::from).collect(),
             })
         }
     }
@@ -326,26 +326,26 @@ impl<'a> From<open_cypher_parser::ast::RelationshipPattern<'a>> for Relationship
     }
 }
 
-impl<'a> From<open_cypher_parser::ast::Expression<'a>> for PlanExpr {
+impl<'a> From<open_cypher_parser::ast::Expression<'a>> for LogicalExpr {
     fn from(expr: open_cypher_parser::ast::Expression<'a>) -> Self {
         use open_cypher_parser::ast::Expression;
         match expr {
-            Expression::Literal(lit) => PlanExpr::Literal(Literal::from(lit)),
+            Expression::Literal(lit) => LogicalExpr::Literal(Literal::from(lit)),
             Expression::Variable(s) => {
                 if s == "*" {
-                    PlanExpr::Star
+                    LogicalExpr::Star
                 }else{
                     // TODO revisit this 
-                    // PlanExpr::Variable(s.to_string())
-                    PlanExpr::TableAlias(TableAlias(s.to_string()))
+                    // LogicalExpr::Variable(s.to_string())
+                    LogicalExpr::TableAlias(TableAlias(s.to_string()))
                 }
             },
-            Expression::Parameter(s) => PlanExpr::Parameter(s.to_string()),
-            Expression::List(exprs) => PlanExpr::List(exprs.into_iter().map(PlanExpr::from).collect()),
-            Expression::FunctionCallExp(fc) => PlanExpr::from(fc),
-            Expression::PropertyAccessExp(pa) => PlanExpr::PropertyAccessExp(PropertyAccess::from(pa)),
-            Expression::OperatorApplicationExp(oa) => PlanExpr::OperatorApplicationExp(OperatorApplication::from(oa)),
-            Expression::PathPattern(pp) => PlanExpr::PathPattern(PathPattern::from(pp)),
+            Expression::Parameter(s) => LogicalExpr::Parameter(s.to_string()),
+            Expression::List(exprs) => LogicalExpr::List(exprs.into_iter().map(LogicalExpr::from).collect()),
+            Expression::FunctionCallExp(fc) => LogicalExpr::from(fc),
+            Expression::PropertyAccessExp(pa) => LogicalExpr::PropertyAccessExp(PropertyAccess::from(pa)),
+            Expression::OperatorApplicationExp(oa) => LogicalExpr::OperatorApplicationExp(OperatorApplication::from(oa)),
+            Expression::PathPattern(pp) => LogicalExpr::PathPattern(PathPattern::from(pp)),
         }
     }
 }

@@ -1,13 +1,13 @@
 use std::{collections::HashMap, fmt};
 
-use crate::query_planner::{expr::plan_expr::{PlanExpr, Property}, logical_plan::logical_plan::ProjectionItem};
+use crate::query_planner::{logical_expr::logical_expr::{LogicalExpr, Property}, logical_plan::logical_plan::ProjectionItem};
 
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct TableCtx {
     pub label: Option<String>,
     pub properties: Vec<Property>,
-    pub filter_predicates: Vec<PlanExpr>,
+    pub filter_predicates: Vec<LogicalExpr>,
     pub projection_items: Vec<ProjectionItem>,
     pub is_rel: bool,
     pub use_edge_list: bool,
@@ -41,7 +41,7 @@ impl TableCtx {
         }
     }
 
-    pub fn insert_filter(&mut self, filter_pred: PlanExpr) {
+    pub fn insert_filter(&mut self, filter_pred: LogicalExpr) {
         if !self.filter_predicates.contains(&filter_pred) {
             self.filter_predicates.push(filter_pred);
         }

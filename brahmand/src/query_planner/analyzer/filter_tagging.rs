@@ -1,6 +1,6 @@
 use std::{collections::HashSet, sync::Arc};
 
-use crate::query_planner::{analyzer::analyzer_pass::AnalyzerPass, expr::plan_expr::{AggregateFnCall, Operator, OperatorApplication, PlanExpr, PropertyAccess, ScalarFnCall}, logical_plan::logical_plan::{Filter, LogicalPlan, ProjectionItem}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed};
+use crate::query_planner::{analyzer::analyzer_pass::AnalyzerPass, logical_expr::logical_expr::{AggregateFnCall, Operator, OperatorApplication, LogicalExpr, PropertyAccess, ScalarFnCall}, logical_plan::logical_plan::{Filter, LogicalPlan, ProjectionItem}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed};
 
 
 
@@ -82,7 +82,7 @@ impl FilterTagging {
     }
 
     // If there is any filter on relationship then use edgelist of that relation.
-    pub fn extract_filters(&self, filter_predicate: PlanExpr, plan_ctx: &mut PlanCtx) -> Option<PlanExpr> {
+    pub fn extract_filters(&self, filter_predicate: LogicalExpr, plan_ctx: &mut PlanCtx) -> Option<LogicalExpr> {
         let mut extracted_filters: Vec<OperatorApplication> = vec![];
         let mut extracted_projections: Vec<PropertyAccess> = vec![];
 
@@ -97,21 +97,21 @@ impl FilterTagging {
             let mut table_name = "";
             for operand in &extracted_filter.operands {
                 match operand {
-                    PlanExpr::PropertyAccessExp(property_access) => {
+                    LogicalExpr::PropertyAccessExp(property_access) => {
                         table_name = &property_access.table_alias.0;
                     },
                     // in case of fn, we check for any argument is of type prop access
-                    PlanExpr::ScalarFnCall(scalar_fn_call) => {
+                    LogicalExpr::ScalarFnCall(scalar_fn_call) => {
                         for arg in &scalar_fn_call.args {
-                            if let PlanExpr::PropertyAccessExp(property_access) = arg {
+                            if let LogicalExpr::PropertyAccessExp(property_access) = arg {
                                 table_name = &property_access.table_alias.0;
                             }
                         }
                     },
                     // in case of fn, we check for any argument is of type prop access
-                    PlanExpr::AggregateFnCall(aggregate_fn_call) => {
+                    LogicalExpr::AggregateFnCall(aggregate_fn_call) => {
                         for arg in &aggregate_fn_call.args {
-                            if let PlanExpr::PropertyAccessExp(property_access) = arg {
+                            if let LogicalExpr::PropertyAccessExp(property_access) = arg {
                                 table_name = &property_access.table_alias.0;
                             }
                         }
@@ -121,7 +121,7 @@ impl FilterTagging {
             }
 
             if let Some(table_ctx) = plan_ctx.alias_table_ctx_map.get_mut(table_name) {
-                let converted_filters = self.convert_prop_acc_to_column(PlanExpr::OperatorApplicationExp(extracted_filter));
+                let converted_filters = self.convert_prop_acc_to_column(LogicalExpr::OperatorApplicationExp(extracted_filter));
                 table_ctx.insert_filter(converted_filters);
 
                 if table_ctx.is_rel {
@@ -136,7 +136,7 @@ impl FilterTagging {
             let table_alias = prop_acc.table_alias.clone();
             if let Some(table_ctx) = plan_ctx.alias_table_ctx_map.get_mut(&table_alias.0){
                 table_ctx.insert_projection(ProjectionItem {
-                    expression: PlanExpr::PropertyAccessExp(prop_acc),
+                    expression: LogicalExpr::PropertyAccessExp(prop_acc),
                     col_alias: None,
                 });
                 
@@ -154,20 +154,20 @@ impl FilterTagging {
 
     }
 
-    fn convert_prop_acc_to_column(&self, expr: PlanExpr) -> PlanExpr {
+    fn convert_prop_acc_to_column(&self, expr: LogicalExpr) -> LogicalExpr {
         match expr {
-            PlanExpr::PropertyAccessExp(property_access) => {
-                PlanExpr::Column(property_access.column) 
+            LogicalExpr::PropertyAccessExp(property_access) => {
+                LogicalExpr::Column(property_access.column) 
             },
-            PlanExpr::OperatorApplicationExp(op_app) => {
-                let mut new_operands: Vec<PlanExpr> = vec![];
+            LogicalExpr::OperatorApplicationExp(op_app) => {
+                let mut new_operands: Vec<LogicalExpr> = vec![];
                 for operand in op_app.operands {
                     let new_operand = self.convert_prop_acc_to_column(operand);
                     new_operands.push(new_operand);
                 }
-                PlanExpr::OperatorApplicationExp(OperatorApplication { operator: op_app.operator, operands: new_operands })
+                LogicalExpr::OperatorApplicationExp(OperatorApplication { operator: op_app.operator, operands: new_operands })
             },
-            PlanExpr::List(exprs) => {
+            LogicalExpr::List(exprs) => {
                 let mut new_exprs = Vec::new();
                 for sub_expr in exprs {
 
@@ -175,28 +175,28 @@ impl FilterTagging {
                     new_exprs.push(new_expr);
 
                 }
-                PlanExpr::List(new_exprs)
+                LogicalExpr::List(new_exprs)
             },
-            PlanExpr::ScalarFnCall(fc) => {
+            LogicalExpr::ScalarFnCall(fc) => {
                 let mut new_args = Vec::new();
                 for arg in fc.args {
                     let new_arg =  self.convert_prop_acc_to_column(arg);
                     new_args.push(new_arg);
 
                 }
-                PlanExpr::ScalarFnCall(ScalarFnCall {
+                LogicalExpr::ScalarFnCall(ScalarFnCall {
                     name: fc.name,
                     args: new_args,
                 })
             }
 
-            PlanExpr::AggregateFnCall(fc) =>{
+            LogicalExpr::AggregateFnCall(fc) =>{
                 let mut new_args = Vec::new();
                 for arg in fc.args {
                     let new_arg =  self.convert_prop_acc_to_column(arg);
                     new_args.push(new_arg);
                 }
-                PlanExpr::AggregateFnCall(AggregateFnCall {
+                LogicalExpr::AggregateFnCall(AggregateFnCall {
                     name: fc.name,
                     args: new_args,
                 })
@@ -207,14 +207,14 @@ impl FilterTagging {
 
     fn process_expr(
         &self,
-        expr: PlanExpr,
+        expr: LogicalExpr,
         extracted_filters: &mut Vec<OperatorApplication>,
         extracted_projections: &mut Vec<PropertyAccess>,
         in_or: bool,
-    ) -> Option<PlanExpr> {
+    ) -> Option<LogicalExpr> {
         match expr {
             // When we have an operator application, process it separately.
-            PlanExpr::OperatorApplicationExp(mut op_app) => {
+            LogicalExpr::OperatorApplicationExp(mut op_app) => {
                 // Check if the current operator is an Or.
                 let current_is_or = op_app.operator == Operator::Or;
                 // Update our flag: once inside an Or, we stay inside.
@@ -244,24 +244,24 @@ impl FilterTagging {
     
                     for operand in &op_app.operands {
                         // if any of the fn argument belongs to one table then extract it.
-                        if let PlanExpr::ScalarFnCall(fc) = operand {
+                        if let LogicalExpr::ScalarFnCall(fc) = operand {
                             for arg in &fc.args {
-                                if let PlanExpr::PropertyAccessExp(prop_acc) = arg {
+                                if let LogicalExpr::PropertyAccessExp(prop_acc) = arg {
                                     condition_belongs_to.insert(&prop_acc.table_alias.0);
                                     temp_prop_acc.push(prop_acc.clone());
                                     should_extract = true;
                                 }
                             }
-                        } if let PlanExpr::AggregateFnCall(fc) = operand {
+                        } if let LogicalExpr::AggregateFnCall(fc) = operand {
                             for arg in &fc.args {
-                                if let PlanExpr::PropertyAccessExp(prop_acc) = arg {
+                                if let LogicalExpr::PropertyAccessExp(prop_acc) = arg {
                                     condition_belongs_to.insert(&prop_acc.table_alias.0);
                                     temp_prop_acc.push(prop_acc.clone());
                                     should_extract = false;
                                     agg_operand_found = true; 
                                 }
                             }
-                        }else if let PlanExpr::PropertyAccessExp(prop_acc) = operand {
+                        }else if let LogicalExpr::PropertyAccessExp(prop_acc) = operand {
                             condition_belongs_to.insert(&prop_acc.table_alias.0);
                             temp_prop_acc.push(prop_acc.clone());
                             should_extract = true;
@@ -289,38 +289,38 @@ impl FilterTagging {
                 }
     
                 // Otherwise, return the rebuilt operator application.
-                Some(PlanExpr::OperatorApplicationExp(op_app))
+                Some(LogicalExpr::OperatorApplicationExp(op_app))
             }
             
             // If we have a function call, process each argument.
-            PlanExpr::ScalarFnCall(fc) => {
+            LogicalExpr::ScalarFnCall(fc) => {
                 let mut new_args = Vec::new();
                 for arg in fc.args {
                     if let Some(new_arg) = self.process_expr(arg, extracted_filters, extracted_projections, in_or) {
                         new_args.push(new_arg);
                     }
                 }
-                Some(PlanExpr::ScalarFnCall(ScalarFnCall {
+                Some(LogicalExpr::ScalarFnCall(ScalarFnCall {
                     name: fc.name,
                     args: new_args,
                 }))
             }
 
-            PlanExpr::AggregateFnCall(fc) =>{
+            LogicalExpr::AggregateFnCall(fc) =>{
                 let mut new_args = Vec::new();
                 for arg in fc.args {
                     if let Some(new_arg) = self.process_expr(arg, extracted_filters, extracted_projections, in_or) {
                         new_args.push(new_arg);
                     }
                 }
-                Some(PlanExpr::AggregateFnCall(AggregateFnCall {
+                Some(LogicalExpr::AggregateFnCall(AggregateFnCall {
                     name: fc.name,
                     args: new_args,
                 }))
             }
     
             // For a list, process each element.
-            PlanExpr::List(exprs) => {
+            LogicalExpr::List(exprs) => {
                 let mut new_exprs = Vec::new();
                 for sub_expr in exprs {
                     if let Some(new_expr) =
@@ -329,7 +329,7 @@ impl FilterTagging {
                         new_exprs.push(new_expr);
                     }
                 }
-                Some(PlanExpr::List(new_exprs))
+                Some(LogicalExpr::List(new_exprs))
             }
     
             // Base cases – literals, variables, and property accesses remain unchanged.

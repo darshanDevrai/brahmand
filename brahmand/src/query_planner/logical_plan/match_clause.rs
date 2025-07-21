@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use uuid::Uuid;
 
-use crate::{open_cypher_parser::ast::{ConnectedPattern, MatchClause, NodePattern, PathPattern}, query_planner::{expr::plan_expr::{Column, Operator, OperatorApplication, PlanExpr, Property}, logical_plan::logical_plan::{GraphNode, GraphRel, LogicalPlan, Scan}, plan_ctx::plan_ctx::{PlanCtx, TableCtx}}};
+use crate::{open_cypher_parser::ast::{ConnectedPattern, MatchClause, NodePattern, PathPattern}, query_planner::{logical_expr::logical_expr::{Column, Operator, OperatorApplication, LogicalExpr, Property}, logical_plan::logical_plan::{GraphNode, GraphRel, LogicalPlan, Scan}, plan_ctx::plan_ctx::{PlanCtx, TableCtx}}};
 use super::errors::PlannerError;
 
 
@@ -13,18 +13,18 @@ fn generate_scan(alias: String, label: Option<String>) -> Arc<LogicalPlan> {
     }))
 }
 
-fn convert_properties(props: Vec<Property>) -> Vec<PlanExpr> {
-    let mut extracted_props: Vec<PlanExpr> = vec![];
+fn convert_properties(props: Vec<Property>) -> Vec<LogicalExpr> {
+    let mut extracted_props: Vec<LogicalExpr> = vec![];
 
     for prop in props {
 
         match prop {
             Property::PropertyKV(property_kvpair) => {
-                let op_app = PlanExpr::OperatorApplicationExp(OperatorApplication {
+                let op_app = LogicalExpr::OperatorApplicationExp(OperatorApplication {
                     operator: Operator::Equal,
                     operands: vec![
-                        PlanExpr::Column(Column(property_kvpair.key)),
-                        PlanExpr::Literal(property_kvpair.value)
+                        LogicalExpr::Column(Column(property_kvpair.key)),
+                        LogicalExpr::Literal(property_kvpair.value)
                     ]
                 });
                 extracted_props.push(op_app);

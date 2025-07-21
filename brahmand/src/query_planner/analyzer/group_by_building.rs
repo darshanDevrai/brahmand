@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::query_planner::{analyzer::analyzer_pass::AnalyzerPass, expr::plan_expr::PlanExpr, logical_plan::logical_plan::{GroupBy, LogicalPlan, ProjectionItem}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed};
+use crate::query_planner::{analyzer::analyzer_pass::AnalyzerPass, logical_expr::logical_expr::LogicalExpr, logical_plan::logical_plan::{GroupBy, LogicalPlan, ProjectionItem}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed};
 
 
 
@@ -13,7 +13,7 @@ impl AnalyzerPass for GroupByBuilding {
     fn analyze(&self, logical_plan: Arc<LogicalPlan>, plan_ctx: &mut PlanCtx) -> Transformed<Arc<LogicalPlan>> {
         match logical_plan.as_ref() {
             LogicalPlan::Projection(projection) => {
-                let non_agg_projections: Vec<ProjectionItem> = projection.items.iter().filter(|item| !matches!(item.expression, PlanExpr::AggregateFnCall(_))).cloned().collect();
+                let non_agg_projections: Vec<ProjectionItem> = projection.items.iter().filter(|item| !matches!(item.expression, LogicalExpr::AggregateFnCall(_))).cloned().collect();
 
                 if non_agg_projections.len() < projection.items.len() && !non_agg_projections.is_empty() {
                     // aggregate fns found. Build the groupby plan here
