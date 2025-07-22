@@ -1,6 +1,6 @@
 use std::{collections::HashSet, sync::Arc};
 
-use crate::{query_engine::types::GraphSchema, query_planner::{analyzer::{analyzer_pass::AnalyzerPass, errors::AnalyzerError}, logical_expr::logical_expr::{Column, Operator, OperatorApplication, LogicalExpr, PropertyAccess, TableAlias}, logical_plan::logical_plan::{GraphJoins, GraphRel, Join, LogicalPlan}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed}};
+use crate::{query_engine::types::GraphSchema, query_planner::{analyzer::{analyzer_pass::{AnalyzerPass, AnalyzerResult}, errors::AnalyzerError}, logical_expr::logical_expr::{Column, LogicalExpr, Operator, OperatorApplication, PropertyAccess, TableAlias}, logical_plan::logical_plan::{GraphJoins, GraphRel, Join, LogicalPlan}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed}};
 
 
 
@@ -11,15 +11,15 @@ use crate::{query_engine::types::GraphSchema, query_planner::{analyzer::{analyze
 pub struct GraphJoinInference;
 
 impl AnalyzerPass for GraphJoinInference {
-    fn analyze_with_graph_schema(&self, logical_plan: Arc<LogicalPlan>, plan_ctx: &mut PlanCtx, graph_schema: &GraphSchema) -> Transformed<Arc<LogicalPlan>> {
+    fn analyze_with_graph_schema(&self, logical_plan: Arc<LogicalPlan>, plan_ctx: &mut PlanCtx, graph_schema: &GraphSchema) -> AnalyzerResult<Transformed<Arc<LogicalPlan>>> {
 
         let mut collected_graph_joins:Vec<Join> = vec![];
         let mut joined_entities: HashSet<String> = HashSet::new();
-        self.collect_graph_joins(logical_plan.clone(), plan_ctx, graph_schema, &mut collected_graph_joins, &mut joined_entities);
+        self.collect_graph_joins(logical_plan.clone(), plan_ctx, graph_schema, &mut collected_graph_joins, &mut joined_entities)?;
         if !collected_graph_joins.is_empty() {
             self.build_graph_joins(logical_plan, &mut collected_graph_joins)
         } else {
-            Transformed::No(logical_plan.clone())
+            Ok(Transformed::No(logical_plan.clone()))
         }
 
     }
@@ -31,105 +31,105 @@ impl GraphJoinInference {
         GraphJoinInference
     }
 
-    fn build_graph_joins(&self, logical_plan: Arc<LogicalPlan>, collected_graph_joins: &mut Vec<Join>) -> Transformed<Arc<LogicalPlan>> {
+    fn build_graph_joins(&self, logical_plan: Arc<LogicalPlan>, collected_graph_joins: &mut Vec<Join>) -> AnalyzerResult<Transformed<Arc<LogicalPlan>>> {
         match logical_plan.as_ref() {
             LogicalPlan::Projection(_) => {
                 // wrap the outer projection i.e. first occurance in the tree walk with Graph joins
-                Transformed::Yes(Arc::new(LogicalPlan::GraphJoins(GraphJoins{
+                Ok(Transformed::Yes(Arc::new(LogicalPlan::GraphJoins(GraphJoins{
                     input: logical_plan.clone(),
                     joins: collected_graph_joins.to_vec(),
-                })))
+                }))))
             },
             LogicalPlan::GraphNode(graph_node) => {
-                let child_tf = self.build_graph_joins(graph_node.input.clone(), collected_graph_joins);
-                graph_node.rebuild_or_clone(child_tf, logical_plan.clone())
+                let child_tf = self.build_graph_joins(graph_node.input.clone(), collected_graph_joins)?;
+                Ok(graph_node.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
             LogicalPlan::GraphRel(graph_rel) => {
-                let left_tf = self.build_graph_joins(graph_rel.left.clone(), collected_graph_joins);
-                let center_tf = self.build_graph_joins(graph_rel.center.clone(), collected_graph_joins);
-                let right_tf = self.build_graph_joins(graph_rel.right.clone(), collected_graph_joins);
+                let left_tf = self.build_graph_joins(graph_rel.left.clone(), collected_graph_joins)?;
+                let center_tf = self.build_graph_joins(graph_rel.center.clone(), collected_graph_joins)?;
+                let right_tf = self.build_graph_joins(graph_rel.right.clone(), collected_graph_joins)?;
 
-                graph_rel.rebuild_or_clone(left_tf, center_tf, right_tf, logical_plan.clone())
+                Ok(graph_rel.rebuild_or_clone(left_tf, center_tf, right_tf, logical_plan.clone()))
             },
             LogicalPlan::Cte(cte   ) => {
-                let child_tf = self.build_graph_joins( cte.input.clone(), collected_graph_joins);
-                cte.rebuild_or_clone(child_tf, logical_plan.clone())
+                let child_tf = self.build_graph_joins( cte.input.clone(), collected_graph_joins)?;
+                Ok(cte.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
             LogicalPlan::Scan(_) => {
-                Transformed::No(logical_plan.clone())
+                Ok(Transformed::No(logical_plan.clone()))
             },
-            LogicalPlan::Empty => Transformed::No(logical_plan.clone()),
+            LogicalPlan::Empty => Ok(Transformed::No(logical_plan.clone())),
             LogicalPlan::GraphJoins(graph_joins) => {
-                let child_tf = self.build_graph_joins(graph_joins.input.clone(), collected_graph_joins);
-                graph_joins.rebuild_or_clone(child_tf, logical_plan.clone())
+                let child_tf = self.build_graph_joins(graph_joins.input.clone(), collected_graph_joins)?;
+                Ok(graph_joins.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
             LogicalPlan::Filter(filter) => {
-                let child_tf = self.build_graph_joins(filter.input.clone(), collected_graph_joins);
-                filter.rebuild_or_clone(child_tf, logical_plan.clone())
+                let child_tf = self.build_graph_joins(filter.input.clone(), collected_graph_joins)?;
+                Ok(filter.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
             LogicalPlan::GroupBy(group_by   ) => {
-                let child_tf = self.build_graph_joins(group_by.input.clone(), collected_graph_joins);
-                group_by.rebuild_or_clone(child_tf, logical_plan.clone())
+                let child_tf = self.build_graph_joins(group_by.input.clone(), collected_graph_joins)?;
+                Ok(group_by.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
             LogicalPlan::OrderBy(order_by) => {
-                let child_tf = self.build_graph_joins(order_by.input.clone(), collected_graph_joins);
-                order_by.rebuild_or_clone(child_tf, logical_plan.clone())
+                let child_tf = self.build_graph_joins(order_by.input.clone(), collected_graph_joins)?;
+                Ok(order_by.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
             LogicalPlan::Skip(skip) => {
-                let child_tf = self.build_graph_joins(skip.input.clone(), collected_graph_joins);
-                skip.rebuild_or_clone(child_tf, logical_plan.clone())
+                let child_tf = self.build_graph_joins(skip.input.clone(), collected_graph_joins)?;
+                Ok(skip.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
             LogicalPlan::Limit(limit) => {
-                let child_tf = self.build_graph_joins(limit.input.clone(), collected_graph_joins);
-                limit.rebuild_or_clone(child_tf, logical_plan.clone())
+                let child_tf = self.build_graph_joins(limit.input.clone(), collected_graph_joins)?;
+                Ok(limit.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
         }
     }
 
-    fn collect_graph_joins(&self, logical_plan: Arc<LogicalPlan>, plan_ctx: &mut PlanCtx, graph_schema: &GraphSchema, collected_graph_joins: &mut Vec<Join>, joined_entities: &mut HashSet<String>) {
+    fn collect_graph_joins(&self, logical_plan: Arc<LogicalPlan>, plan_ctx: &mut PlanCtx, graph_schema: &GraphSchema, collected_graph_joins: &mut Vec<Join>, joined_entities: &mut HashSet<String>) -> AnalyzerResult<()> {
         match logical_plan.as_ref() {
             LogicalPlan::Projection(projection) => {
-                self.collect_graph_joins(projection.input.clone(), plan_ctx, graph_schema, collected_graph_joins, joined_entities);
+                self.collect_graph_joins(projection.input.clone(), plan_ctx, graph_schema, collected_graph_joins, joined_entities)
             },
             LogicalPlan::GraphNode(graph_node) => {
-                self.collect_graph_joins(graph_node.input.clone(), plan_ctx, graph_schema, collected_graph_joins, joined_entities);
+                self.collect_graph_joins(graph_node.input.clone(), plan_ctx, graph_schema, collected_graph_joins, joined_entities)
             },
             LogicalPlan::GraphRel(graph_rel) => {
                 // infer joins for each graph_rel
 
-                self.infer_graph_join(graph_rel, plan_ctx, graph_schema, collected_graph_joins, joined_entities);
+                self.infer_graph_join(graph_rel, plan_ctx, graph_schema, collected_graph_joins, joined_entities)?;
 
                 // self.collect_graph_joins(graph_rel.left.clone(), plan_ctx, graph_schema, collected_graph_joins, joined_entities);
                 // self.collect_graph_joins(graph_rel.center.clone(), plan_ctx, graph_schema, collected_graph_joins, joined_entities);
-                self.collect_graph_joins(graph_rel.right.clone(), plan_ctx, graph_schema, collected_graph_joins, joined_entities);
+                self.collect_graph_joins(graph_rel.right.clone(), plan_ctx, graph_schema, collected_graph_joins, joined_entities)
             },
             LogicalPlan::Cte(cte   ) => {
-                self.collect_graph_joins( cte.input.clone(), plan_ctx, graph_schema, collected_graph_joins, joined_entities);
+                self.collect_graph_joins( cte.input.clone(), plan_ctx, graph_schema, collected_graph_joins, joined_entities)
             },
-            LogicalPlan::Scan(_) => (),
-            LogicalPlan::Empty => (),
+            LogicalPlan::Scan(_) => Ok(()),
+            LogicalPlan::Empty => Ok(()),
             LogicalPlan::GraphJoins(graph_joins) => {
-                self.collect_graph_joins(graph_joins.input.clone(), plan_ctx, graph_schema, collected_graph_joins, joined_entities);
+                self.collect_graph_joins(graph_joins.input.clone(), plan_ctx, graph_schema, collected_graph_joins, joined_entities)
             },
             LogicalPlan::Filter(filter) => {
-                self.collect_graph_joins(filter.input.clone(), plan_ctx, graph_schema, collected_graph_joins, joined_entities);
+                self.collect_graph_joins(filter.input.clone(), plan_ctx, graph_schema, collected_graph_joins, joined_entities)
             },
             LogicalPlan::GroupBy(group_by   ) => {
-                self.collect_graph_joins(group_by.input.clone(), plan_ctx, graph_schema, collected_graph_joins, joined_entities);
+                self.collect_graph_joins(group_by.input.clone(), plan_ctx, graph_schema, collected_graph_joins, joined_entities)
             },
             LogicalPlan::OrderBy(order_by) => {
-                self.collect_graph_joins(order_by.input.clone(), plan_ctx, graph_schema, collected_graph_joins, joined_entities);
+                self.collect_graph_joins(order_by.input.clone(), plan_ctx, graph_schema, collected_graph_joins, joined_entities)
             },
             LogicalPlan::Skip(skip) => {
-                self.collect_graph_joins(skip.input.clone(), plan_ctx, graph_schema, collected_graph_joins, joined_entities);
+                self.collect_graph_joins(skip.input.clone(), plan_ctx, graph_schema, collected_graph_joins, joined_entities)
             },
             LogicalPlan::Limit(limit) => {
-                self.collect_graph_joins(limit.input.clone(), plan_ctx, graph_schema, collected_graph_joins, joined_entities);
+                self.collect_graph_joins(limit.input.clone(), plan_ctx, graph_schema, collected_graph_joins, joined_entities)
             },
         }
     }
 
-    fn infer_graph_join(&self, graph_rel: &GraphRel, plan_ctx: &mut PlanCtx, graph_schema: &GraphSchema, collected_graph_joins: &mut Vec<Join>, joined_entities: &mut HashSet<String>) {
+    fn infer_graph_join(&self, graph_rel: &GraphRel, plan_ctx: &mut PlanCtx, graph_schema: &GraphSchema, collected_graph_joins: &mut Vec<Join>, joined_entities: &mut HashSet<String>) -> AnalyzerResult<()> {
         // get required information 
         let left_alias = &graph_rel.left_connection.clone().unwrap();
         let rel_alias = &graph_rel.alias;
@@ -214,7 +214,7 @@ impl GraphJoinInference {
                         collected_graph_joins.push(rel_graph_join);
                         joined_entities.insert(rel_alias.to_string());
                         // in this case we will only join relation so early return without pushing the other joins
-                        return;
+                        return Ok(());
                     }
     
                     // push the relation first
@@ -223,7 +223,7 @@ impl GraphJoinInference {
     
                     joined_entities.insert(left_alias.to_string());
                     collected_graph_joins.push(left_graph_join);
-
+                    Ok(())
 
                 } else {
                     // When left is already joined or start of the join 
@@ -272,7 +272,7 @@ impl GraphJoinInference {
                         collected_graph_joins.push(rel_graph_join);
                         joined_entities.insert(rel_alias.to_string());
                         // in this case we will only join relation so early return without pushing the other joins
-                        return;
+                        return Ok(());
                     }
 
                     // push the relation first
@@ -281,6 +281,7 @@ impl GraphJoinInference {
 
                     joined_entities.insert(right_alias.to_string());
                     collected_graph_joins.push(right_graph_join);
+                    Ok(())
                 }
                 
             } else {
@@ -331,7 +332,7 @@ impl GraphJoinInference {
                         collected_graph_joins.push(rel_graph_join);
                         joined_entities.insert(rel_alias.to_string());
                         // in this case we will only join relation so early return without pushing the other joins
-                        return;
+                        return Ok(());
                     }
     
                     // push the relation first
@@ -340,6 +341,7 @@ impl GraphJoinInference {
     
                     joined_entities.insert(left_alias.to_string());
                     collected_graph_joins.push(left_graph_join);
+                    Ok(())
                 } else {
                     // When left is already joined or start of the join 
 
@@ -387,7 +389,7 @@ impl GraphJoinInference {
                         collected_graph_joins.push(rel_graph_join);
                         joined_entities.insert(rel_alias.to_string());
                         // in this case we will only join relation so early return without pushing the other joins
-                        return;
+                        return Ok(());
                     }
 
                     // push the relation first
@@ -396,6 +398,7 @@ impl GraphJoinInference {
 
                     joined_entities.insert(right_alias.to_string());
                     collected_graph_joins.push(right_graph_join);
+                    Ok(())
                 }
             }
 
@@ -445,7 +448,7 @@ impl GraphJoinInference {
                     collected_graph_joins.push(rel_graph_join);
                     joined_entities.insert(rel_alias.to_string());
                     // in this case we will only join relation so early return without pushing the other joins
-                    return;
+                    return Ok(());
                 }
 
                 // push the relation first
@@ -454,7 +457,7 @@ impl GraphJoinInference {
 
                 joined_entities.insert(left_alias.to_string());
                 collected_graph_joins.push(left_graph_join);
-
+                Ok(())
     
             } else {
                 // When left is already joined or start of the join 
@@ -503,7 +506,7 @@ impl GraphJoinInference {
                     collected_graph_joins.push(rel_graph_join);
                     joined_entities.insert(rel_alias.to_string());
                     // in this case we will only join relation so early return without pushing the other joins
-                    return;
+                    return Ok(());
                 }
 
                 // push the relation first
@@ -512,7 +515,7 @@ impl GraphJoinInference {
 
                 joined_entities.insert(right_alias.to_string());
                 collected_graph_joins.push(right_graph_join);
-
+                Ok(())
             }
              
         }

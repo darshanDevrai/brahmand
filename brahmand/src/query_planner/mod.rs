@@ -1,5 +1,7 @@
 
 
+use errors::QueryPlannerError;
+
 use crate::{open_cypher_parser::ast::OpenCypherQueryAst, query_engine::types::{GraphSchema, GraphSchemaElement, QueryType, TraversalMode}, query_planner::render_plan::plan_builder::RenderPlanBuilder};
 
 
@@ -31,41 +33,62 @@ pub fn evaluate_query(
     query_ast: OpenCypherQueryAst,
     traversal_mode: &TraversalMode,
     current_graph_schema: &GraphSchema,
-) -> Result<(QueryType, Vec<String>, Option<GraphSchemaElement>), String> {
+) -> Result<(QueryType, Vec<String>, Option<GraphSchemaElement>), QueryPlannerError> {
     let query_type = get_query_type(&query_ast);
 
     // println!("query_ast {:#}", query_ast);
 
     // if query_type == QueryType::Read {
-        let logical_plan_res = logical_plan::evaluate_query(query_ast);
-        match logical_plan_res {
-            Ok((logical_plan, mut plan_ctx)) => {
-                // println!("\n\n PLAN Before  {} \n\n", logical_plan);
-                // println!("\n plan_ctx {}",plan_ctx);
-                let logical_plan = analyzer::initial_analyzing(logical_plan, &mut plan_ctx, current_graph_schema);
-                // logical_plan.print_graph_rels();
-                let logical_plan = optimizer::initial_optimization(logical_plan, &mut plan_ctx);
-                // logical_plan.print_graph_rels();
-                let logical_plan = analyzer::final_analyzing(logical_plan, &mut plan_ctx, current_graph_schema);
-                let logical_plan = optimizer::final_optimization(logical_plan, &mut plan_ctx);
+        let (logical_plan, mut plan_ctx) = logical_plan::evaluate_query(query_ast)?;
+
+        // println!("\n\n PLAN Before  {} \n\n", logical_plan);
+        // println!("\n plan_ctx {}",plan_ctx);
+        let logical_plan = analyzer::initial_analyzing(logical_plan, &mut plan_ctx, current_graph_schema)?;
+        // logical_plan.print_graph_rels();
+        let logical_plan = optimizer::initial_optimization(logical_plan, &mut plan_ctx)?;
+        // logical_plan.print_graph_rels();
+        let logical_plan = analyzer::final_analyzing(logical_plan, &mut plan_ctx, current_graph_schema)?;
+        let logical_plan = optimizer::final_optimization(logical_plan, &mut plan_ctx)?;
+        
+        // println!("\n\n plan_ctx after \n {}",plan_ctx);
+        println!("\n plan after{}", logical_plan);
+
+        let render_plan = logical_plan.to_render_plan();
+
+        // println!("\n render_planr{}", render_plan);
+
+        let sql_query = clickhouse_query_generator::generate_sql(render_plan);
+
+        Ok((query_type, vec![sql_query], None))
+
+        // match logical_plan_res {
+        //     Ok((logical_plan, mut plan_ctx)) => {
+        //         // println!("\n\n PLAN Before  {} \n\n", logical_plan);
+        //         // println!("\n plan_ctx {}",plan_ctx);
+        //         let logical_plan = analyzer::initial_analyzing(logical_plan, &mut plan_ctx, current_graph_schema)?;
+        //         // logical_plan.print_graph_rels();
+        //         let logical_plan = optimizer::initial_optimization(logical_plan, &mut plan_ctx)?;
+        //         // logical_plan.print_graph_rels();
+        //         let logical_plan = analyzer::final_analyzing(logical_plan, &mut plan_ctx, current_graph_schema)?;
+        //         let logical_plan = optimizer::final_optimization(logical_plan, &mut plan_ctx)?;
                 
-                // println!("\n\n plan_ctx after \n {}",plan_ctx);
-                println!("\n plan after{}", logical_plan);
+        //         // println!("\n\n plan_ctx after \n {}",plan_ctx);
+        //         println!("\n plan after{}", logical_plan);
 
-                let render_plan = logical_plan.to_render_plan();
+        //         let render_plan = logical_plan.to_render_plan();
 
-                // println!("\n render_planr{}", render_plan);
+        //         // println!("\n render_planr{}", render_plan);
 
-                let sql_query = clickhouse_query_generator::generate_sql(render_plan);
+        //         let sql_query = clickhouse_query_generator::generate_sql(render_plan);
 
-                Ok((query_type, vec![sql_query], None))
+        //         Ok((query_type, vec![sql_query], None))
 
-            },
-            Err(e) => {
-                println!("Error - {:?}", e);
-                Err(e.to_string())
-            }
-        }
+        //     },
+        //     Err(e) => {
+        //         println!("Error - {:?}", e);
+        //         Err(QueryPlannerError::UnsupportedQueryType)
+        //     }
+        // }
 
     //     let physical_plan =
     //         optimizer::generate_physical_plan(logical_plan.clone(), current_graph_schema)?;

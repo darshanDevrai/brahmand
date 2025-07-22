@@ -1,6 +1,6 @@
 use std::{collections::HashSet, sync::Arc};
 
-use crate::query_planner::{analyzer::analyzer_pass::AnalyzerPass, logical_expr::logical_expr::{AggregateFnCall, Operator, OperatorApplication, LogicalExpr, PropertyAccess, ScalarFnCall}, logical_plan::logical_plan::{Filter, LogicalPlan, ProjectionItem}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed};
+use crate::query_planner::{analyzer::analyzer_pass::{AnalyzerPass, AnalyzerResult}, logical_expr::logical_expr::{AggregateFnCall, LogicalExpr, Operator, OperatorApplication, PropertyAccess, ScalarFnCall}, logical_plan::logical_plan::{Filter, LogicalPlan, ProjectionItem}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed};
 
 
 
@@ -12,62 +12,62 @@ impl AnalyzerPass for FilterTagging {
     
 
 
-    fn analyze(&self, logical_plan: Arc<LogicalPlan>, plan_ctx: &mut PlanCtx) -> Transformed<Arc<LogicalPlan>> {
+    fn analyze(&self, logical_plan: Arc<LogicalPlan>, plan_ctx: &mut PlanCtx) -> AnalyzerResult<Transformed<Arc<LogicalPlan>>> {
         
         match logical_plan.as_ref() {
             LogicalPlan::GraphNode(graph_node) => {
-                let child_tf = self.analyze(graph_node.input.clone(), plan_ctx);
-                graph_node.rebuild_or_clone(child_tf, logical_plan.clone())
+                let child_tf = self.analyze(graph_node.input.clone(), plan_ctx)?;
+                Ok(graph_node.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
             LogicalPlan::GraphRel(graph_rel) => {
-                let left_tf = self.analyze(graph_rel.left.clone(), plan_ctx);
-                let center_tf = self.analyze(graph_rel.center.clone(), plan_ctx);
-                let right_tf = self.analyze(graph_rel.right.clone(), plan_ctx);
-                graph_rel.rebuild_or_clone(left_tf, center_tf, right_tf, logical_plan.clone())
+                let left_tf = self.analyze(graph_rel.left.clone(), plan_ctx)?;
+                let center_tf = self.analyze(graph_rel.center.clone(), plan_ctx)?;
+                let right_tf = self.analyze(graph_rel.right.clone(), plan_ctx)?;
+                Ok(graph_rel.rebuild_or_clone(left_tf, center_tf, right_tf, logical_plan.clone()))
             },
             LogicalPlan::Cte(cte   ) => {
-                let child_tf = self.analyze( cte.input.clone(), plan_ctx);
-                cte.rebuild_or_clone(child_tf, logical_plan.clone())
+                let child_tf = self.analyze( cte.input.clone(), plan_ctx)?;
+                Ok(cte.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
-            LogicalPlan::Empty => Transformed::No(logical_plan.clone()),
-            LogicalPlan::Scan(_) => Transformed::No(logical_plan.clone()),
+            LogicalPlan::Empty => Ok(Transformed::No(logical_plan.clone())),
+            LogicalPlan::Scan(_) => Ok(Transformed::No(logical_plan.clone())),
             LogicalPlan::GraphJoins(graph_joins) => {
-                let child_tf = self.analyze(graph_joins.input.clone(), plan_ctx);
-                graph_joins.rebuild_or_clone(child_tf, logical_plan.clone())
+                let child_tf = self.analyze(graph_joins.input.clone(), plan_ctx)?;
+                Ok(graph_joins.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
             LogicalPlan::Filter(filter) => {
-                        let child_tf = self.analyze(filter.input.clone(), plan_ctx);
+                        let child_tf = self.analyze(filter.input.clone(), plan_ctx)?;
                         // call filter tagging and get new filter
                         let final_filter_opt = self.extract_filters(filter.predicate.clone(), plan_ctx);
                         // if final filter has some predicate left then create new filter else remove the filter node and return the child input
                         if let Some(final_filter) = final_filter_opt {
-                            Transformed::Yes(Arc::new(LogicalPlan::Filter(Filter {
+                            Ok(Transformed::Yes(Arc::new(LogicalPlan::Filter(Filter {
                                 input: child_tf.get_plan(),
                                 predicate: final_filter,
-                            })))
+                            }))))
                         } else {
-                            Transformed::Yes(child_tf.get_plan())
+                            Ok(Transformed::Yes(child_tf.get_plan()))
                         }
                     },
             LogicalPlan::Projection(projection) => {
-                        let child_tf = self.analyze(projection.input.clone(), plan_ctx);
-                        projection.rebuild_or_clone(child_tf, logical_plan.clone())
+                        let child_tf = self.analyze(projection.input.clone(), plan_ctx)?;
+                        Ok(projection.rebuild_or_clone(child_tf, logical_plan.clone()))
                     },
             LogicalPlan::GroupBy(group_by   ) => {
-                        let child_tf = self.analyze(group_by.input.clone(), plan_ctx);
-                        group_by.rebuild_or_clone(child_tf, logical_plan.clone())
+                        let child_tf = self.analyze(group_by.input.clone(), plan_ctx)?;
+                        Ok(group_by.rebuild_or_clone(child_tf, logical_plan.clone()))
                     },
             LogicalPlan::OrderBy(order_by) => {
-                        let child_tf = self.analyze(order_by.input.clone(), plan_ctx);
-                        order_by.rebuild_or_clone(child_tf, logical_plan.clone())
+                        let child_tf = self.analyze(order_by.input.clone(), plan_ctx)?;
+                        Ok(order_by.rebuild_or_clone(child_tf, logical_plan.clone()))
                     },
             LogicalPlan::Skip(skip) => {
-                        let child_tf = self.analyze(skip.input.clone(), plan_ctx);
-                        skip.rebuild_or_clone(child_tf, logical_plan.clone())
+                        let child_tf = self.analyze(skip.input.clone(), plan_ctx)?;
+                        Ok(skip.rebuild_or_clone(child_tf, logical_plan.clone()))
                     },
             LogicalPlan::Limit(limit) => {
-                        let child_tf = self.analyze(limit.input.clone(), plan_ctx);
-                        limit.rebuild_or_clone(child_tf,logical_plan.clone())
+                        let child_tf = self.analyze(limit.input.clone(), plan_ctx)?;
+                        Ok(limit.rebuild_or_clone(child_tf,logical_plan.clone()))
                     },
             
         }

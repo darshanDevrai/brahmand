@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::query_planner::{logical_plan::logical_plan::{GraphRel, LogicalPlan}, optimizer::optimizer_pass::OptimizerPass, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed};
+use crate::query_planner::{logical_plan::logical_plan::{GraphRel, LogicalPlan}, optimizer::optimizer_pass::{OptimizerPass, OptimizerResult}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed};
 
 
 
@@ -10,12 +10,12 @@ pub struct AnchorNodeSelection;
 
 impl OptimizerPass for AnchorNodeSelection {
 
-    fn optimize(&self, logical_plan: Arc<LogicalPlan>, plan_ctx: &mut PlanCtx) -> Transformed<Arc<LogicalPlan>> {
+    fn optimize(&self, logical_plan: Arc<LogicalPlan>, plan_ctx: &mut PlanCtx) -> OptimizerResult<Transformed<Arc<LogicalPlan>>> {
         if let Some(anchor_node_alias) = self.find_anchor_node(plan_ctx) {
             return self.anchor_traversal(anchor_node_alias, logical_plan, plan_ctx);
         }
 
-        Transformed::No(logical_plan)
+        Ok(Transformed::No(logical_plan))
     }
 }
 
@@ -28,8 +28,8 @@ impl AnchorNodeSelection {
     fn find_anchor_node(&self, plan_ctx: &PlanCtx) -> Option<String> {
         let (alias, ctx) = plan_ctx.alias_table_ctx_map
             .iter()
-            .max_by_key(|(_, ctx)| ctx.filter_predicates.len())?;
-        if ctx.filter_predicates.is_empty() {
+            .max_by_key(|(_, ctx)| ctx.get_filters().len())?;
+        if ctx.get_filters().is_empty() {
             None
         } else {
             Some(alias.clone())
@@ -37,12 +37,12 @@ impl AnchorNodeSelection {
     }
 
 
-    fn anchor_traversal(&self, anchor_node_alias: String, logical_plan: Arc<LogicalPlan>, plan_ctx: &mut PlanCtx) -> Transformed<Arc<LogicalPlan>> {
+    fn anchor_traversal(&self, anchor_node_alias: String, logical_plan: Arc<LogicalPlan>, plan_ctx: &mut PlanCtx) -> OptimizerResult<Transformed<Arc<LogicalPlan>>> {
         match logical_plan.as_ref() {
             LogicalPlan::GraphNode(graph_node) => {
-                let child_tf = self.anchor_traversal(anchor_node_alias.clone(), graph_node.input.clone(), plan_ctx);
+                let child_tf = self.anchor_traversal(anchor_node_alias.clone(), graph_node.input.clone(), plan_ctx)?;
                 // let self_tf = self.anchor_traversal(anchor_node_alias, graph_node.self_plan.clone(), plan_ctx);
-                graph_node.rebuild_or_clone(child_tf, logical_plan.clone())
+                Ok(graph_node.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
             LogicalPlan::GraphRel(graph_rel) => {
                 // if anchor node found at right side then it means we have found it at the end of the graph traversal. It is already a start node.
@@ -60,9 +60,9 @@ impl AnchorNodeSelection {
                         right_connection: graph_rel.left_connection.clone(),
                         is_rel_anchor: false
                     }));
-                    let rotated_plan = self.rotate_plan(new_anchor_plan, graph_rel.right.clone());
+                    let rotated_plan = self.rotate_plan(new_anchor_plan, graph_rel.right.clone())?;
                     
-                    return Transformed::Yes(rotated_plan);
+                    return Ok(Transformed::Yes(rotated_plan));
                 } 
 
                 // similarly check for anchor node at relation i.e. at center
@@ -78,62 +78,60 @@ impl AnchorNodeSelection {
                         right_connection: graph_rel.left_connection.clone(),
                         is_rel_anchor: true
                     }));
-                    let rotated_plan = self.rotate_plan(new_anchor_plan, graph_rel.right.clone());
+                    let rotated_plan = self.rotate_plan(new_anchor_plan, graph_rel.right.clone())?;
                     
-                    return Transformed::Yes(rotated_plan);
+                    return Ok(Transformed::Yes(rotated_plan));
                 }
 
                 else{
                    
     
-                    let left_tf = self.anchor_traversal(anchor_node_alias.clone(), graph_rel.left.clone(), plan_ctx);
-                    let center_tf = self.anchor_traversal(anchor_node_alias.clone(), graph_rel.center.clone(), plan_ctx);
-                    let right_tf = self.anchor_traversal(anchor_node_alias, graph_rel.right.clone(), plan_ctx);
-                    graph_rel.rebuild_or_clone(left_tf, center_tf, right_tf, logical_plan.clone())
+                    let left_tf = self.anchor_traversal(anchor_node_alias.clone(), graph_rel.left.clone(), plan_ctx)?;
+                    let center_tf = self.anchor_traversal(anchor_node_alias.clone(), graph_rel.center.clone(), plan_ctx)?;
+                    let right_tf = self.anchor_traversal(anchor_node_alias, graph_rel.right.clone(), plan_ctx)?;
+                    Ok(graph_rel.rebuild_or_clone(left_tf, center_tf, right_tf, logical_plan.clone()))
                 }
             
             },
             LogicalPlan::Cte(cte   ) => {
-                let child_tf = self.anchor_traversal(anchor_node_alias, cte.input.clone(), plan_ctx);
-                cte.rebuild_or_clone(child_tf, logical_plan.clone())
+                let child_tf = self.anchor_traversal(anchor_node_alias, cte.input.clone(), plan_ctx)?;
+                Ok(cte.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
-            LogicalPlan::Scan(_) => {
-                    Transformed::No(logical_plan.clone())
-            },
-            LogicalPlan::Empty => Transformed::No(logical_plan.clone()),
+            LogicalPlan::Scan(_) => Ok(Transformed::No(logical_plan.clone())),
+            LogicalPlan::Empty => Ok(Transformed::No(logical_plan.clone())),
             LogicalPlan::GraphJoins(graph_joins) => {
-                let child_tf = self.anchor_traversal(anchor_node_alias, graph_joins.input.clone(), plan_ctx);
-                graph_joins.rebuild_or_clone(child_tf, logical_plan.clone())
+                let child_tf = self.anchor_traversal(anchor_node_alias, graph_joins.input.clone(), plan_ctx)?;
+                Ok(graph_joins.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
             LogicalPlan::Filter(filter) => {
-                        let child_tf = self.anchor_traversal(anchor_node_alias, filter.input.clone(), plan_ctx);
-                        filter.rebuild_or_clone(child_tf, logical_plan.clone())
+                        let child_tf = self.anchor_traversal(anchor_node_alias, filter.input.clone(), plan_ctx)?;
+                        Ok(filter.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
             LogicalPlan::Projection(projection) => {
-                        let child_tf = self.anchor_traversal(anchor_node_alias, projection.input.clone(), plan_ctx);
-                        projection.rebuild_or_clone(child_tf, logical_plan.clone())
+                        let child_tf = self.anchor_traversal(anchor_node_alias, projection.input.clone(), plan_ctx)?;
+                        Ok(projection.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
             LogicalPlan::GroupBy(group_by   ) => {
-                let child_tf = self.anchor_traversal(anchor_node_alias, group_by.input.clone(), plan_ctx);
-                group_by.rebuild_or_clone(child_tf, logical_plan.clone())
+                let child_tf = self.anchor_traversal(anchor_node_alias, group_by.input.clone(), plan_ctx)?;
+                Ok(group_by.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
             LogicalPlan::OrderBy(order_by) => {
-                        let child_tf = self.anchor_traversal(anchor_node_alias, order_by.input.clone(), plan_ctx);
-                        order_by.rebuild_or_clone(child_tf, logical_plan.clone())
+                        let child_tf = self.anchor_traversal(anchor_node_alias, order_by.input.clone(), plan_ctx)?;
+                        Ok(order_by.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
             LogicalPlan::Skip(skip) => {
-                        let child_tf = self.anchor_traversal(anchor_node_alias, skip.input.clone(), plan_ctx);
-                        skip.rebuild_or_clone(child_tf, logical_plan.clone())
+                        let child_tf = self.anchor_traversal(anchor_node_alias, skip.input.clone(), plan_ctx)?;
+                        Ok(skip.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
             LogicalPlan::Limit(limit) => {
-                        let child_tf = self.anchor_traversal(anchor_node_alias, limit.input.clone(), plan_ctx);
-                        limit.rebuild_or_clone(child_tf, logical_plan.clone())
+                        let child_tf = self.anchor_traversal(anchor_node_alias, limit.input.clone(), plan_ctx)?;
+                        Ok(limit.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
             
         }
     }
 
-    fn rotate_plan(&self, new_plan: Arc<LogicalPlan>, remaining_plan: Arc<LogicalPlan>) -> Arc<LogicalPlan> {
+    fn rotate_plan(&self, new_plan: Arc<LogicalPlan>, remaining_plan: Arc<LogicalPlan>) -> OptimizerResult<Arc<LogicalPlan>> {
         match remaining_plan.as_ref() {
             LogicalPlan::GraphNode(graph_node) => {
                 if let LogicalPlan::GraphRel(prev_graph_rel) = new_plan.as_ref() { 
@@ -147,7 +145,7 @@ impl AnchorNodeSelection {
                         right_connection: prev_graph_rel.right_connection.clone(),
                         is_rel_anchor: prev_graph_rel.is_rel_anchor
                     }));
-                    return new_constructed_plan;
+                    return Ok(new_constructed_plan);
                 }
                 // TODO return error in this case
                 unreachable!()
@@ -193,7 +191,7 @@ impl AnchorNodeSelection {
                 unreachable!()
                 
             },
-            _ => new_plan.clone()
+            _ => Ok(new_plan.clone())
         }
     }
 

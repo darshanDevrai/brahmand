@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{query_engine::types::{GraphSchema, RelationshipSchema}, query_planner::{analyzer::{analyzer_pass::AnalyzerPass, errors::AnalyzerError}, logical_expr::logical_expr::LogicalExpr, logical_plan::logical_plan::{LogicalPlan, ProjectionItem, Scan}, plan_ctx::plan_ctx::{PlanCtx, TableCtx}, transformed::Transformed}};
+use crate::{query_engine::types::{GraphSchema, RelationshipSchema}, query_planner::{analyzer::{analyzer_pass::{AnalyzerPass, AnalyzerResult}, errors::AnalyzerError}, logical_expr::logical_expr::LogicalExpr, logical_plan::logical_plan::{LogicalPlan, ProjectionItem, Scan}, plan_ctx::plan_ctx::{PlanCtx, TableCtx}, transformed::Transformed}};
 
 
 
@@ -11,9 +11,9 @@ pub struct SchemaInference;
 
 
 impl AnalyzerPass for SchemaInference {
-    fn analyze_with_graph_schema(&self, logical_plan: Arc<LogicalPlan>, plan_ctx: &mut PlanCtx, graph_schema: &GraphSchema) -> Transformed<Arc<LogicalPlan>> {
+    fn analyze_with_graph_schema(&self, logical_plan: Arc<LogicalPlan>, plan_ctx: &mut PlanCtx, graph_schema: &GraphSchema) -> AnalyzerResult<Transformed<Arc<LogicalPlan>>> {
 
-        self.infer_schema(logical_plan.clone(), plan_ctx, graph_schema);
+        self.infer_schema(logical_plan.clone(), plan_ctx, graph_schema)?;
         
         self.push_inferred_table_names_to_scan(logical_plan, plan_ctx)
     }
@@ -25,70 +25,72 @@ impl SchemaInference {
         SchemaInference 
     }
 
-    pub fn push_inferred_table_names_to_scan(&self, logical_plan: Arc<LogicalPlan>, plan_ctx: &mut PlanCtx) -> Transformed<Arc<LogicalPlan>> {
+    pub fn push_inferred_table_names_to_scan(&self, logical_plan: Arc<LogicalPlan>, plan_ctx: &mut PlanCtx) -> AnalyzerResult<Transformed<Arc<LogicalPlan>>> {
         match logical_plan.as_ref() {
             LogicalPlan::Projection(projection) => {
-                let child_tf = self.push_inferred_table_names_to_scan(projection.input.clone(), plan_ctx);
-                projection.rebuild_or_clone(child_tf, logical_plan.clone())
+                let child_tf = self.push_inferred_table_names_to_scan(projection.input.clone(), plan_ctx)?;
+                Ok(projection.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
             LogicalPlan::GraphNode(graph_node) => {
-                let child_tf = self.push_inferred_table_names_to_scan(graph_node.input.clone(), plan_ctx);
-                graph_node.rebuild_or_clone(child_tf, logical_plan.clone())
+                let child_tf = self.push_inferred_table_names_to_scan(graph_node.input.clone(), plan_ctx)?;
+                Ok(graph_node.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
             LogicalPlan::GraphRel(graph_rel) => {
-                let left_tf = self.push_inferred_table_names_to_scan(graph_rel.left.clone(), plan_ctx);
-                let center_tf = self.push_inferred_table_names_to_scan(graph_rel.center.clone(), plan_ctx);
-                let right_tf = self.push_inferred_table_names_to_scan(graph_rel.right.clone(), plan_ctx);
-                graph_rel.rebuild_or_clone(left_tf, center_tf, right_tf, logical_plan.clone())
+                let left_tf = self.push_inferred_table_names_to_scan(graph_rel.left.clone(), plan_ctx)?;
+                let center_tf = self.push_inferred_table_names_to_scan(graph_rel.center.clone(), plan_ctx)?;
+                let right_tf = self.push_inferred_table_names_to_scan(graph_rel.right.clone(), plan_ctx)?;
+                Ok(graph_rel.rebuild_or_clone(left_tf, center_tf, right_tf, logical_plan.clone()))
             },
             LogicalPlan::Cte(cte   ) => {
-                let child_tf = self.push_inferred_table_names_to_scan( cte.input.clone(), plan_ctx);
-                cte.rebuild_or_clone(child_tf, logical_plan.clone())
+                let child_tf = self.push_inferred_table_names_to_scan( cte.input.clone(), plan_ctx)?;
+                Ok(cte.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
             LogicalPlan::Scan(scan) => {
                 let table_ctx = plan_ctx.alias_table_ctx_map.get(&scan.table_alias).unwrap();
-                Transformed::Yes(Arc::new(LogicalPlan::Scan(Scan {
+                Ok(Transformed::Yes(Arc::new(LogicalPlan::Scan(Scan {
                     table_name: table_ctx.label.clone(),
                     table_alias: scan.table_alias.clone()
-                })))
+                }))))
             },
-            LogicalPlan::Empty => Transformed::No(logical_plan.clone()),
+            LogicalPlan::Empty => Ok(Transformed::No(logical_plan.clone())),
             LogicalPlan::GraphJoins(graph_joins) => {
-                let child_tf = self.push_inferred_table_names_to_scan(graph_joins.input.clone(), plan_ctx);
-                graph_joins.rebuild_or_clone(child_tf, logical_plan.clone())
+                let child_tf = self.push_inferred_table_names_to_scan(graph_joins.input.clone(), plan_ctx)?;
+                Ok(graph_joins.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
             LogicalPlan::Filter(filter) => {
-                let child_tf = self.push_inferred_table_names_to_scan(filter.input.clone(), plan_ctx);
-                filter.rebuild_or_clone(child_tf, logical_plan.clone())
+                let child_tf = self.push_inferred_table_names_to_scan(filter.input.clone(), plan_ctx)?;
+                Ok(filter.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
             LogicalPlan::GroupBy(group_by   ) => {
-                let child_tf = self.push_inferred_table_names_to_scan(group_by.input.clone(), plan_ctx);
-                group_by.rebuild_or_clone(child_tf, logical_plan.clone())
+                let child_tf = self.push_inferred_table_names_to_scan(group_by.input.clone(), plan_ctx)?;
+                Ok(group_by.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
             LogicalPlan::OrderBy(order_by) => {
-                let child_tf = self.push_inferred_table_names_to_scan(order_by.input.clone(), plan_ctx);
-                order_by.rebuild_or_clone(child_tf, logical_plan.clone())
+                let child_tf = self.push_inferred_table_names_to_scan(order_by.input.clone(), plan_ctx)?;
+                Ok(order_by.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
             LogicalPlan::Skip(skip) => {
-                let child_tf = self.push_inferred_table_names_to_scan(skip.input.clone(), plan_ctx);
-                skip.rebuild_or_clone(child_tf, logical_plan.clone())
+                let child_tf = self.push_inferred_table_names_to_scan(skip.input.clone(), plan_ctx)?;
+                Ok(skip.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
             LogicalPlan::Limit(limit) => {
-                let child_tf = self.push_inferred_table_names_to_scan(limit.input.clone(), plan_ctx);
-                limit.rebuild_or_clone(child_tf, logical_plan.clone())
+                let child_tf = self.push_inferred_table_names_to_scan(limit.input.clone(), plan_ctx)?;
+                Ok(limit.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
         }
     }
 
-    fn infer_schema(&self, logical_plan: Arc<LogicalPlan>, plan_ctx: &mut PlanCtx, graph_schema: &GraphSchema) -> Transformed<Arc<LogicalPlan>> {
+    fn infer_schema(&self, logical_plan: Arc<LogicalPlan>, plan_ctx: &mut PlanCtx, graph_schema: &GraphSchema) -> AnalyzerResult<()> {
         match logical_plan.as_ref() {
             LogicalPlan::Projection(projection) => {
-                let child_tf = self.infer_schema(projection.input.clone(), plan_ctx, graph_schema);
-                projection.rebuild_or_clone(child_tf, logical_plan.clone())
+                // let child_tf = self.infer_schema(projection.input.clone(), plan_ctx, graph_schema);
+                // projection.rebuild_or_clone(child_tf, logical_plan.clone())
+                self.infer_schema(projection.input.clone(), plan_ctx, graph_schema)
             },
             LogicalPlan::GraphNode(graph_node) => {
-                let child_tf = self.infer_schema(graph_node.input.clone(), plan_ctx, graph_schema);
-                graph_node.rebuild_or_clone(child_tf, logical_plan.clone())
+                // let child_tf = self.infer_schema(graph_node.input.clone(), plan_ctx, graph_schema);
+                // graph_node.rebuild_or_clone(child_tf, logical_plan.clone())
+                self.infer_schema(graph_node.input.clone(), plan_ctx, graph_schema)
             },
             LogicalPlan::GraphRel(graph_rel) => {
                 // TODO remove unwrap and wrap it with result
@@ -99,49 +101,59 @@ impl SchemaInference {
                 let rel_table_ctx = plan_ctx.alias_table_ctx_map.get(&graph_rel.alias).unwrap();
                 let right_table_ctx = plan_ctx.alias_table_ctx_map.get(&right_alias).unwrap();
 
-                let (left_label, rel_label, right_label) = self.infer_missing_labels(graph_schema, left_table_ctx, rel_table_ctx, right_table_ctx).unwrap();
+                let (left_label, rel_label, right_label) = self.infer_missing_labels(graph_schema, left_table_ctx, rel_table_ctx, right_table_ctx)?;
                 
                 for (alias, label) in vec![(left_alias, left_label), (graph_rel.alias.clone(), rel_label), (right_alias, right_label)] {
                     let table_ctx = plan_ctx.alias_table_ctx_map.get_mut(&alias).unwrap();
                     table_ctx.label = Some(label);
                 }
                 
-                let left_tf = self.infer_schema(graph_rel.left.clone(), plan_ctx, graph_schema);
-                let center_tf = self.infer_schema(graph_rel.center.clone(), plan_ctx, graph_schema);
-                let right_tf = self.infer_schema(graph_rel.right.clone(), plan_ctx, graph_schema);
-                graph_rel.rebuild_or_clone(left_tf, center_tf, right_tf, logical_plan.clone())
+                // let left_tf = self.infer_schema(graph_rel.left.clone(), plan_ctx, graph_schema);
+                // let center_tf = self.infer_schema(graph_rel.center.clone(), plan_ctx, graph_schema);
+                // let right_tf = self.infer_schema(graph_rel.right.clone(), plan_ctx, graph_schema);
+                // graph_rel.rebuild_or_clone(left_tf, center_tf, right_tf, logical_plan.clone())
+
+                self.infer_schema(graph_rel.left.clone(), plan_ctx, graph_schema)?;
+                self.infer_schema(graph_rel.center.clone(), plan_ctx, graph_schema)?;
+                self.infer_schema(graph_rel.right.clone(), plan_ctx, graph_schema)?;
+                Ok(())
             },
             LogicalPlan::Cte(cte   ) => {
-                let child_tf = self.infer_schema( cte.input.clone(), plan_ctx, graph_schema);
-                cte.rebuild_or_clone(child_tf, logical_plan.clone())
+                // let child_tf = self.infer_schema( cte.input.clone(), plan_ctx, graph_schema);
+                // cte.rebuild_or_clone(child_tf, logical_plan.clone())
+                self.infer_schema( cte.input.clone(), plan_ctx, graph_schema)
             },
-            LogicalPlan::Scan(_) => {
-                Transformed::No(logical_plan.clone())
-            },
-            LogicalPlan::Empty => Transformed::No(logical_plan.clone()),
+            LogicalPlan::Scan(_) => Ok(()),
+            LogicalPlan::Empty => Ok(()),
             LogicalPlan::GraphJoins(graph_joins) => {
-                let child_tf = self.infer_schema(graph_joins.input.clone(), plan_ctx, graph_schema);
-                graph_joins.rebuild_or_clone(child_tf, logical_plan.clone())
+                // let child_tf = self.infer_schema(graph_joins.input.clone(), plan_ctx, graph_schema);
+                // graph_joins.rebuild_or_clone(child_tf, logical_plan.clone())
+                self.infer_schema(graph_joins.input.clone(), plan_ctx, graph_schema)
             },
             LogicalPlan::Filter(filter) => {
-                let child_tf = self.infer_schema(filter.input.clone(), plan_ctx, graph_schema);
-                filter.rebuild_or_clone(child_tf, logical_plan.clone())
+                // let child_tf = self.infer_schema(filter.input.clone(), plan_ctx, graph_schema);
+                // filter.rebuild_or_clone(child_tf, logical_plan.clone())
+                self.infer_schema(filter.input.clone(), plan_ctx, graph_schema)
             },
             LogicalPlan::GroupBy(group_by   ) => {
-                let child_tf = self.infer_schema(group_by.input.clone(), plan_ctx, graph_schema);
-                group_by.rebuild_or_clone(child_tf, logical_plan.clone())
+                // let child_tf = self.infer_schema(group_by.input.clone(), plan_ctx, graph_schema);
+                // group_by.rebuild_or_clone(child_tf, logical_plan.clone())
+                self.infer_schema(group_by.input.clone(), plan_ctx, graph_schema)
             },
             LogicalPlan::OrderBy(order_by) => {
-                let child_tf = self.infer_schema(order_by.input.clone(), plan_ctx, graph_schema);
-                order_by.rebuild_or_clone(child_tf, logical_plan.clone())
+                // let child_tf = self.infer_schema(order_by.input.clone(), plan_ctx, graph_schema);
+                // order_by.rebuild_or_clone(child_tf, logical_plan.clone())
+                self.infer_schema(order_by.input.clone(), plan_ctx, graph_schema)
             },
             LogicalPlan::Skip(skip) => {
-                let child_tf = self.infer_schema(skip.input.clone(), plan_ctx, graph_schema);
-                skip.rebuild_or_clone(child_tf, logical_plan.clone())
+                // let child_tf = self.infer_schema(skip.input.clone(), plan_ctx, graph_schema);
+                // skip.rebuild_or_clone(child_tf, logical_plan.clone())
+                self.infer_schema(skip.input.clone(), plan_ctx, graph_schema)
             },
             LogicalPlan::Limit(limit) => {
-                let child_tf = self.infer_schema(limit.input.clone(), plan_ctx, graph_schema);
-                limit.rebuild_or_clone(child_tf, logical_plan.clone())
+                // let child_tf = self.infer_schema(limit.input.clone(), plan_ctx, graph_schema);
+                // limit.rebuild_or_clone(child_tf, logical_plan.clone())
+                self.infer_schema(limit.input.clone(), plan_ctx, graph_schema)
             },
         }
     }
@@ -152,7 +164,7 @@ impl SchemaInference {
         left_table_ctx: &TableCtx,
         rel_table_ctx: &TableCtx,
         right_table_ctx: &TableCtx,
-    ) -> Result<(String, String, String), AnalyzerError> {
+    ) -> AnalyzerResult<(String, String, String)> {
     
         // if all present
         if left_table_ctx.label.is_some()
@@ -590,11 +602,11 @@ impl SchemaInference {
         node_table_ctx: &TableCtx,
     ) -> Option<String> {
         let column_name = if let Some(extracted_column) =
-            self.get_column_name_from_filter_predicates(&node_table_ctx.filter_predicates)
+            self.get_column_name_from_filter_predicates(&node_table_ctx.get_filters())
         {
             extracted_column
         } else if let Some(extracted_column) =
-            self.get_column_name_from_projection_items(&node_table_ctx.projection_items)
+            self.get_column_name_from_projection_items(&node_table_ctx.get_projections())
         {
             extracted_column
         } else {

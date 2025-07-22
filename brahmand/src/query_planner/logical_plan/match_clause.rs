@@ -2,8 +2,7 @@ use std::sync::Arc;
 
 use uuid::Uuid;
 
-use crate::{open_cypher_parser::ast::{ConnectedPattern, MatchClause, NodePattern, PathPattern}, query_planner::{logical_expr::logical_expr::{Column, Operator, OperatorApplication, LogicalExpr, Property}, logical_plan::logical_plan::{GraphNode, GraphRel, LogicalPlan, Scan}, plan_ctx::plan_ctx::{PlanCtx, TableCtx}}};
-use super::errors::PlannerError;
+use crate::{open_cypher_parser::ast::{ConnectedPattern, MatchClause, NodePattern, PathPattern}, query_planner::{logical_expr::logical_expr::{Column, LogicalExpr, Operator, OperatorApplication, Property}, logical_plan::{errors::LogicalPlanError, logical_plan::{GraphNode, GraphRel, LogicalPlan, Scan}, plan_builder::LogicalPlanResult}, plan_ctx::plan_ctx::{PlanCtx, TableCtx}}};
 
 
 fn generate_scan(alias: String, label: Option<String>) -> Arc<LogicalPlan> {
@@ -45,7 +44,7 @@ fn convert_properties_to_operator_application(plan_ctx: &mut PlanCtx) {
         if !extracted_props.is_empty() {
             table_ctx.use_edge_list = true;
         }
-        table_ctx.filter_predicates.append(&mut extracted_props); 
+        table_ctx.append_filters(&mut extracted_props); 
     }
 
 }
@@ -55,7 +54,7 @@ fn generate_id()-> String {
     format!("a{}",Uuid::new_v4().to_string()[..10].to_string().replace("-", ""))
 }
 
-fn traverse_connected_pattern<'a>(connected_patterns: &Vec<ConnectedPattern<'a>>, mut plan: Arc<LogicalPlan>, plan_ctx: &mut PlanCtx, path_pattern_idx: usize) -> Result<Arc<LogicalPlan>, PlannerError> {
+fn traverse_connected_pattern<'a>(connected_patterns: &Vec<ConnectedPattern<'a>>, mut plan: Arc<LogicalPlan>, plan_ctx: &mut PlanCtx, path_pattern_idx: usize) -> LogicalPlanResult<Arc<LogicalPlan>> {
     
     for connected_pattern in connected_patterns {    
 
@@ -143,7 +142,7 @@ fn traverse_connected_pattern<'a>(connected_patterns: &Vec<ConnectedPattern<'a>>
             // if two comma separated patterns found and they are not connected to each other i.e. there is no common node alias between them then throw error.
             if path_pattern_idx > 0 {
                 // throw error
-                return Err(PlannerError::DisconnectedPatternFound);
+                return Err(LogicalPlanError::DisconnectedPatternFound);
             }
 
             // we will keep start graph node at the right side and end at the left side
@@ -183,11 +182,11 @@ fn traverse_connected_pattern<'a>(connected_patterns: &Vec<ConnectedPattern<'a>>
     Ok(plan)
 }
 
-fn traverse_node_pattern(node_pattern: &NodePattern, plan: Arc<LogicalPlan>, plan_ctx: &mut PlanCtx) -> Result<Arc<LogicalPlan>, PlannerError> {
+fn traverse_node_pattern(node_pattern: &NodePattern, plan: Arc<LogicalPlan>, plan_ctx: &mut PlanCtx) -> LogicalPlanResult<Arc<LogicalPlan>> {
     
 
     // For now we are not supporting empty node. standalone node with name is supported.
-    let node_alias = node_pattern.name.ok_or(PlannerError::EmptyNode)?.to_string();
+    let node_alias = node_pattern.name.ok_or(LogicalPlanError::EmptyNode)?.to_string();
     let node_label = node_pattern.label.map(|val| val.to_string());
     let mut node_props = node_pattern.properties.clone().map(|props| props.into_iter().map(Property::from).collect()).unwrap_or_else(Vec::new);
     
@@ -218,7 +217,7 @@ pub fn evaluate_match_clause<'a>(
     match_clause: &MatchClause<'a>,
     mut plan: Arc<LogicalPlan>,
     mut plan_ctx: &mut PlanCtx
-) -> Result<Arc<LogicalPlan>, PlannerError> {
+) -> LogicalPlanResult<Arc<LogicalPlan>> {
     for (idx, path_pattern) in match_clause.path_patterns.iter().enumerate() {
         match path_pattern {
             PathPattern::Node(node_pattern) => {

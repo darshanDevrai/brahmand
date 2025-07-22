@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{open_cypher_parser::ast::OpenCypherQueryAst, query_planner::logical_plan::{errors::PlannerError, logical_plan::LogicalPlan}};
+use crate::{open_cypher_parser::ast::OpenCypherQueryAst, query_planner::logical_plan::{logical_plan::LogicalPlan, plan_builder::LogicalPlanResult}};
 
 use super::plan_ctx::plan_ctx::PlanCtx;
 
@@ -14,6 +14,6 @@ mod skip_n_limit_clause;
 pub mod errors;
 
 
-pub fn evaluate_query(query_ast: OpenCypherQueryAst<'_>) -> Result<(Arc<LogicalPlan>, PlanCtx), PlannerError> {
+pub fn evaluate_query(query_ast: OpenCypherQueryAst<'_>) -> LogicalPlanResult<(Arc<LogicalPlan>, PlanCtx)> {
     plan_builder::build_logical_plan(&query_ast)
 }

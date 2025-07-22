@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use crate::{query_engine::types::{GraphSchema, RelationshipSchema}, query_planner::{analyzer::{analyzer_pass::AnalyzerPass, errors::AnalyzerError}, logical_expr::logical_expr::{Column, ColumnAlias, Direction, InSubquery, LogicalExpr, PropertyAccess}, logical_plan::logical_plan::{Cte, GraphRel, LogicalPlan, Projection, ProjectionItem, Scan}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed}};
+use crate::{query_engine::types::{GraphSchema, RelationshipSchema}, query_planner::{analyzer::{analyzer_pass::{AnalyzerPass, AnalyzerResult}, errors::AnalyzerError}, logical_expr::logical_expr::{Column, ColumnAlias, Direction, InSubquery, LogicalExpr, PropertyAccess}, logical_plan::logical_plan::{Cte, GraphRel, LogicalPlan, Projection, ProjectionItem, Scan}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed}};
 
 
 
@@ -14,86 +14,86 @@ pub struct GraphTRaversalPlanning;
 
 
 impl AnalyzerPass for GraphTRaversalPlanning {
-    fn analyze_with_graph_schema(&self, logical_plan: Arc<LogicalPlan>, plan_ctx: &mut PlanCtx, graph_schema: &GraphSchema) -> Transformed<Arc<LogicalPlan>> {
+    fn analyze_with_graph_schema(&self, logical_plan: Arc<LogicalPlan>, plan_ctx: &mut PlanCtx, graph_schema: &GraphSchema) -> AnalyzerResult<Transformed<Arc<LogicalPlan>>> {
         match logical_plan.as_ref() {
             LogicalPlan::Projection(projection) => {
-                let child_tf = self.analyze_with_graph_schema(projection.input.clone(), plan_ctx, graph_schema);
-                projection.rebuild_or_clone(child_tf, logical_plan.clone())
+                let child_tf = self.analyze_with_graph_schema(projection.input.clone(), plan_ctx, graph_schema)?;
+                Ok(projection.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
             LogicalPlan::GraphNode(graph_node) => {
-                let child_tf = self.analyze_with_graph_schema(graph_node.input.clone(), plan_ctx, graph_schema);
-                graph_node.rebuild_or_clone(child_tf, logical_plan.clone())
+                let child_tf = self.analyze_with_graph_schema(graph_node.input.clone(), plan_ctx, graph_schema)?;
+                Ok(graph_node.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
             LogicalPlan::GraphRel(graph_rel) => {
 
                 if !matches!(graph_rel.right.as_ref(), LogicalPlan::GraphRel(_)) {
-                    let (new_graph_rel, ctxs_to_update) = self.infer_anchor_traversal(graph_rel, plan_ctx, graph_schema);
+                    let (new_graph_rel, ctxs_to_update) = self.infer_anchor_traversal(graph_rel, plan_ctx, graph_schema)?;
 
-                    for ctx in ctxs_to_update.into_iter() {
+                    for mut ctx in ctxs_to_update.into_iter() {
                         let table_ctx = plan_ctx.alias_table_ctx_map.get_mut(&ctx.alias).unwrap();
                         table_ctx.label = Some(ctx.label);
                         // table_ctx.projection_items.append(&mut ctx.projections);
                         if let Some(plan_expr) = ctx.insubquery {
                             table_ctx.insert_filter(plan_expr);
                         } 
-                        table_ctx.append_projection(ctx.projections);
+                        table_ctx.append_projection(&mut ctx.projections);
                     }
 
-                    return  Transformed::Yes(Arc::new(LogicalPlan::GraphRel(new_graph_rel)));
+                    return  Ok(Transformed::Yes(Arc::new(LogicalPlan::GraphRel(new_graph_rel))));
 
                 } else {
 
-                    let right_tf = self.analyze_with_graph_schema(graph_rel.right.clone(), plan_ctx, graph_schema);
+                    let right_tf = self.analyze_with_graph_schema(graph_rel.right.clone(), plan_ctx, graph_schema)?;
 
                     let updated_graph_rel = GraphRel {
                         right: right_tf.get_plan(),
                         ..graph_rel.clone()
                     };
-                    let (new_graph_rel, ctxs_to_update) = self.infer_intermediate_traversal(&updated_graph_rel, plan_ctx, graph_schema);
+                    let (new_graph_rel, ctxs_to_update) = self.infer_intermediate_traversal(&updated_graph_rel, plan_ctx, graph_schema)?;
 
                     for mut ctx in ctxs_to_update.into_iter() {
                         let table_ctx = plan_ctx.alias_table_ctx_map.get_mut(&ctx.alias).unwrap();
                         table_ctx.label = Some(ctx.label);
                         if let Some(plan_expr) = ctx.insubquery {
-                            table_ctx.filter_predicates.push(plan_expr);
+                            table_ctx.insert_filter(plan_expr);
                         } 
-                        table_ctx.projection_items.append(&mut ctx.projections);
+                        table_ctx.append_projection(&mut ctx.projections);
                     }
 
-                    return  Transformed::Yes(Arc::new(LogicalPlan::GraphRel(new_graph_rel)));
+                    return  Ok(Transformed::Yes(Arc::new(LogicalPlan::GraphRel(new_graph_rel))));
                 }
             },
             LogicalPlan::Cte(cte   ) => {
-                let child_tf = self.analyze_with_graph_schema( cte.input.clone(), plan_ctx, graph_schema);
-                cte.rebuild_or_clone(child_tf, logical_plan.clone())
+                let child_tf = self.analyze_with_graph_schema( cte.input.clone(), plan_ctx, graph_schema)?;
+                Ok(cte.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
             LogicalPlan::Scan(_) => {
-                Transformed::No(logical_plan.clone())
+                Ok(Transformed::No(logical_plan.clone()))
             },
-            LogicalPlan::Empty => Transformed::No(logical_plan.clone()),
+            LogicalPlan::Empty => Ok(Transformed::No(logical_plan.clone())),
             LogicalPlan::GraphJoins(graph_joins) => {
-                let child_tf = self.analyze_with_graph_schema(graph_joins.input.clone(), plan_ctx, graph_schema);
-                graph_joins.rebuild_or_clone(child_tf, logical_plan.clone())
+                let child_tf = self.analyze_with_graph_schema(graph_joins.input.clone(), plan_ctx, graph_schema)?;
+                Ok(graph_joins.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
             LogicalPlan::Filter(filter) => {
-                let child_tf = self.analyze_with_graph_schema(filter.input.clone(), plan_ctx, graph_schema);
-                filter.rebuild_or_clone(child_tf, logical_plan.clone())
+                let child_tf = self.analyze_with_graph_schema(filter.input.clone(), plan_ctx, graph_schema)?;
+                Ok(filter.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
             LogicalPlan::GroupBy(group_by   ) => {
-                let child_tf = self.analyze_with_graph_schema(group_by.input.clone(), plan_ctx, graph_schema);
-                group_by.rebuild_or_clone(child_tf, logical_plan.clone())
+                let child_tf = self.analyze_with_graph_schema(group_by.input.clone(), plan_ctx, graph_schema)?;
+                Ok(group_by.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
             LogicalPlan::OrderBy(order_by) => {
-                let child_tf = self.analyze_with_graph_schema(order_by.input.clone(), plan_ctx, graph_schema);
-                order_by.rebuild_or_clone(child_tf, logical_plan.clone())
+                let child_tf = self.analyze_with_graph_schema(order_by.input.clone(), plan_ctx, graph_schema)?;
+                Ok(order_by.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
             LogicalPlan::Skip(skip) => {
-                let child_tf = self.analyze_with_graph_schema(skip.input.clone(), plan_ctx, graph_schema);
-                skip.rebuild_or_clone(child_tf, logical_plan.clone())
+                let child_tf = self.analyze_with_graph_schema(skip.input.clone(), plan_ctx, graph_schema)?;
+                Ok(skip.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
             LogicalPlan::Limit(limit) => {
-                let child_tf = self.analyze_with_graph_schema(limit.input.clone(), plan_ctx, graph_schema);
-                limit.rebuild_or_clone(child_tf, logical_plan.clone())
+                let child_tf = self.analyze_with_graph_schema(limit.input.clone(), plan_ctx, graph_schema)?;
+                Ok(limit.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
         }
     }
@@ -112,7 +112,7 @@ impl GraphTRaversalPlanning {
         GraphTRaversalPlanning
     }
 
-    pub fn infer_anchor_traversal(&self, graph_rel: &GraphRel, plan_ctx: &mut PlanCtx, graph_schema: &GraphSchema) -> (GraphRel, Vec<CtxToUpdate>) {
+    pub fn infer_anchor_traversal(&self, graph_rel: &GraphRel, plan_ctx: &mut PlanCtx, graph_schema: &GraphSchema) -> AnalyzerResult<(GraphRel, Vec<CtxToUpdate>)> {
         // get required information 
         let left_alias = &graph_rel.left_connection.clone().unwrap();
         let rel_alias = &graph_rel.alias;
@@ -141,8 +141,8 @@ impl GraphTRaversalPlanning {
         let left_cte_name = format!("{}_{}",left_label, left_alias);
         let right_cte_name = format!("{}_{}", right_label, right_alias);
 
-        let star_found = right_ctx.projection_items.iter().any(|item| item.expression == LogicalExpr::Star);
-        let node_id_found = right_ctx.projection_items.iter().any(|item| {
+        let star_found = right_ctx.get_projections().iter().any(|item| item.expression == LogicalExpr::Star);
+        let node_id_found = right_ctx.get_projections().iter().any(|item| {
             match &item.expression {
                 LogicalExpr::Column(Column(col)) => col == &right_node_id_column,
                 LogicalExpr::PropertyAccessExp(PropertyAccess { column, .. }) => column.0 == right_node_id_column,
@@ -157,8 +157,8 @@ impl GraphTRaversalPlanning {
         };
         
 
-        let star_found = left_ctx.projection_items.iter().any(|item| item.expression == LogicalExpr::Star);
-        let node_id_found = left_ctx.projection_items.iter().any(|item| {
+        let star_found = left_ctx.get_projections().iter().any(|item| item.expression == LogicalExpr::Star);
+        let node_id_found = left_ctx.get_projections().iter().any(|item| {
             match &item.expression {
                 LogicalExpr::Column(Column(col)) => col == &left_node_id_column,
                 LogicalExpr::PropertyAccessExp(PropertyAccess { column, .. }) => column.0 == left_node_id_column,
@@ -175,7 +175,7 @@ impl GraphTRaversalPlanning {
         if rel_ctx.use_edge_list {
             let rel_cte_name = format!("{}_{}", rel_label, rel_alias);
             
-            let star_found = rel_ctx.projection_items.iter().any(|item| item.expression == LogicalExpr::Star);
+            let star_found = rel_ctx.get_projections().iter().any(|item| item.expression == LogicalExpr::Star);
             let rel_proj_input: Vec<(String, Option<ColumnAlias>)> = if !star_found {
                 vec![
                     (format!("from_{}", rel_schema.from_node), Some(ColumnAlias("from_id".to_string()))),
@@ -246,7 +246,7 @@ impl GraphTRaversalPlanning {
                     right: Arc::new(LogicalPlan::Cte(Cte { input: graph_rel.right.clone(), name: rel_cte_name  })), 
                     ..graph_rel.clone()
                 };
-                return (new_graph_rel, ctxs_to_update)
+                return Ok((new_graph_rel, ctxs_to_update))
 
             }else{
                 let right_ctx_to_update = CtxToUpdate {
@@ -281,7 +281,7 @@ impl GraphTRaversalPlanning {
                     ..graph_rel.clone()
                 };
     
-                return (new_graph_rel, ctxs_to_update)
+                return Ok((new_graph_rel, ctxs_to_update))
             }
 
 
@@ -289,7 +289,7 @@ impl GraphTRaversalPlanning {
         } else {
            
 
-            let new_rel_label = self.get_relationship_table_name(right_label.clone(), left_label.clone(), rel_label, graph_rel.direction.clone(), rel_schema).unwrap();
+            let new_rel_label = self.get_relationship_table_name(right_label.clone(), left_label.clone(), rel_label, graph_rel.direction.clone(), rel_schema)?;
             let rel_cte_name = format!("{}_{}", new_rel_label, rel_alias);
 
             let right_ctx_to_update = CtxToUpdate {
@@ -335,12 +335,12 @@ impl GraphTRaversalPlanning {
                 ..graph_rel.clone()
             };
 
-            (new_graph_rel, ctxs_to_update)
+            Ok((new_graph_rel, ctxs_to_update))
         }
 
     }
 
-    fn infer_intermediate_traversal(&self, graph_rel: &GraphRel, plan_ctx: &mut PlanCtx, graph_schema: &GraphSchema) -> (GraphRel, Vec<CtxToUpdate>) {
+    fn infer_intermediate_traversal(&self, graph_rel: &GraphRel, plan_ctx: &mut PlanCtx, graph_schema: &GraphSchema) -> AnalyzerResult<(GraphRel, Vec<CtxToUpdate>)> {
         // get required information 
         let left_alias = &graph_rel.left_connection.clone().unwrap();
         let rel_alias = &graph_rel.alias;
@@ -370,8 +370,8 @@ impl GraphTRaversalPlanning {
         let right_cte_name = format!("{}_{}", right_label, right_alias);
 
 
-        let star_found = left_ctx.projection_items.iter().any(|item| item.expression == LogicalExpr::Star);
-        let node_id_found = left_ctx.projection_items.iter().any(|item| {
+        let star_found = left_ctx.get_projections().iter().any(|item| item.expression == LogicalExpr::Star);
+        let node_id_found = left_ctx.get_projections().iter().any(|item| {
             match &item.expression {
                 LogicalExpr::Column(Column(col)) => col == &left_node_id_column,
                 LogicalExpr::PropertyAccessExp(PropertyAccess { column, .. }) => column.0 == left_node_id_column,
@@ -389,7 +389,7 @@ impl GraphTRaversalPlanning {
         if rel_ctx.use_edge_list {
             let rel_cte_name = format!("{}_{}", rel_label, rel_alias);
             
-            let star_found = rel_ctx.projection_items.iter().any(|item| item.expression == LogicalExpr::Star);
+            let star_found = rel_ctx.get_projections().iter().any(|item| item.expression == LogicalExpr::Star);
             let rel_proj_input: Vec<(String, Option<ColumnAlias>)> = if !star_found {
                 vec![
                     (format!("from_{}", rel_schema.from_node), Some(ColumnAlias("from_id".to_string()))),
@@ -445,11 +445,11 @@ impl GraphTRaversalPlanning {
                 ..graph_rel.clone()
             };
 
-            return (new_graph_rel, ctxs_to_update)
+            return Ok((new_graph_rel, ctxs_to_update))
             
         } else{
 
-            let new_rel_label = self.get_relationship_table_name(right_label.clone(), left_label.clone(), rel_label, graph_rel.direction.clone(), rel_schema).unwrap();
+            let new_rel_label = self.get_relationship_table_name(right_label.clone(), left_label.clone(), rel_label, graph_rel.direction.clone(), rel_schema)?;
             let rel_cte_name = format!("{}_{}", new_rel_label, rel_alias);
 
 
@@ -489,7 +489,7 @@ impl GraphTRaversalPlanning {
             };
             
 
-            (new_graph_rel, ctxs_to_update)
+            Ok((new_graph_rel, ctxs_to_update))
         }
 
 
@@ -536,7 +536,7 @@ impl GraphTRaversalPlanning {
         rel_label: String,
         direction: Direction,
         rel_schema: &RelationshipSchema,
-    ) -> Result<String, AnalyzerError> {
+    ) -> AnalyzerResult<String> {
 
 
         if right_node_label == left_node_label {

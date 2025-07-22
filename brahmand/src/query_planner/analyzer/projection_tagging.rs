@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{query_engine::types::GraphSchema, query_planner::{analyzer::analyzer_pass::AnalyzerPass, logical_expr::logical_expr::{AggregateFnCall, Column, LogicalExpr, PropertyAccess, TableAlias}, logical_plan::logical_plan::{LogicalPlan, Projection, ProjectionItem}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed}};
+use crate::{query_engine::types::GraphSchema, query_planner::{analyzer::analyzer_pass::{AnalyzerPass, AnalyzerResult}, logical_expr::logical_expr::{AggregateFnCall, Column, LogicalExpr, PropertyAccess, TableAlias}, logical_plan::logical_plan::{LogicalPlan, Projection, ProjectionItem}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed}};
 
 
 
@@ -16,7 +16,7 @@ impl AnalyzerPass for ProjectionTagging {
     // in the final projection, put all explicit alias.* 
 
     // If there is any projection on relationship then use edgelist of that relation.
-    fn analyze_with_graph_schema(&self, logical_plan: Arc<LogicalPlan>, plan_ctx: &mut PlanCtx, graph_schema: &GraphSchema) -> Transformed<Arc<LogicalPlan>> {
+    fn analyze_with_graph_schema(&self, logical_plan: Arc<LogicalPlan>, plan_ctx: &mut PlanCtx, graph_schema: &GraphSchema) -> AnalyzerResult<Transformed<Arc<LogicalPlan>>> {
         match logical_plan.as_ref() {
             LogicalPlan::Projection(projection) => {
                 // handler select all. e.g. -
@@ -30,7 +30,6 @@ impl AnalyzerPass for ProjectionTagging {
                 // RETURN u, c, p;
                 // 
                 // To achieve this we will convert `RETURN *` into `RETURN u, c, p`   
-                // let mut proj_items_to_mutate:Vec<ProjectionItem> = if projection.items.len() == 1 && projection.items.first().unwrap().expression == LogicalExpr::Star {
                 let mut proj_items_to_mutate:Vec<ProjectionItem> = if self.select_all_present(&projection.items) {
                     // we will create projection items with only table alias as return item. tag_projection will handle the proper tagging and overall projection manupulation.
                     let explicit_aliases = self.get_explicit_aliases(plan_ctx);
@@ -46,56 +45,54 @@ impl AnalyzerPass for ProjectionTagging {
                 };
 
                 for item in &mut proj_items_to_mutate  {
-                    self.tag_projection(item, plan_ctx, graph_schema);
+                    self.tag_projection(item, plan_ctx, graph_schema)?;
                 }
 
-                Transformed::Yes(Arc::new(LogicalPlan::Projection(Projection{
+                Ok(Transformed::Yes(Arc::new(LogicalPlan::Projection(Projection{
                     input: projection.input.clone(),
                     items: proj_items_to_mutate,
-                })))
+                }))))
             },
             LogicalPlan::GraphNode(graph_node) => {
-                let child_tf = self.analyze_with_graph_schema(graph_node.input.clone(), plan_ctx, graph_schema);
+                let child_tf = self.analyze_with_graph_schema(graph_node.input.clone(), plan_ctx, graph_schema)?;
                 // let self_tf = self.analyze_with_graph_schema(graph_node.self_plan.clone(), plan_ctx);
-                graph_node.rebuild_or_clone(child_tf, logical_plan.clone())
+                Ok(graph_node.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
             LogicalPlan::GraphRel(graph_rel) => {
-                let left_tf = self.analyze_with_graph_schema(graph_rel.left.clone(), plan_ctx, graph_schema);
-                let center_tf = self.analyze_with_graph_schema(graph_rel.center.clone(), plan_ctx, graph_schema);
-                let right_tf = self.analyze_with_graph_schema(graph_rel.right.clone(), plan_ctx, graph_schema);
-                graph_rel.rebuild_or_clone(left_tf, center_tf, right_tf, logical_plan.clone())
+                let left_tf = self.analyze_with_graph_schema(graph_rel.left.clone(), plan_ctx, graph_schema)?;
+                let center_tf = self.analyze_with_graph_schema(graph_rel.center.clone(), plan_ctx, graph_schema)?;
+                let right_tf = self.analyze_with_graph_schema(graph_rel.right.clone(), plan_ctx, graph_schema)?;
+                Ok(graph_rel.rebuild_or_clone(left_tf, center_tf, right_tf, logical_plan.clone()))
             },
             LogicalPlan::Cte(cte   ) => {
-                let child_tf = self.analyze_with_graph_schema( cte.input.clone(), plan_ctx, graph_schema);
-                cte.rebuild_or_clone(child_tf, logical_plan.clone())
+                let child_tf = self.analyze_with_graph_schema( cte.input.clone(), plan_ctx, graph_schema)?;
+                Ok(cte.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
-            LogicalPlan::Scan(_) => {
-                Transformed::No(logical_plan.clone())
-            },
-            LogicalPlan::Empty => Transformed::No(logical_plan.clone()),
+            LogicalPlan::Scan(_) => Ok(Transformed::No(logical_plan.clone())),
+            LogicalPlan::Empty => Ok(Transformed::No(logical_plan.clone())),
             LogicalPlan::GraphJoins(graph_joins) => {
-                let child_tf = self.analyze_with_graph_schema(graph_joins.input.clone(), plan_ctx, graph_schema);
-                graph_joins.rebuild_or_clone(child_tf, logical_plan.clone())
+                let child_tf = self.analyze_with_graph_schema(graph_joins.input.clone(), plan_ctx, graph_schema)?;
+                Ok(graph_joins.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
             LogicalPlan::Filter(filter) => {
-                let child_tf = self.analyze_with_graph_schema(filter.input.clone(), plan_ctx, graph_schema);
-                filter.rebuild_or_clone(child_tf, logical_plan.clone())
+                let child_tf = self.analyze_with_graph_schema(filter.input.clone(), plan_ctx, graph_schema)?;
+                Ok(filter.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
             LogicalPlan::GroupBy(group_by   ) => {
-                let child_tf = self.analyze_with_graph_schema(group_by.input.clone(), plan_ctx, graph_schema);
-                group_by.rebuild_or_clone(child_tf, logical_plan.clone())
+                let child_tf = self.analyze_with_graph_schema(group_by.input.clone(), plan_ctx, graph_schema)?;
+                Ok(group_by.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
             LogicalPlan::OrderBy(order_by) => {
-                let child_tf = self.analyze_with_graph_schema(order_by.input.clone(), plan_ctx, graph_schema);
-                order_by.rebuild_or_clone(child_tf, logical_plan.clone())
+                let child_tf = self.analyze_with_graph_schema(order_by.input.clone(), plan_ctx, graph_schema)?;
+                Ok(order_by.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
             LogicalPlan::Skip(skip) => {
-                let child_tf = self.analyze_with_graph_schema(skip.input.clone(), plan_ctx, graph_schema);
-                skip.rebuild_or_clone(child_tf, logical_plan.clone())
+                let child_tf = self.analyze_with_graph_schema(skip.input.clone(), plan_ctx, graph_schema)?;
+                Ok(skip.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
             LogicalPlan::Limit(limit) => {
-                let child_tf = self.analyze_with_graph_schema(limit.input.clone(), plan_ctx, graph_schema);
-                limit.rebuild_or_clone(child_tf, logical_plan.clone())
+                let child_tf = self.analyze_with_graph_schema(limit.input.clone(), plan_ctx, graph_schema)?;
+                Ok(limit.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
         }
         
@@ -128,7 +125,7 @@ impl ProjectionTagging {
             .collect()
     }
 
-    fn tag_projection(&self, item: &mut ProjectionItem, plan_ctx: &mut PlanCtx, graph_schema: &GraphSchema) {
+    fn tag_projection(&self, item: &mut ProjectionItem, plan_ctx: &mut PlanCtx, graph_schema: &GraphSchema) -> AnalyzerResult<()> {
         match item.expression.clone() {
             LogicalExpr::TableAlias(table_alias) => {
                 // if just table alias i.e MATCH (p:Post) Return p; then For final overall projection keep p.* and for p's projection keep *. 
@@ -139,7 +136,8 @@ impl ProjectionTagging {
                     col_alias: None,
                     // belongs_to_table: Some(table_alias.clone()),
                 };
-                table_ctx.projection_items = vec![tagged_proj];
+                // table_ctx.projection_items = vec![tagged_proj];
+                table_ctx.set_projections(vec![tagged_proj]); 
 
 
                 // if table_ctx is of relation then mark use_edge_list = true
@@ -152,11 +150,12 @@ impl ProjectionTagging {
                     table_alias: table_alias.clone(),
                     column: Column("*".to_string()),
                 });
+                Ok(())
             },
             LogicalExpr::PropertyAccessExp(property_access) => {
                 let table_ctx = plan_ctx.alias_table_ctx_map.get_mut(&property_access.table_alias.0).unwrap();
                 table_ctx.insert_projection(item.clone());
-
+                Ok(())
             }
             LogicalExpr::OperatorApplicationExp(operator_application) => {
                 for operand in &operator_application.operands {
@@ -164,8 +163,9 @@ impl ProjectionTagging {
                         expression: operand.clone(),
                         col_alias: None
                     };
-                    self.tag_projection(&mut operand_return_item, plan_ctx, graph_schema);
+                    self.tag_projection(&mut operand_return_item, plan_ctx, graph_schema)?;
                 }
+                Ok(())
             },
             LogicalExpr::ScalarFnCall(scalar_fn_call) => {
                 for arg in &scalar_fn_call.args {
@@ -173,8 +173,9 @@ impl ProjectionTagging {
                         expression: arg.clone(),
                         col_alias: None,
                     };
-                    self.tag_projection(&mut arg_return_item, plan_ctx, graph_schema);
+                    self.tag_projection(&mut arg_return_item, plan_ctx, graph_schema)?;
                 }
+                Ok(())
             },
             // For now I am not tagging Aggregate fns, but I will tag later for aggregate pushdown when I implement the aggregate push down optimization
             // For now if there is a tableAlias in agg fn args and fn name is Count then convert the table alias to node Id
@@ -193,8 +194,9 @@ impl ProjectionTagging {
                         }
                     }
                 }
+                Ok(())
             },
-            _ => ()
+            _ => Ok(())
         }
         
     }

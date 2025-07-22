@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
-use crate::{open_cypher_parser::ast::OpenCypherQueryAst, query_planner::{logical_plan::{errors::PlannerError, logical_plan::LogicalPlan, match_clause, order_by_clause, return_clause, skip_n_limit_clause, where_clause}, plan_ctx::plan_ctx::PlanCtx}};
+use crate::{open_cypher_parser::ast::OpenCypherQueryAst, query_planner::{logical_plan::{ errors::LogicalPlanError, logical_plan::LogicalPlan, match_clause, order_by_clause, return_clause, skip_n_limit_clause, where_clause}, plan_ctx::plan_ctx::PlanCtx}};
 
 
 
+pub type LogicalPlanResult<T> = Result<T, LogicalPlanError>;
 
 
-
-pub fn build_logical_plan(query_ast: &OpenCypherQueryAst) -> Result<(Arc<LogicalPlan>, PlanCtx), PlannerError> {
+pub fn build_logical_plan(query_ast: &OpenCypherQueryAst) -> LogicalPlanResult<(Arc<LogicalPlan>, PlanCtx)> {
 
     let mut logical_plan:Arc<LogicalPlan> = Arc::new(LogicalPlan::Empty);
     let mut plan_ctx = PlanCtx::default();
