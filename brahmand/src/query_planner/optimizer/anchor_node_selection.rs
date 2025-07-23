@@ -48,7 +48,7 @@ impl AnchorNodeSelection {
                 // if anchor node found at right side then it means we have found it at the end of the graph traversal. It is already a start node.
                 
                 // If found at left then we need to create a new plan and rotate the right side.
-                if graph_rel.left_connection == Some(anchor_node_alias.clone()) {
+                if graph_rel.left_connection == anchor_node_alias {
                     let new_anchor_plan = Arc::new(LogicalPlan::GraphRel(GraphRel {
                         left: Arc::new(LogicalPlan::Empty),
                         center: graph_rel.center.clone(),
@@ -141,7 +141,7 @@ impl AnchorNodeSelection {
                         right: prev_graph_rel.right.clone(), 
                         alias: prev_graph_rel.alias.clone(),  
                         direction: prev_graph_rel.direction.clone(),
-                        left_connection: Some(graph_node.alias.clone()), 
+                        left_connection: graph_node.alias.clone(), 
                         right_connection: prev_graph_rel.right_connection.clone(),
                         is_rel_anchor: prev_graph_rel.is_rel_anchor
                     }));

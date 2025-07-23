@@ -94,8 +94,8 @@ impl SchemaInference {
             },
             LogicalPlan::GraphRel(graph_rel) => {
                 // TODO remove unwrap and wrap it with result
-                let left_alias = graph_rel.left_connection.clone().unwrap();
-                let right_alias = graph_rel.right_connection.clone().unwrap();
+                let left_alias = &graph_rel.left_connection;
+                let right_alias = &graph_rel.right_connection;
 
                 let left_table_ctx = plan_ctx.get_node_table_ctx(&left_alias)?;
                 let rel_table_ctx = plan_ctx.get_rel_table_ctx(&graph_rel.alias)?;
@@ -103,7 +103,7 @@ impl SchemaInference {
 
                 let (left_label, rel_label, right_label) = self.infer_missing_labels(graph_schema, left_table_ctx, rel_table_ctx, right_table_ctx)?;
                 
-                for (alias, label) in vec![(left_alias, left_label), (graph_rel.alias.clone(), rel_label), (right_alias, right_label)] {
+                for (alias, label) in vec![(left_alias, left_label), (&graph_rel.alias, rel_label), (right_alias, right_label)] {
                     let table_ctx = plan_ctx.get_mut_table_ctx(&alias)?;
                     table_ctx.set_label(Some(label));
                 }

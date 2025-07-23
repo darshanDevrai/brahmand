@@ -41,9 +41,9 @@ impl DuplicateScansRemoving {
                         let right_tf = self.remove_duplicate_scans(graph_rel.right.clone(), traversed)?;
                         let center_tf = self.remove_duplicate_scans(graph_rel.center.clone(), traversed)?;
 
-                        let left_alias = graph_rel.left_connection.clone().unwrap();
+                        let left_alias = &graph_rel.left_connection;
 
-                        let left_tf = if traversed.contains(&left_alias) {
+                        let left_tf = if traversed.contains(left_alias) {
                             Transformed::Yes(Arc::new(LogicalPlan::Empty))
                         } else {
                             self.remove_duplicate_scans(graph_rel.left.clone(), traversed)?

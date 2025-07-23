@@ -114,9 +114,9 @@ impl GraphTRaversalPlanning {
 
     pub fn infer_anchor_traversal(&self, graph_rel: &GraphRel, plan_ctx: &mut PlanCtx, graph_schema: &GraphSchema) -> AnalyzerResult<(GraphRel, Vec<CtxToUpdate>)> {
         // get required information 
-        let left_alias = &graph_rel.left_connection.clone().unwrap();
+        let left_alias = &graph_rel.left_connection;
         let rel_alias = &graph_rel.alias;
-        let right_alias = &graph_rel.right_connection.clone().unwrap();
+        let right_alias = &graph_rel.right_connection;
 
 
         let left_ctx = plan_ctx.get_node_table_ctx(left_alias)?;
@@ -342,9 +342,9 @@ impl GraphTRaversalPlanning {
 
     fn infer_intermediate_traversal(&self, graph_rel: &GraphRel, plan_ctx: &mut PlanCtx, graph_schema: &GraphSchema) -> AnalyzerResult<(GraphRel, Vec<CtxToUpdate>)> {
         // get required information 
-        let left_alias = &graph_rel.left_connection.clone().unwrap();
+        let left_alias = &graph_rel.left_connection;
         let rel_alias = &graph_rel.alias;
-        let right_alias = &graph_rel.right_connection.clone().unwrap();
+        let right_alias = &graph_rel.right_connection;
 
 
         let left_ctx = plan_ctx.get_node_table_ctx(left_alias)?;

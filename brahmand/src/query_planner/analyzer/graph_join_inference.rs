@@ -131,9 +131,9 @@ impl GraphJoinInference {
 
     fn infer_graph_join(&self, graph_rel: &GraphRel, plan_ctx: &mut PlanCtx, graph_schema: &GraphSchema, collected_graph_joins: &mut Vec<Join>, joined_entities: &mut HashSet<String>) -> AnalyzerResult<()> {
         // get required information 
-        let left_alias = &graph_rel.left_connection.clone().unwrap();
+        let left_alias = &graph_rel.left_connection;
         let rel_alias = &graph_rel.alias;
-        let right_alias = &graph_rel.right_connection.clone().unwrap();
+        let right_alias = &graph_rel.right_connection;
 
 
         let left_ctx = plan_ctx.get_node_table_ctx(left_alias)?;

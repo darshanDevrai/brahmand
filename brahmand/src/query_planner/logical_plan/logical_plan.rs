@@ -43,7 +43,6 @@ pub struct Scan {
 pub struct GraphNode {
     pub input: Arc<LogicalPlan>,
     pub alias: String,
-    pub down_connection: Option<String>
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -53,8 +52,8 @@ pub struct GraphRel {
     pub right: Arc<LogicalPlan>,
     pub alias: String,
     pub direction: Direction,
-    pub left_connection: Option<String>,
-    pub right_connection: Option<String>,
+    pub left_connection: String,
+    pub right_connection: String,
     pub is_rel_anchor: bool
 }
 
@@ -254,7 +253,6 @@ impl GraphNode {
                     input: new_input.clone(), 
                     // self_plan: self_tf.get_plan(), 
                     alias: self.alias.clone(), 
-                    down_connection: self.down_connection.clone()
                 });
                 Transformed::Yes(Arc::new(new_graph_node))
             }

@@ -89,7 +89,7 @@ pub(crate) trait RenderPlanBuilder {
 
     fn extract_final_filters(&self) -> Option<RenderExpr>;
 
-    fn extract_ctes(&self, last_node_alias: String) -> Vec<Cte>;
+    fn extract_ctes(&self, last_node_alias: &str) -> Vec<Cte>;
 
     fn extract_select_items(&self) -> Vec<SelectItem>;
 
@@ -160,7 +160,7 @@ impl RenderPlanBuilder for LogicalPlan {
         }
     }
 
-    fn extract_ctes(&self, last_node_alias: String) -> Vec<Cte> {
+    fn extract_ctes(&self, last_node_alias: &str) -> Vec<Cte> {
         
         match &self {
             LogicalPlan::Empty => vec![],
@@ -171,13 +171,13 @@ impl RenderPlanBuilder for LogicalPlan {
             LogicalPlan::GraphRel(graph_rel) => {
                 
                 // first extract the bottom one
-                let mut right_cte = graph_rel.right.extract_ctes(last_node_alias.clone());
+                let mut right_cte = graph_rel.right.extract_ctes(last_node_alias);
                 // then process the center
-                let mut center_cte = graph_rel.center.extract_ctes(last_node_alias.clone());
+                let mut center_cte = graph_rel.center.extract_ctes(last_node_alias);
                 right_cte.append(&mut center_cte);
                 // then left 
-                let left_alias = graph_rel.left_connection.clone().unwrap();
-                if left_alias != last_node_alias{
+                let left_alias = &graph_rel.left_connection;
+                if left_alias != &last_node_alias{
                     let mut left_cte = graph_rel.left.extract_ctes(last_node_alias);
                     right_cte.append(&mut left_cte);
                 }
@@ -489,7 +489,7 @@ impl RenderPlanBuilder for LogicalPlan {
 
             let last_node_alias = last_node_cte.cte_name.split('_').nth(1).unwrap();
 
-            extracted_ctes = self.extract_ctes(last_node_alias.to_string());
+            extracted_ctes = self.extract_ctes(last_node_alias);
             final_from = last_node_cte.from;
 
             last_node_filters_opt = clean_last_node_filters(last_node_cte.filters.0.unwrap());
