@@ -39,10 +39,10 @@ fn convert_properties(props: Vec<Property>) -> Vec<LogicalExpr> {
 
 fn convert_properties_to_operator_application(plan_ctx: &mut PlanCtx) {
 
-    for (_,table_ctx) in plan_ctx.alias_table_ctx_map.iter_mut() {
-        let mut extracted_props = convert_properties(std::mem::take(&mut table_ctx.properties));
+    for (_,table_ctx) in plan_ctx.get_mut_alias_table_ctx_map().iter_mut() {
+        let mut extracted_props = convert_properties(table_ctx.get_and_clear_properties());
         if !extracted_props.is_empty() {
-            table_ctx.use_edge_list = true;
+            table_ctx.set_use_edge_list(true);
         }
         table_ctx.append_filters(&mut extracted_props); 
     }
@@ -75,12 +75,12 @@ fn traverse_connected_pattern<'a>(connected_patterns: &Vec<ConnectedPattern<'a>>
         
 
         // if start alias already present in ctx map, it means the current nested connected pattern's start node will be connecting at right side plan and end node will be at the left
-        if let Some(table_ctx) = plan_ctx.alias_table_ctx_map.get_mut(&start_node_alias.clone()){
+        if let Some(table_ctx) = plan_ctx.get_mut_table_ctx_opt(&start_node_alias){
             if start_node_label.is_some() {
-                table_ctx.label = start_node_label;
+                table_ctx.set_label(start_node_label);
             }
             if !start_node_props.is_empty() {
-                table_ctx.properties.append(&mut start_node_props);
+                table_ctx.append_properties(start_node_props);
             }
 
             let end_graph_node = GraphNode {
@@ -88,7 +88,7 @@ fn traverse_connected_pattern<'a>(connected_patterns: &Vec<ConnectedPattern<'a>>
                 alias: end_node_alias.clone(),
                 down_connection: Some(rel_alias.clone()),
             };
-            plan_ctx.alias_table_ctx_map.insert(end_node_alias.clone(),TableCtx::build(end_node_label, end_node_props, false, end_node_ref.name.is_some()));
+            plan_ctx.insert_table_ctx(end_node_alias.clone(), TableCtx::build(end_node_label, end_node_props, false, end_node_ref.name.is_some()));
 
             let graph_rel_node = GraphRel{
                 left: Arc::new(LogicalPlan::GraphNode(end_graph_node)),
@@ -100,18 +100,18 @@ fn traverse_connected_pattern<'a>(connected_patterns: &Vec<ConnectedPattern<'a>>
                 right_connection: Some(start_node_alias),
                 is_rel_anchor: false
             };
-            plan_ctx.alias_table_ctx_map.insert(rel_alias,TableCtx::build(rel_label, rel_properties, true, rel.name.is_some()));
+            plan_ctx.insert_table_ctx(rel_alias, TableCtx::build(rel_label, rel_properties, true, rel.name.is_some()));
 
             
             plan = Arc::new(LogicalPlan::GraphRel(graph_rel_node));
         }
         // if end alias already present in ctx map, it means the current nested connected pattern's end node will be connecting at right side plan and start node will be at the left
-        else if let Some(table_ctx) = plan_ctx.alias_table_ctx_map.get_mut(&end_node_alias) {
+        else if let Some(table_ctx) = plan_ctx.get_mut_table_ctx_opt(&end_node_alias) {
             if end_node_label.is_some() {
-                table_ctx.label = end_node_label;
+                table_ctx.set_label(end_node_label);
             }
             if !end_node_props.is_empty() {
-                table_ctx.properties.append(&mut end_node_props);
+                table_ctx.append_properties(end_node_props);
             }
 
             let start_graph_node = GraphNode {
@@ -119,7 +119,7 @@ fn traverse_connected_pattern<'a>(connected_patterns: &Vec<ConnectedPattern<'a>>
                 alias: start_node_alias.clone(),
                 down_connection: Some(rel_alias.clone()),
             };
-            plan_ctx.alias_table_ctx_map.insert(start_node_alias.clone(),TableCtx::build(start_node_label, start_node_props, false, start_node_ref.name.is_some()));
+            plan_ctx.insert_table_ctx(start_node_alias.clone(),TableCtx::build(start_node_label, start_node_props, false, start_node_ref.name.is_some()));
 
             let graph_rel_node = GraphRel{
                 left: Arc::new(LogicalPlan::GraphNode(start_graph_node)),
@@ -131,7 +131,7 @@ fn traverse_connected_pattern<'a>(connected_patterns: &Vec<ConnectedPattern<'a>>
                 right_connection: Some(end_node_alias),
                 is_rel_anchor: false
             };
-            plan_ctx.alias_table_ctx_map.insert(rel_alias,TableCtx::build(rel_label, rel_properties, true, rel.name.is_some()));
+            plan_ctx.insert_table_ctx(rel_alias,TableCtx::build(rel_label, rel_properties, true, rel.name.is_some()));
            
             plan = Arc::new(LogicalPlan::GraphRel(graph_rel_node));
 
@@ -151,14 +151,14 @@ fn traverse_connected_pattern<'a>(connected_patterns: &Vec<ConnectedPattern<'a>>
                 alias: start_node_alias.clone(),
                 down_connection: None,
             };
-            plan_ctx.alias_table_ctx_map.insert(start_node_alias.clone(),TableCtx::build(start_node_label, start_node_props, false, start_node_ref.name.is_some()));
+            plan_ctx.insert_table_ctx(start_node_alias.clone(), TableCtx::build(start_node_label, start_node_props, false, start_node_ref.name.is_some()));
 
             let end_graph_node = GraphNode {
                 input: generate_scan(end_node_alias.clone(), None),
                 alias: end_node_alias.clone(),
                 down_connection: Some(rel_alias.clone()),
             };
-            plan_ctx.alias_table_ctx_map.insert(end_node_alias.clone(),TableCtx::build(end_node_label, end_node_props, false, end_node_ref.name.is_some()));
+            plan_ctx.insert_table_ctx(end_node_alias.clone(), TableCtx::build(end_node_label, end_node_props, false, end_node_ref.name.is_some()));
 
 
             let graph_rel_node = GraphRel{
@@ -171,7 +171,7 @@ fn traverse_connected_pattern<'a>(connected_patterns: &Vec<ConnectedPattern<'a>>
                 right_connection: Some(start_node_alias),
                 is_rel_anchor: false
             };
-            plan_ctx.alias_table_ctx_map.insert(rel_alias,TableCtx::build(rel_label, rel_properties, true, rel.name.is_some()));
+            plan_ctx.insert_table_ctx(rel_alias, TableCtx::build(rel_label, rel_properties, true, rel.name.is_some()));
 
             
             plan =  Arc::new(LogicalPlan::GraphRel(graph_rel_node));
@@ -191,17 +191,17 @@ fn traverse_node_pattern(node_pattern: &NodePattern, plan: Arc<LogicalPlan>, pla
     let mut node_props = node_pattern.properties.clone().map(|props| props.into_iter().map(Property::from).collect()).unwrap_or_else(Vec::new);
     
     // if alias already present in ctx map then just add its conditions and do not add it in the logical plan
-    if let Some(table_ctx) = plan_ctx.alias_table_ctx_map.get_mut(&node_alias){
+    if let Some(table_ctx) = plan_ctx.get_mut_table_ctx_opt(&node_alias){
         if node_label.is_some() {
-            table_ctx.label = node_label;
+            table_ctx.set_label(node_label);
         }
         if !node_props.is_empty() {
-            table_ctx.properties.append(&mut node_props);
+            table_ctx.append_properties(node_props);
         }
         return Ok(plan);
     }else{
         // plan_ctx.alias_table_ctx_map.insert(node_alias.clone(), TableCtx { label: node_label, properties: node_props, filter_predicates: vec![], projection_items: vec![], is_rel: false, use_edge_list: false, explicit_alias: node_pattern.name.is_some() });
-        plan_ctx.alias_table_ctx_map.insert(node_alias.clone(),TableCtx::build(node_label, node_props, false, node_pattern.name.is_some()));
+        plan_ctx.insert_table_ctx(node_alias.clone(), TableCtx::build(node_label, node_props, false, node_pattern.name.is_some()));
 
         let graph_node = GraphNode {
             input: generate_scan(node_alias.clone(), None),

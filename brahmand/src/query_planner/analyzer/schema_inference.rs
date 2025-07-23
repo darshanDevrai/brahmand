@@ -46,9 +46,9 @@ impl SchemaInference {
                 Ok(cte.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
             LogicalPlan::Scan(scan) => {
-                let table_ctx = plan_ctx.alias_table_ctx_map.get(&scan.table_alias).unwrap();
+                let table_ctx = plan_ctx.get_table_ctx(&scan.table_alias)?;
                 Ok(Transformed::Yes(Arc::new(LogicalPlan::Scan(Scan {
-                    table_name: table_ctx.label.clone(),
+                    table_name: table_ctx.get_label_opt(),
                     table_alias: scan.table_alias.clone()
                 }))))
             },
@@ -97,15 +97,15 @@ impl SchemaInference {
                 let left_alias = graph_rel.left_connection.clone().unwrap();
                 let right_alias = graph_rel.right_connection.clone().unwrap();
 
-                let left_table_ctx = plan_ctx.alias_table_ctx_map.get(&left_alias).unwrap();
-                let rel_table_ctx = plan_ctx.alias_table_ctx_map.get(&graph_rel.alias).unwrap();
-                let right_table_ctx = plan_ctx.alias_table_ctx_map.get(&right_alias).unwrap();
+                let left_table_ctx = plan_ctx.get_node_table_ctx(&left_alias)?;
+                let rel_table_ctx = plan_ctx.get_rel_table_ctx(&graph_rel.alias)?;
+                let right_table_ctx = plan_ctx.get_node_table_ctx(&right_alias)?;
 
                 let (left_label, rel_label, right_label) = self.infer_missing_labels(graph_schema, left_table_ctx, rel_table_ctx, right_table_ctx)?;
                 
                 for (alias, label) in vec![(left_alias, left_label), (graph_rel.alias.clone(), rel_label), (right_alias, right_label)] {
-                    let table_ctx = plan_ctx.alias_table_ctx_map.get_mut(&alias).unwrap();
-                    table_ctx.label = Some(label);
+                    let table_ctx = plan_ctx.get_mut_table_ctx(&alias)?;
+                    table_ctx.set_label(Some(label));
                 }
                 
                 // let left_tf = self.infer_schema(graph_rel.left.clone(), plan_ctx, graph_schema);
@@ -167,42 +167,29 @@ impl SchemaInference {
     ) -> AnalyzerResult<(String, String, String)> {
     
         // if all present
-        if left_table_ctx.label.is_some()
-            && rel_table_ctx.label.is_some()
-            && right_table_ctx.label.is_some()
+        if left_table_ctx.get_label_opt().is_some()
+            && rel_table_ctx.get_label_opt().is_some()
+            && right_table_ctx.get_label_opt().is_some()
         {
-            let left_node_table_name = left_table_ctx
-                .label.clone()
-                .ok_or(AnalyzerError::MissingNodeLabel)?
-                .to_string();
-            let right_node_table_name = right_table_ctx
-                .label.clone()
-                .ok_or(AnalyzerError::MissingNodeLabel)?
-                .to_string();
-            let rel_table_name = rel_table_ctx
-                .label.clone()
-                .ok_or(AnalyzerError::MissingRelationLabel)?
-                .to_string();
+            let left_node_table_name = left_table_ctx.get_label_str()?;
+            let right_node_table_name = right_table_ctx.get_label_str()?;
+            let rel_table_name = rel_table_ctx.get_label_str()?;
             return Ok((left_node_table_name, rel_table_name, right_node_table_name));
         }
     
         // only left node missing
-        if left_table_ctx.label.is_none()
-            && rel_table_ctx.label.is_some()
-            && right_table_ctx.label.is_some()
+        if left_table_ctx.get_label_opt().is_none()
+            && rel_table_ctx.get_label_opt().is_some()
+            && right_table_ctx.get_label_opt().is_some()
         {
             // check relation table name and infer the node
-            let rel_table_name = rel_table_ctx
-                .label.clone()
-                .ok_or(AnalyzerError::MissingRelationLabel)?; // redundant ok_or
+            let rel_table_name = rel_table_ctx.get_label_str()?;
             let rel_schema = graph_schema
                 .relationships
                 .get(&rel_table_name)
                 .ok_or(AnalyzerError::NoRelationSchemaFound)?;
     
-            let right_table_name = right_table_ctx
-                .label.clone()
-                .ok_or(AnalyzerError::MissingNodeLabel)?;
+            let right_table_name = right_table_ctx.get_label_str()?;
     
             let left_table_name = if right_table_name == rel_schema.from_node {
                 rel_schema.to_node.clone()
@@ -217,22 +204,18 @@ impl SchemaInference {
         }
     
         // only right node missing
-        if left_table_ctx.label.is_some()
-            && rel_table_ctx.label.is_some()
-            && right_table_ctx.label.is_none()
+        if left_table_ctx.get_label_opt().is_some()
+            && rel_table_ctx.get_label_opt().is_some()
+            && right_table_ctx.get_label_opt().is_none()
         {
             // check relation table name and infer the node
-            let rel_table_name = rel_table_ctx
-                .label.clone()
-                .ok_or(AnalyzerError::MissingRelationLabel)?; // redundant ok_or
+            let rel_table_name = rel_table_ctx.get_label_str()?;
             let rel_schema = graph_schema
                 .relationships
                 .get(&rel_table_name)
                 .ok_or(AnalyzerError::NoRelationSchemaFound)?;
     
-            let left_table_name = left_table_ctx
-                .label.clone()
-                .ok_or(AnalyzerError::MissingNodeLabel)?;
+            let left_table_name = left_table_ctx.get_label_str()?;
     
             let right_table_name = if left_table_name == rel_schema.from_node {
                 rel_schema.to_node.clone()
@@ -247,16 +230,12 @@ impl SchemaInference {
         }
     
         // only relation missing
-        if left_table_ctx.label.is_some()
-            && rel_table_ctx.label.is_none()
-            && right_table_ctx.label.is_some()
+        if left_table_ctx.get_label_opt().is_some()
+            && rel_table_ctx.get_label_opt().is_none()
+            && right_table_ctx.get_label_opt().is_some()
         {
-            let left_table_name = left_table_ctx
-                .label.clone()
-                .ok_or(AnalyzerError::MissingNodeLabel)?;
-            let right_table_name = right_table_ctx
-                .label.clone()
-                .ok_or(AnalyzerError::MissingNodeLabel)?;
+            let left_table_name = left_table_ctx.get_label_str()?;
+            let right_table_name = right_table_ctx.get_label_str()?;
             for (_, relation_schema) in graph_schema.relationships.iter() {
 
                 if (relation_schema.from_node == left_table_name
@@ -275,13 +254,11 @@ impl SchemaInference {
         }
     
         // both left and right nodes are missing but relation is present
-        if left_table_ctx.label.is_none()
-            && rel_table_ctx.label.is_some()
-            && right_table_ctx.label.is_none()
+        if left_table_ctx.get_label_opt().is_none()
+            && rel_table_ctx.get_label_opt().is_some()
+            && right_table_ctx.get_label_opt().is_none()
         {
-            let rel_table_name = rel_table_ctx
-                .label.clone()
-                .ok_or(AnalyzerError::MissingRelationLabel)?;
+            let rel_table_name = rel_table_ctx.get_label_str()?;
             let relation_schema = graph_schema
                 .relationships
                 .get(&rel_table_name)
@@ -355,9 +332,9 @@ impl SchemaInference {
         }
     
         // right and relation missing
-        if left_table_ctx.label.is_some()
-            && rel_table_ctx.label.is_none()
-            && right_table_ctx.label.is_none()
+        if left_table_ctx.get_label_opt().is_some()
+            && rel_table_ctx.get_label_opt().is_none()
+            && right_table_ctx.get_label_opt().is_none()
         {
             // If the relation is absent and other node is present then check for a relation with one node = other node which is present.
             // If multiple such relations are found then use current nodes where conditions and return items like above to infer the table name of current node
@@ -367,9 +344,7 @@ impl SchemaInference {
             // If we directly go for node's where conditions and return items then we will get two nodes PLANET and TOWN and we won't be able to decide.
             // If our graph has (USER)-[DRIVES]->(CAR) and (USER)-[IS_FROM]-(TOWN). In this case how to decide DRIVES or IS_FROM relation?
             // Now we will check if CAR or TOWN has property 'name' and infer that as a current node
-            let left_table_name = left_table_ctx
-                .label.clone()
-                .ok_or(AnalyzerError::MissingNodeLabel)?;
+            let left_table_name = left_table_ctx.get_label_str()?;
             let mut relations_found: Vec<&RelationshipSchema> = vec![];
     
             for (_, relation_schema) in graph_schema.relationships.iter() {
@@ -431,13 +406,11 @@ impl SchemaInference {
     
         // left and relation missing
         // Do the same as above but for right node
-        if left_table_ctx.label.is_none()
-            && rel_table_ctx.label.is_none()
-            && right_table_ctx.label.is_some()
+        if left_table_ctx.get_label_opt().is_none()
+            && rel_table_ctx.get_label_opt().is_none()
+            && right_table_ctx.get_label_opt().is_some()
         {
-            let right_table_name = right_table_ctx
-                .label.clone()
-                .ok_or(AnalyzerError::MissingNodeLabel)?;
+            let right_table_name = right_table_ctx.get_label_str()?;
             let mut relations_found: Vec<&RelationshipSchema> = vec![];
     
             for (_, relation_schema) in graph_schema.relationships.iter() {
@@ -500,9 +473,9 @@ impl SchemaInference {
         }
     
         // if all labels are missing
-        if left_table_ctx.label.is_none()
-            && rel_table_ctx.label.is_none()
-            && right_table_ctx.label.is_none()
+        if left_table_ctx.get_label_opt().is_none()
+            && rel_table_ctx.get_label_opt().is_none()
+            && right_table_ctx.get_label_opt().is_none()
         {
             let extracted_left_node_table_result =
                 self.get_table_name_from_filters_and_projections(graph_schema, left_table_ctx);

@@ -136,14 +136,14 @@ impl GraphJoinInference {
         let right_alias = &graph_rel.right_connection.clone().unwrap();
 
 
-        let left_ctx = plan_ctx.alias_table_ctx_map.get(left_alias).unwrap();
-        let rel_ctx = plan_ctx.alias_table_ctx_map.get(rel_alias).unwrap();
-        let right_ctx = plan_ctx.alias_table_ctx_map.get(right_alias).unwrap();
+        let left_ctx = plan_ctx.get_node_table_ctx(left_alias)?;
+        let rel_ctx = plan_ctx.get_rel_table_ctx(rel_alias)?;
+        let right_ctx = plan_ctx.get_node_table_ctx(right_alias)?;
 
-        let left_label = left_ctx.label.clone().unwrap();
-        let rel_label = rel_ctx.label.clone().unwrap();
+        let left_label = left_ctx.get_label_str()?;
+        let rel_label = rel_ctx.get_label_str()?;
         let original_rel_label = rel_label.replace("_incoming", "").replace("_outgoing", "");
-        let right_label = right_ctx.label.clone().unwrap();
+        let right_label = right_ctx.get_label_str()?;
 
         let left_schema = graph_schema.nodes.get(&left_label).unwrap();
         let rel_schema = graph_schema.relationships.get(&original_rel_label).unwrap(); //.ok_or(AnalyzerError::NoRelationSchemaFound)?;
@@ -164,7 +164,7 @@ impl GraphJoinInference {
         let is_standalone_rel: bool = matches!(graph_rel.left.as_ref(), LogicalPlan::Empty);
 
 
-        if rel_ctx.use_edge_list {
+        if rel_ctx.should_use_edge_list() {
             // check if right is connected with edge list's from_node
             if rel_schema.from_node == right_schema.table_name {
                 // this means rel.from_node = right and to_node = left

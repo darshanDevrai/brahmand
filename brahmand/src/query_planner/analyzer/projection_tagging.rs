@@ -113,10 +113,10 @@ impl ProjectionTagging {
     }
 
     fn get_explicit_aliases(&self, plan_ctx: &mut PlanCtx) -> Vec<String> {
-        plan_ctx.alias_table_ctx_map
+        plan_ctx.get_alias_table_ctx_map()
             .iter()
             .filter_map(|(alias, table_ctx)| {
-                if table_ctx.explicit_alias {
+                if table_ctx.is_explicit_alias() {
                     Some(alias.clone())
                 } else {
                     None
@@ -130,7 +130,7 @@ impl ProjectionTagging {
             LogicalExpr::TableAlias(table_alias) => {
                 // if just table alias i.e MATCH (p:Post) Return p; then For final overall projection keep p.* and for p's projection keep *. 
 
-                let table_ctx = plan_ctx.alias_table_ctx_map.get_mut(&table_alias.0).unwrap();
+                let table_ctx = plan_ctx.get_mut_table_ctx(&table_alias.0)?;
                 let tagged_proj = ProjectionItem {
                     expression: LogicalExpr::Star,
                     col_alias: None,
@@ -141,8 +141,8 @@ impl ProjectionTagging {
 
 
                 // if table_ctx is of relation then mark use_edge_list = true
-                if table_ctx.is_rel {
-                    table_ctx.use_edge_list = true;
+                if table_ctx.is_relation() {
+                    table_ctx.set_use_edge_list(true);
                 }
 
                 // update the overall projection
@@ -153,7 +153,7 @@ impl ProjectionTagging {
                 Ok(())
             },
             LogicalExpr::PropertyAccessExp(property_access) => {
-                let table_ctx = plan_ctx.alias_table_ctx_map.get_mut(&property_access.table_alias.0).unwrap();
+                let table_ctx = plan_ctx.get_mut_table_ctx(&property_access.table_alias.0)?;
                 table_ctx.insert_projection(item.clone());
                 Ok(())
             }
@@ -183,8 +183,8 @@ impl ProjectionTagging {
                 for arg in &aggregate_fn_call.args {
                     if let LogicalExpr::TableAlias(TableAlias(t_alias)) = arg {
                         if aggregate_fn_call.name.to_lowercase() == "count" {
-                            let table_ctx = plan_ctx.alias_table_ctx_map.get_mut(t_alias).unwrap();
-                            let table_label = table_ctx.label.clone().unwrap();
+                            let table_ctx = plan_ctx.get_mut_table_ctx(t_alias)?;
+                            let table_label = table_ctx.get_label_str()?;
                             let table_schema = graph_schema.nodes.get(&table_label).unwrap();
                             let table_node_id = table_schema.node_id.column.clone();
                             item.expression = LogicalExpr::AggregateFnCall(AggregateFnCall{

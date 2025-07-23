@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use crate::{query_engine::types::{GraphSchema, RelationshipSchema}, query_planner::{analyzer::{analyzer_pass::{AnalyzerPass, AnalyzerResult}, errors::AnalyzerError}, logical_expr::logical_expr::{Column, ColumnAlias, Direction, InSubquery, LogicalExpr, PropertyAccess}, logical_plan::logical_plan::{Cte, GraphRel, LogicalPlan, Projection, ProjectionItem, Scan}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed}};
 
@@ -30,8 +30,8 @@ impl AnalyzerPass for GraphTRaversalPlanning {
                     let (new_graph_rel, ctxs_to_update) = self.infer_anchor_traversal(graph_rel, plan_ctx, graph_schema)?;
 
                     for mut ctx in ctxs_to_update.into_iter() {
-                        let table_ctx = plan_ctx.alias_table_ctx_map.get_mut(&ctx.alias).unwrap();
-                        table_ctx.label = Some(ctx.label);
+                        let table_ctx = plan_ctx.get_mut_table_ctx(&ctx.alias)?;
+                        table_ctx.set_label(Some(ctx.label));
                         // table_ctx.projection_items.append(&mut ctx.projections);
                         if let Some(plan_expr) = ctx.insubquery {
                             table_ctx.insert_filter(plan_expr);
@@ -52,8 +52,8 @@ impl AnalyzerPass for GraphTRaversalPlanning {
                     let (new_graph_rel, ctxs_to_update) = self.infer_intermediate_traversal(&updated_graph_rel, plan_ctx, graph_schema)?;
 
                     for mut ctx in ctxs_to_update.into_iter() {
-                        let table_ctx = plan_ctx.alias_table_ctx_map.get_mut(&ctx.alias).unwrap();
-                        table_ctx.label = Some(ctx.label);
+                        let table_ctx = plan_ctx.get_mut_table_ctx(&ctx.alias)?;
+                        table_ctx.set_label(Some(ctx.label));
                         if let Some(plan_expr) = ctx.insubquery {
                             table_ctx.insert_filter(plan_expr);
                         } 
@@ -119,13 +119,13 @@ impl GraphTRaversalPlanning {
         let right_alias = &graph_rel.right_connection.clone().unwrap();
 
 
-        let left_ctx = plan_ctx.alias_table_ctx_map.get(left_alias).unwrap();
-        let rel_ctx = plan_ctx.alias_table_ctx_map.get(rel_alias).unwrap();
-        let right_ctx = plan_ctx.alias_table_ctx_map.get(right_alias).unwrap();
+        let left_ctx = plan_ctx.get_node_table_ctx(left_alias)?;
+        let rel_ctx = plan_ctx.get_rel_table_ctx(rel_alias)?;
+        let right_ctx = plan_ctx.get_node_table_ctx(right_alias)?;
 
-        let left_label = left_ctx.label.clone().unwrap();
-        let rel_label = rel_ctx.label.clone().unwrap();
-        let right_label = right_ctx.label.clone().unwrap();
+        let left_label = left_ctx.get_label_str()?;
+        let rel_label = rel_ctx.get_label_str()?;
+        let right_label = right_ctx.get_label_str()?;
 
 
         let left_schema = graph_schema.nodes.get(&left_label).unwrap();
@@ -172,7 +172,7 @@ impl GraphTRaversalPlanning {
             vec![]
         };
 
-        if rel_ctx.use_edge_list {
+        if rel_ctx.should_use_edge_list() {
             let rel_cte_name = format!("{}_{}", rel_label, rel_alias);
             
             let star_found = rel_ctx.get_projections().iter().any(|item| item.expression == LogicalExpr::Star);
@@ -347,13 +347,13 @@ impl GraphTRaversalPlanning {
         let right_alias = &graph_rel.right_connection.clone().unwrap();
 
 
-        let left_ctx = plan_ctx.alias_table_ctx_map.get(left_alias).unwrap();
-        let rel_ctx = plan_ctx.alias_table_ctx_map.get(rel_alias).unwrap();
-        let right_ctx = plan_ctx.alias_table_ctx_map.get(right_alias).unwrap();
+        let left_ctx = plan_ctx.get_node_table_ctx(left_alias)?;
+        let rel_ctx = plan_ctx.get_rel_table_ctx(rel_alias)?;
+        let right_ctx = plan_ctx.get_node_table_ctx(right_alias)?;
 
-        let left_label = left_ctx.label.clone().unwrap();
-        let rel_label = rel_ctx.label.clone().unwrap();
-        let right_label = right_ctx.label.clone().unwrap();
+        let left_label = left_ctx.get_label_str()?;
+        let rel_label = rel_ctx.get_label_str()?;
+        let right_label = right_ctx.get_label_str()?;
 
 
         let left_schema = graph_schema.nodes.get(&left_label).unwrap();
@@ -386,7 +386,7 @@ impl GraphTRaversalPlanning {
         };
 
 
-        if rel_ctx.use_edge_list {
+        if rel_ctx.should_use_edge_list() {
             let rel_cte_name = format!("{}_{}", rel_label, rel_alias);
             
             let star_found = rel_ctx.get_projections().iter().any(|item| item.expression == LogicalExpr::Star);

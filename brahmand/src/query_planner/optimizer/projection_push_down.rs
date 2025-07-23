@@ -23,7 +23,7 @@ impl OptimizerPass for ProjectionPushDown {
                 Ok(cte.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
             LogicalPlan::Scan(scan) => {
-                if let Some(table_ctx) = plan_ctx.alias_table_ctx_map.get_mut(&scan.table_alias) {
+                if let Some(table_ctx) = plan_ctx.get_mut_table_ctx_opt(&scan.table_alias) {
                     if !table_ctx.get_projections().is_empty() {
                         let new_proj = Arc::new(LogicalPlan::Projection(Projection {
                             input: logical_plan.clone(),

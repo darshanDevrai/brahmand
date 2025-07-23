@@ -13,4 +13,7 @@ pub enum PlanCtxError {
 
     #[error("No table context for relationship alias.")]
     MissingRelTableCtx,
+
+    #[error("Missing Label.")]
+    MissingLabel,
 }

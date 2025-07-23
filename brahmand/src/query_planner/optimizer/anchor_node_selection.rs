@@ -26,7 +26,7 @@ impl AnchorNodeSelection {
     }
 
     fn find_anchor_node(&self, plan_ctx: &PlanCtx) -> Option<String> {
-        let (alias, ctx) = plan_ctx.alias_table_ctx_map
+        let (alias, ctx) = plan_ctx.get_alias_table_ctx_map()
             .iter()
             .max_by_key(|(_, ctx)| ctx.get_filters().len())?;
         if ctx.get_filters().is_empty() {

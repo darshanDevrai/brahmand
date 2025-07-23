@@ -120,12 +120,12 @@ impl FilterTagging {
                 }
             }
 
-            if let Some(table_ctx) = plan_ctx.alias_table_ctx_map.get_mut(table_name) {
+            if let Some(table_ctx) = plan_ctx.get_mut_table_ctx_opt(table_name) {
                 let converted_filters = self.convert_prop_acc_to_column(LogicalExpr::OperatorApplicationExp(extracted_filter));
                 table_ctx.insert_filter(converted_filters);
 
-                if table_ctx.is_rel {
-                    table_ctx.use_edge_list = true;
+                if table_ctx.is_relation() {
+                    table_ctx.set_use_edge_list(true);
                 }
             }
 
@@ -134,15 +134,15 @@ impl FilterTagging {
         // add extracted_projections to their respective nodes.
         for prop_acc in extracted_projections {
             let table_alias = prop_acc.table_alias.clone();
-            if let Some(table_ctx) = plan_ctx.alias_table_ctx_map.get_mut(&table_alias.0){
+            if let Some(table_ctx) = plan_ctx.get_mut_table_ctx_opt(&table_alias.0){
                 table_ctx.insert_projection(ProjectionItem {
                     expression: LogicalExpr::PropertyAccessExp(prop_acc),
                     col_alias: None,
                 });
                 
                 // If there is any filter on relationship then use edgelist of that relation.
-                if table_ctx.is_rel {
-                    table_ctx.use_edge_list = true;
+                if table_ctx.is_relation() {
+                    table_ctx.set_use_edge_list(true);
                 }
             }
             // else TODO throw error

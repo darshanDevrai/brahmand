@@ -26,7 +26,7 @@ impl OptimizerPass for FilterPushDown {
                 Ok(cte.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
             LogicalPlan::Scan(scan) => {
-                        if let Some(table_ctx) = plan_ctx.alias_table_ctx_map.get_mut(&scan.table_alias) {
+                        if let Some(table_ctx) = plan_ctx.get_mut_table_ctx_opt(&scan.table_alias) {
                             if !table_ctx.get_filters().is_empty() {
 
                                 let combined_predicate = self.get_combined_predicate(table_ctx.get_filters().clone()).unwrap();
