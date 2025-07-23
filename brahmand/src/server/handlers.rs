@@ -12,11 +12,7 @@ use tokio::io::AsyncBufReadExt;
 use uuid::Uuid;
 
 use crate::{
-    open_cypher_parser::{self},
-    query_engine::{
-        // self,
-        self, types::{GraphSchemaElement, QueryType, TraversalMode}
-    }, query_planner,
+    clickhouse_query_generator, graph_schema::graph_schema::GraphSchemaElement, open_cypher_parser::{self}, query_planner::{self, types::QueryType}
 };
 
 
@@ -27,57 +23,101 @@ use super::{
 
 pub async fn query_handler(
     State(app_state): State<Arc<AppState>>,
-    Json(payload): Json<QueryRequest>,
-) -> Result<Response, (StatusCode, String)> {
+    Json(payload):   Json<QueryRequest>,
+) -> Result<impl IntoResponse, impl IntoResponse> {
     let instant = Instant::now();
-
-    let graph_schema = graph_meta::get_graph_schema().await;
-
     let output_format = payload.format.unwrap_or(OutputFormat::JSONEachRow);
 
-    // parse cypher query
-    let cypher_ast = open_cypher_parser::parse_query(&payload.query).map_err(|e| {
-        (
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Brahmand Error: {}", e),
-        )
-    })?;
+    let (ch_sql_queries, maybe_schema_elem, is_read) = {
 
-    let mut traversal_mode = TraversalMode::Cte;
+        let graph_schema = graph_meta::get_graph_schema().await;
 
-    if let Some(mode) = payload.mode {
-        traversal_mode = mode
-    }
+        let cypher_ast = open_cypher_parser::parse_query(&payload.query)
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Brahmand Error: {}", e)))?;
 
-    // TODO convert this error to axum error with proper message. Expose the module name in traces but not to users
-    let (query_type, ch_sql_queries, graph_schema_element_opt) =
-        query_planner::evaluate_query(cypher_ast, &traversal_mode, &graph_schema).map_err(|e| {
-            (
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Brahmand Error: {}", e),
-            )
-        })?;
-        // query_engine::evaluate_query(cypher_ast, &traversal_mode, &graph_schema).map_err(|e| {
-        //     (
-        //         axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-        //         format!("Brahmand Error: {}", e),
-        //     )
-        // })?;
-    if query_type == QueryType::Ddl {
-        return ddl_handler(
-            app_state.clickhouse_client.clone(),
-            ch_sql_queries,
-            graph_schema_element_opt,
-        )
-        .await;
-    }
+        let query_type = query_planner::get_query_type(&cypher_ast);
 
-    if traversal_mode == TraversalMode::Cte {
+        let is_read = if query_type == QueryType::Read {true} else {false};
+
+        if is_read {
+            let render_plan = query_planner::evaluate_read_query(cypher_ast, &graph_schema)
+                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Brahmand Error: {}", e)))?;
+            let ch_query = render_plan.to_sql();
+            println!("\n ch_query \n {} \n", ch_query);
+            (vec![ch_query], None, true)
+        } else {
+            let (queries, schema_elem) = clickhouse_query_generator::generate_ddl_query(cypher_ast, &graph_schema)
+                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Brahmand Error: {}", e)))?;
+            (queries, Some(schema_elem), false)
+        }
+    }; 
+
+
+    if is_read {
         execute_cte_queries(app_state, ch_sql_queries, output_format, instant).await
     } else {
-        execute_temp_table_queries(app_state, ch_sql_queries, output_format, instant).await
+        ddl_handler(
+            app_state.clickhouse_client.clone(),
+            ch_sql_queries,
+            maybe_schema_elem,
+        )
+        .await
     }
 }
+
+// pub async fn query_handler_old(
+//     State(app_state): State<Arc<AppState>>,
+//     Json(payload): Json<QueryRequest>,
+// ) -> Result<Response, (StatusCode, String)> {
+//     let instant = Instant::now();
+
+//     let graph_schema = graph_meta::get_graph_schema().await;
+
+//     let output_format = payload.format.unwrap_or(OutputFormat::JSONEachRow);
+
+//     // parse cypher query
+//     let cypher_ast = open_cypher_parser::parse_query(&payload.query).map_err(|e| {
+//         (
+//             axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+//             format!("Brahmand Error: {}", e),
+//         )
+//     })?;
+
+//     let mut traversal_mode = TraversalMode::Cte;
+
+//     if let Some(mode) = payload.mode {
+//         traversal_mode = mode
+//     }
+
+//     // TODO convert this error to axum error with proper message. Expose the module name in traces but not to users
+//     let (query_type, ch_sql_queries, graph_schema_element_opt) =
+//         query_planner::evaluate_query(cypher_ast, &traversal_mode, &graph_schema).map_err(|e| {
+//             (
+//                 axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+//                 format!("Brahmand Error: {}", e),
+//             )
+//         })?;
+//         // query_engine::evaluate_query(cypher_ast, &traversal_mode, &graph_schema).map_err(|e| {
+//         //     (
+//         //         axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+//         //         format!("Brahmand Error: {}", e),
+//         //     )
+//         // })?;
+//     if query_type == QueryType::Ddl {
+//         return ddl_handler(
+//             app_state.clickhouse_client.clone(),
+//             ch_sql_queries,
+//             graph_schema_element_opt,
+//         )
+//         .await;
+//     }
+
+//     if traversal_mode == TraversalMode::Cte {
+//         execute_cte_queries(app_state, ch_sql_queries, output_format, instant).await
+//     } else {
+//         execute_temp_table_queries(app_state, ch_sql_queries, output_format, instant).await
+//     }
+// }
 
 async fn execute_cte_queries(
     app_state: Arc<AppState>,

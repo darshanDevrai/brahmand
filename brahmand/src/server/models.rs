@@ -1,13 +1,13 @@
 use clickhouse::Row;
 use serde::{Deserialize, Serialize};
 
-use crate::query_engine::types::TraversalMode;
+use crate::query_planner::types::TraversalMode;
 
 #[derive(Debug, Deserialize)]
 pub struct QueryRequest {
     pub query: String,
     pub format: Option<OutputFormat>,
-    pub mode: Option<TraversalMode>,
+    // pub mode: Option<TraversalMode>,
 }
 
 // #[derive(Debug, Serialize)]

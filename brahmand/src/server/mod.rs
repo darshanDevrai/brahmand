@@ -7,7 +7,7 @@ use handlers::query_handler;
 use dotenv::dotenv;
 use tokio::sync::{OnceCell, RwLock};
 
-use crate::query_engine::types::GraphSchema;
+use crate::graph_schema::graph_schema::GraphSchema;
 
 mod clickhouse_client;
 mod graph_meta;

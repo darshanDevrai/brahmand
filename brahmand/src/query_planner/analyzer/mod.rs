@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use analyzer_pass::AnalyzerResult;
 
-use crate::{query_engine::types::GraphSchema, query_planner::{analyzer::{analyzer_pass::AnalyzerPass, duplicate_scans_removing::DuplicateScansRemoving, filter_tagging::FilterTagging, graph_join_inference::GraphJoinInference, graph_traversal_planning::GraphTRaversalPlanning, group_by_building::GroupByBuilding, projection_tagging::ProjectionTagging, schema_inference::SchemaInference}, logical_plan::{logical_plan::LogicalPlan}}};
+use crate::{graph_schema::graph_schema::GraphSchema, query_planner::{analyzer::{analyzer_pass::AnalyzerPass, duplicate_scans_removing::DuplicateScansRemoving, filter_tagging::FilterTagging, graph_join_inference::GraphJoinInference, graph_traversal_planning::GraphTRaversalPlanning, group_by_building::GroupByBuilding, projection_tagging::ProjectionTagging, schema_inference::SchemaInference}, logical_plan::logical_plan::LogicalPlan}};
 
 use super::plan_ctx::plan_ctx::PlanCtx;
 

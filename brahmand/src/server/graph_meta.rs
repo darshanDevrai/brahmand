@@ -3,7 +3,8 @@ use std::time::Duration;
 use clickhouse::Client;
 use tokio::{sync::RwLock, time::interval};
 
-use crate::query_engine::types::{GraphSchema, GraphSchemaElement};
+
+use crate::graph_schema::graph_schema::{GraphSchema, GraphSchemaElement};
 
 use super::{GLOBAL_GRAPH_SCHEMA, models::GraphMeta};
 

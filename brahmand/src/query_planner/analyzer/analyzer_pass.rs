@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{query_engine::types::GraphSchema, query_planner::{logical_plan::logical_plan::LogicalPlan, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed}};
+use crate::{graph_schema::graph_schema::GraphSchema, query_planner::{logical_plan::logical_plan::LogicalPlan, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed}};
 
 use super::errors::AnalyzerError;
 

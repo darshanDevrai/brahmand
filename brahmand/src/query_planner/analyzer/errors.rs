@@ -12,10 +12,8 @@ pub enum AnalyzerError {
         "No relation label found. Currently we need label to identify the relationship table. This will change in future."
     )]
     MissingRelationLabel,
-    // #[error("No traversal sequence found.")]
-    // NoTravelsalSequence,
-    #[error("No traversal graph found.")]
-    NoTravelsalGraph,
+    // #[error("No traversal graph found.")]
+    // NoTravelsalGraph,
     #[error("No relationship schema found.")]
     NoRelationSchemaFound,
     #[error("No node schema found.")]
@@ -25,7 +23,4 @@ pub enum AnalyzerError {
 
     #[error("PlanCtxError: {0}")]
     PlanCtx(#[from] PlanCtxError),
-
-    // #[error("Non CTE plan found. Expected CTE.")]
-    // NonCTEPlanFound,
 }

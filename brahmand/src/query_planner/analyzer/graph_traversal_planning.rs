@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{query_engine::types::{GraphSchema, RelationshipSchema}, query_planner::{analyzer::{analyzer_pass::{AnalyzerPass, AnalyzerResult}, errors::AnalyzerError}, logical_expr::logical_expr::{Column, ColumnAlias, Direction, InSubquery, LogicalExpr, PropertyAccess}, logical_plan::logical_plan::{Cte, GraphRel, LogicalPlan, Projection, ProjectionItem, Scan}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed}};
+use crate::{ graph_schema::graph_schema::{GraphSchema, RelationshipSchema}, query_planner::{analyzer::{analyzer_pass::{AnalyzerPass, AnalyzerResult}, errors::AnalyzerError}, logical_expr::logical_expr::{Column, ColumnAlias, Direction, InSubquery, LogicalExpr, PropertyAccess}, logical_plan::logical_plan::{Cte, GraphRel, LogicalPlan, Projection, ProjectionItem, Scan}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed}};
 
 
 
