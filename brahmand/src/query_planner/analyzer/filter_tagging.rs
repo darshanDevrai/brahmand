@@ -1,6 +1,6 @@
 use std::{collections::HashSet, sync::Arc};
 
-use crate::query_planner::{analyzer::analyzer_pass::{AnalyzerPass, AnalyzerResult}, logical_expr::logical_expr::{AggregateFnCall, LogicalExpr, Operator, OperatorApplication, PropertyAccess, ScalarFnCall}, logical_plan::logical_plan::{Filter, LogicalPlan, ProjectionItem}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed};
+use crate::query_planner::{analyzer::{analyzer_pass::{AnalyzerPass, AnalyzerResult}, errors::AnalyzerError}, logical_expr::logical_expr::{AggregateFnCall, LogicalExpr, Operator, OperatorApplication, PropertyAccess, ScalarFnCall}, logical_plan::logical_plan::{Filter, LogicalPlan, ProjectionItem}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed};
 
 
 
@@ -38,7 +38,7 @@ impl AnalyzerPass for FilterTagging {
             LogicalPlan::Filter(filter) => {
                         let child_tf = self.analyze(filter.input.clone(), plan_ctx)?;
                         // call filter tagging and get new filter
-                        let final_filter_opt = self.extract_filters(filter.predicate.clone(), plan_ctx);
+                        let final_filter_opt = self.extract_filters(filter.predicate.clone(), plan_ctx)?;
                         // if final filter has some predicate left then create new filter else remove the filter node and return the child input
                         if let Some(final_filter) = final_filter_opt {
                             Ok(Transformed::Yes(Arc::new(LogicalPlan::Filter(Filter {
@@ -82,7 +82,7 @@ impl FilterTagging {
     }
 
     // If there is any filter on relationship then use edgelist of that relation.
-    pub fn extract_filters(&self, filter_predicate: LogicalExpr, plan_ctx: &mut PlanCtx) -> Option<LogicalExpr> {
+    pub fn extract_filters(&self, filter_predicate: LogicalExpr, plan_ctx: &mut PlanCtx) -> AnalyzerResult<Option<LogicalExpr>> {
         let mut extracted_filters: Vec<OperatorApplication> = vec![];
         let mut extracted_projections: Vec<PropertyAccess> = vec![];
 
@@ -127,6 +127,8 @@ impl FilterTagging {
                 if table_ctx.is_relation() {
                     table_ctx.set_use_edge_list(true);
                 }
+            } else {
+                return Err(AnalyzerError::OrphanAlias { alias: table_name.to_string() });
             }
 
         }
@@ -145,11 +147,13 @@ impl FilterTagging {
                     table_ctx.set_use_edge_list(true);
                 }
             }
+
+            return Err(AnalyzerError::OrphanAlias { alias: table_alias.to_string() });
             // else TODO throw error
 
         }
 
-        remaining
+        Ok(remaining)
 
 
     }

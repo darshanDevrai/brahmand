@@ -1,6 +1,6 @@
 use std::{collections::HashSet, sync::Arc};
 
-use crate::{ graph_schema::graph_schema::GraphSchema, query_planner::{analyzer::{analyzer_pass::{AnalyzerPass, AnalyzerResult}, errors::AnalyzerError}, logical_expr::logical_expr::{Column, LogicalExpr, Operator, OperatorApplication, PropertyAccess, TableAlias}, logical_plan::logical_plan::{GraphJoins, GraphRel, Join, LogicalPlan}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed}};
+use crate::{ graph_schema::graph_schema::GraphSchema, query_planner::{analyzer::{analyzer_pass::{AnalyzerPass, AnalyzerResult}, errors::{AnalyzerError, Pass}}, logical_expr::logical_expr::{Column, LogicalExpr, Operator, OperatorApplication, PropertyAccess, TableAlias}, logical_plan::logical_plan::{GraphJoins, GraphRel, Join, LogicalPlan}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed}};
 
 
 
@@ -136,18 +136,18 @@ impl GraphJoinInference {
         let right_alias = &graph_rel.right_connection;
 
 
-        let left_ctx = plan_ctx.get_node_table_ctx(left_alias)?;
-        let rel_ctx = plan_ctx.get_rel_table_ctx(rel_alias)?;
-        let right_ctx = plan_ctx.get_node_table_ctx(right_alias)?;
+        let left_ctx = plan_ctx.get_node_table_ctx(left_alias).map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphJoinInference, source: e})?;
+        let rel_ctx = plan_ctx.get_rel_table_ctx(rel_alias).map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphJoinInference, source: e})?;
+        let right_ctx = plan_ctx.get_node_table_ctx(right_alias).map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphJoinInference, source: e})?;
 
-        let left_label = left_ctx.get_label_str()?;
-        let rel_label = rel_ctx.get_label_str()?;
+        let left_label = left_ctx.get_label_str().map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphJoinInference, source: e})?;
+        let rel_label = rel_ctx.get_label_str().map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphJoinInference, source: e})?;
         let original_rel_label = rel_label.replace("_incoming", "").replace("_outgoing", "");
-        let right_label = right_ctx.get_label_str()?;
+        let right_label = right_ctx.get_label_str().map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphJoinInference, source: e})?;
 
-        let left_schema = graph_schema.nodes.get(&left_label).unwrap();
-        let rel_schema = graph_schema.relationships.get(&original_rel_label).unwrap(); //.ok_or(AnalyzerError::NoRelationSchemaFound)?;
-        let right_schema = graph_schema.nodes.get(&right_label).unwrap();
+        let left_schema = graph_schema.get_node_schema(&left_label)?;
+        let rel_schema = graph_schema.get_rel_schema(&original_rel_label)?;
+        let right_schema = graph_schema.get_node_schema(&right_label)?;
 
         let rel_cte_name = format!("{}_{}", rel_label, rel_alias);
         let right_cte_name = format!("{}_{}", right_label, right_alias);

@@ -5,15 +5,15 @@ use thiserror::Error;
 
 #[derive(Debug, Clone, Error, PartialEq)]
 pub enum PlanCtxError {
-    #[error("No table context for alias.")]
+    #[error("No table context for alias")]
     MissingTableCtx,
 
-    #[error("No table context for node alias.")]
+    #[error("No table context for node alias")]
     MissingNodeTableCtx,
 
-    #[error("No table context for relationship alias.")]
+    #[error("No table context for relationship alias")]
     MissingRelTableCtx,
 
-    #[error("Missing Label.")]
-    MissingLabel,
+    #[error("Missing Label for `{alias}`")]
+    MissingLabel{alias: String},
 }

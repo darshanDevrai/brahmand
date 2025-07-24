@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{ graph_schema::graph_schema::{GraphSchema, RelationshipSchema}, query_planner::{analyzer::{analyzer_pass::{AnalyzerPass, AnalyzerResult}, errors::AnalyzerError}, logical_expr::logical_expr::{Column, ColumnAlias, Direction, InSubquery, LogicalExpr, PropertyAccess}, logical_plan::logical_plan::{Cte, GraphRel, LogicalPlan, Projection, ProjectionItem, Scan}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed}};
+use crate::{ graph_schema::graph_schema::{GraphSchema, RelationshipSchema}, query_planner::{analyzer::{analyzer_pass::{AnalyzerPass, AnalyzerResult}, errors::{AnalyzerError, Pass}}, logical_expr::logical_expr::{Column, ColumnAlias, Direction, InSubquery, LogicalExpr, PropertyAccess}, logical_plan::logical_plan::{Cte, GraphRel, LogicalPlan, Projection, ProjectionItem, Scan}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed}};
 
 
 
@@ -30,7 +30,7 @@ impl AnalyzerPass for GraphTRaversalPlanning {
                     let (new_graph_rel, ctxs_to_update) = self.infer_anchor_traversal(graph_rel, plan_ctx, graph_schema)?;
 
                     for mut ctx in ctxs_to_update.into_iter() {
-                        let table_ctx = plan_ctx.get_mut_table_ctx(&ctx.alias)?;
+                        let table_ctx = plan_ctx.get_mut_table_ctx(&ctx.alias).map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphTraversalPlanning, source: e})?;
                         table_ctx.set_label(Some(ctx.label));
                         // table_ctx.projection_items.append(&mut ctx.projections);
                         if let Some(plan_expr) = ctx.insubquery {
@@ -52,7 +52,7 @@ impl AnalyzerPass for GraphTRaversalPlanning {
                     let (new_graph_rel, ctxs_to_update) = self.infer_intermediate_traversal(&updated_graph_rel, plan_ctx, graph_schema)?;
 
                     for mut ctx in ctxs_to_update.into_iter() {
-                        let table_ctx = plan_ctx.get_mut_table_ctx(&ctx.alias)?;
+                        let table_ctx = plan_ctx.get_mut_table_ctx(&ctx.alias).map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphTraversalPlanning, source: e})?;
                         table_ctx.set_label(Some(ctx.label));
                         if let Some(plan_expr) = ctx.insubquery {
                             table_ctx.insert_filter(plan_expr);
@@ -119,18 +119,18 @@ impl GraphTRaversalPlanning {
         let right_alias = &graph_rel.right_connection;
 
 
-        let left_ctx = plan_ctx.get_node_table_ctx(left_alias)?;
-        let rel_ctx = plan_ctx.get_rel_table_ctx(rel_alias)?;
-        let right_ctx = plan_ctx.get_node_table_ctx(right_alias)?;
+        let left_ctx = plan_ctx.get_node_table_ctx(left_alias).map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphTraversalPlanning, source: e})?;
+        let rel_ctx = plan_ctx.get_rel_table_ctx(rel_alias).map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphTraversalPlanning, source: e})?;
+        let right_ctx = plan_ctx.get_node_table_ctx(right_alias).map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphTraversalPlanning, source: e})?;
 
-        let left_label = left_ctx.get_label_str()?;
-        let rel_label = rel_ctx.get_label_str()?;
-        let right_label = right_ctx.get_label_str()?;
+        let left_label = left_ctx.get_label_str().map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphTraversalPlanning, source: e})?;
+        let rel_label = rel_ctx.get_label_str().map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphTraversalPlanning, source: e})?;
+        let right_label = right_ctx.get_label_str().map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphTraversalPlanning, source: e})?;
 
 
-        let left_schema = graph_schema.nodes.get(&left_label).unwrap();
-        let rel_schema = graph_schema.relationships.get(&rel_label).unwrap(); //.ok_or(AnalyzerError::NoRelationSchemaFound)?;
-        let right_schema = graph_schema.nodes.get(&right_label).unwrap();
+        let left_schema = graph_schema.get_node_schema(&left_label)?;
+        let rel_schema = graph_schema.get_rel_schema(&rel_label)?;
+        let right_schema = graph_schema.get_node_schema(&right_label)?;
 
         let left_node_id_column = left_schema.node_id.column.clone();
         let right_node_id_column = right_schema.node_id.column.clone();
@@ -347,18 +347,18 @@ impl GraphTRaversalPlanning {
         let right_alias = &graph_rel.right_connection;
 
 
-        let left_ctx = plan_ctx.get_node_table_ctx(left_alias)?;
-        let rel_ctx = plan_ctx.get_rel_table_ctx(rel_alias)?;
-        let right_ctx = plan_ctx.get_node_table_ctx(right_alias)?;
+        let left_ctx = plan_ctx.get_node_table_ctx(left_alias).map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphTraversalPlanning, source: e})?;
+        let rel_ctx = plan_ctx.get_rel_table_ctx(rel_alias).map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphTraversalPlanning, source: e})?;
+        let right_ctx = plan_ctx.get_node_table_ctx(right_alias).map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphTraversalPlanning, source: e})?;
 
-        let left_label = left_ctx.get_label_str()?;
-        let rel_label = rel_ctx.get_label_str()?;
-        let right_label = right_ctx.get_label_str()?;
+        let left_label = left_ctx.get_label_str().map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphTraversalPlanning, source: e})?;
+        let rel_label = rel_ctx.get_label_str().map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphTraversalPlanning, source: e})?;
+        let right_label = right_ctx.get_label_str().map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphTraversalPlanning, source: e})?;
 
 
-        let left_schema = graph_schema.nodes.get(&left_label).unwrap();
-        let rel_schema = graph_schema.relationships.get(&rel_label).unwrap(); //.ok_or(AnalyzerError::NoRelationSchemaFound)?;
-        let right_schema = graph_schema.nodes.get(&right_label).unwrap();
+        let left_schema = graph_schema.get_node_schema(&left_label)?;
+        let rel_schema = graph_schema.get_rel_schema(&rel_label)?;
+        let right_schema = graph_schema.get_node_schema(&right_label)?;
 
         let left_node_id_column = left_schema.node_id.column.clone();
         let right_node_id_column = right_schema.node_id.column.clone();

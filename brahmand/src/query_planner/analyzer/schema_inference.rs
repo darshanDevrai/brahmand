@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{ graph_schema::graph_schema::{GraphSchema, RelationshipSchema}, query_planner::{analyzer::{analyzer_pass::{AnalyzerPass, AnalyzerResult}, errors::AnalyzerError}, logical_expr::logical_expr::LogicalExpr, logical_plan::logical_plan::{LogicalPlan, ProjectionItem, Scan}, plan_ctx::plan_ctx::{PlanCtx, TableCtx}, transformed::Transformed}};
+use crate::{ graph_schema::graph_schema::{GraphSchema, RelationshipSchema}, query_planner::{analyzer::{analyzer_pass::{AnalyzerPass, AnalyzerResult}, errors::{AnalyzerError, Pass}}, logical_expr::logical_expr::LogicalExpr, logical_plan::logical_plan::{LogicalPlan, ProjectionItem, Scan}, plan_ctx::plan_ctx::{PlanCtx, TableCtx}, transformed::Transformed}};
 
 
 
@@ -46,7 +46,7 @@ impl SchemaInference {
                 Ok(cte.rebuild_or_clone(child_tf, logical_plan.clone()))
             },
             LogicalPlan::Scan(scan) => {
-                let table_ctx = plan_ctx.get_table_ctx(&scan.table_alias)?;
+                let table_ctx = plan_ctx.get_table_ctx(&scan.table_alias).map_err(|e| AnalyzerError::PlanCtx { pass: Pass::SchemaInference, source: e})?;
                 Ok(Transformed::Yes(Arc::new(LogicalPlan::Scan(Scan {
                     table_name: table_ctx.get_label_opt(),
                     table_alias: scan.table_alias.clone()
@@ -93,18 +93,18 @@ impl SchemaInference {
                 self.infer_schema(graph_node.input.clone(), plan_ctx, graph_schema)
             },
             LogicalPlan::GraphRel(graph_rel) => {
-                // TODO remove unwrap and wrap it with result
                 let left_alias = &graph_rel.left_connection;
                 let right_alias = &graph_rel.right_connection;
 
-                let left_table_ctx = plan_ctx.get_node_table_ctx(&left_alias)?;
-                let rel_table_ctx = plan_ctx.get_rel_table_ctx(&graph_rel.alias)?;
-                let right_table_ctx = plan_ctx.get_node_table_ctx(&right_alias)?;
+
+                let left_table_ctx = plan_ctx.get_node_table_ctx(&left_alias).map_err(|e| AnalyzerError::PlanCtx { pass: Pass::SchemaInference, source: e})?;
+                let rel_table_ctx = plan_ctx.get_rel_table_ctx(&graph_rel.alias).map_err(|e| AnalyzerError::PlanCtx { pass: Pass::SchemaInference, source: e})?;
+                let right_table_ctx = plan_ctx.get_node_table_ctx(&right_alias).map_err(|e| AnalyzerError::PlanCtx { pass: Pass::SchemaInference, source: e})?;
 
                 let (left_label, rel_label, right_label) = self.infer_missing_labels(graph_schema, left_table_ctx, rel_table_ctx, right_table_ctx)?;
                 
                 for (alias, label) in vec![(left_alias, left_label), (&graph_rel.alias, rel_label), (right_alias, right_label)] {
-                    let table_ctx = plan_ctx.get_mut_table_ctx(&alias)?;
+                    let table_ctx = plan_ctx.get_mut_table_ctx(&alias).map_err(|e| AnalyzerError::PlanCtx { pass: Pass::SchemaInference, source: e})?;
                     table_ctx.set_label(Some(label));
                 }
                 
@@ -165,15 +165,14 @@ impl SchemaInference {
         rel_table_ctx: &TableCtx,
         right_table_ctx: &TableCtx,
     ) -> AnalyzerResult<(String, String, String)> {
-    
         // if all present
         if left_table_ctx.get_label_opt().is_some()
             && rel_table_ctx.get_label_opt().is_some()
             && right_table_ctx.get_label_opt().is_some()
         {
-            let left_node_table_name = left_table_ctx.get_label_str()?;
-            let right_node_table_name = right_table_ctx.get_label_str()?;
-            let rel_table_name = rel_table_ctx.get_label_str()?;
+            let left_node_table_name = left_table_ctx.get_label_str().map_err(|e| AnalyzerError::PlanCtx { pass: Pass::SchemaInference, source: e})?;
+            let right_node_table_name = right_table_ctx.get_label_str().map_err(|e| AnalyzerError::PlanCtx { pass: Pass::SchemaInference, source: e})?;
+            let rel_table_name = rel_table_ctx.get_label_str().map_err(|e| AnalyzerError::PlanCtx { pass: Pass::SchemaInference, source: e})?;
             return Ok((left_node_table_name, rel_table_name, right_node_table_name));
         }
     
@@ -183,13 +182,10 @@ impl SchemaInference {
             && right_table_ctx.get_label_opt().is_some()
         {
             // check relation table name and infer the node
-            let rel_table_name = rel_table_ctx.get_label_str()?;
-            let rel_schema = graph_schema
-                .relationships
-                .get(&rel_table_name)
-                .ok_or(AnalyzerError::NoRelationSchemaFound)?;
+            let rel_table_name = rel_table_ctx.get_label_str().map_err(|e| AnalyzerError::PlanCtx { pass: Pass::SchemaInference, source: e})?;
+            let rel_schema = graph_schema.get_rel_schema(&rel_table_name)?;
     
-            let right_table_name = right_table_ctx.get_label_str()?;
+            let right_table_name = right_table_ctx.get_label_str().map_err(|e| AnalyzerError::PlanCtx { pass: Pass::SchemaInference, source: e})?;
     
             let left_table_name = if right_table_name == rel_schema.from_node {
                 rel_schema.to_node.clone()
@@ -209,13 +205,10 @@ impl SchemaInference {
             && right_table_ctx.get_label_opt().is_none()
         {
             // check relation table name and infer the node
-            let rel_table_name = rel_table_ctx.get_label_str()?;
-            let rel_schema = graph_schema
-                .relationships
-                .get(&rel_table_name)
-                .ok_or(AnalyzerError::NoRelationSchemaFound)?;
+            let rel_table_name = rel_table_ctx.get_label_str().map_err(|e| AnalyzerError::PlanCtx { pass: Pass::SchemaInference, source: e})?;
+            let rel_schema = graph_schema.get_rel_schema(&rel_table_name)?;
     
-            let left_table_name = left_table_ctx.get_label_str()?;
+            let left_table_name = left_table_ctx.get_label_str().map_err(|e| AnalyzerError::PlanCtx { pass: Pass::SchemaInference, source: e})?;
     
             let right_table_name = if left_table_name == rel_schema.from_node {
                 rel_schema.to_node.clone()
@@ -234,9 +227,9 @@ impl SchemaInference {
             && rel_table_ctx.get_label_opt().is_none()
             && right_table_ctx.get_label_opt().is_some()
         {
-            let left_table_name = left_table_ctx.get_label_str()?;
-            let right_table_name = right_table_ctx.get_label_str()?;
-            for (_, relation_schema) in graph_schema.relationships.iter() {
+            let left_table_name = left_table_ctx.get_label_str().map_err(|e| AnalyzerError::PlanCtx { pass: Pass::SchemaInference, source: e})?;
+            let right_table_name = right_table_ctx.get_label_str().map_err(|e| AnalyzerError::PlanCtx { pass: Pass::SchemaInference, source: e})?;
+            for (_, relation_schema) in graph_schema.get_relationships_schemas().iter() {
 
                 if (relation_schema.from_node == left_table_name
                     && relation_schema.to_node == right_table_name)
@@ -258,11 +251,8 @@ impl SchemaInference {
             && rel_table_ctx.get_label_opt().is_some()
             && right_table_ctx.get_label_opt().is_none()
         {
-            let rel_table_name = rel_table_ctx.get_label_str()?;
-            let relation_schema = graph_schema
-                .relationships
-                .get(&rel_table_name)
-                .ok_or(AnalyzerError::NoRelationSchemaFound)?;
+            let rel_table_name = rel_table_ctx.get_label_str().map_err(|e| AnalyzerError::PlanCtx { pass: Pass::SchemaInference, source: e})?;
+            let relation_schema = graph_schema.get_rel_schema(&rel_table_name)?;
     
             let extracted_left_node_table_result =
                 self.get_table_name_from_filters_and_projections(graph_schema, left_table_ctx);
@@ -273,17 +263,9 @@ impl SchemaInference {
                 let left_table_name = extracted_left_node_table_result.unwrap();
     
                 let right_table_name = if relation_schema.from_node == left_table_name {
-                    &graph_schema
-                        .nodes
-                        .get(&relation_schema.to_node)
-                        .ok_or(AnalyzerError::NoNodeSchemaFound)?
-                        .table_name
+                    &graph_schema.get_node_schema(&relation_schema.to_node)?.table_name
                 } else {
-                    &graph_schema
-                        .nodes
-                        .get(&relation_schema.from_node)
-                        .ok_or(AnalyzerError::NoNodeSchemaFound)?
-                        .table_name
+                    &graph_schema.get_node_schema(&relation_schema.from_node)?.table_name
                 };
                 return Ok((
                     left_table_name,
@@ -294,17 +276,9 @@ impl SchemaInference {
                 let right_table_name = extracted_right_node_table_result.unwrap();
     
                 let left_table_name = if relation_schema.from_node == right_table_name {
-                    &graph_schema
-                        .nodes
-                        .get(&relation_schema.to_node)
-                        .ok_or(AnalyzerError::NoNodeSchemaFound)?
-                        .table_name
+                    &graph_schema.get_node_schema(&relation_schema.to_node)?.table_name
                 } else {
-                    &graph_schema
-                        .nodes
-                        .get(&relation_schema.from_node)
-                        .ok_or(AnalyzerError::NoNodeSchemaFound)?
-                        .table_name
+                    &graph_schema.get_node_schema(&relation_schema.from_node)?.table_name
                 };
                 return Ok((
                     left_table_name.to_string(),
@@ -313,16 +287,8 @@ impl SchemaInference {
                 ));
             } else {
                 // assign default left and right from rel schema.
-                let left_table_name = &graph_schema
-                    .nodes
-                    .get(&relation_schema.from_node)
-                    .ok_or(AnalyzerError::NoNodeSchemaFound)?
-                    .table_name;
-                let right_table_name = &graph_schema
-                    .nodes
-                    .get(&relation_schema.to_node)
-                    .ok_or(AnalyzerError::NoNodeSchemaFound)?
-                    .table_name;
+                let left_table_name = &graph_schema.get_node_schema(&relation_schema.from_node)?.table_name;
+                let right_table_name = &graph_schema.get_node_schema(&relation_schema.to_node)?.table_name;
                 return Ok((
                     left_table_name.to_string(),
                     rel_table_name.to_string(),
@@ -344,10 +310,10 @@ impl SchemaInference {
             // If we directly go for node's where conditions and return items then we will get two nodes PLANET and TOWN and we won't be able to decide.
             // If our graph has (USER)-[DRIVES]->(CAR) and (USER)-[IS_FROM]-(TOWN). In this case how to decide DRIVES or IS_FROM relation?
             // Now we will check if CAR or TOWN has property 'name' and infer that as a current node
-            let left_table_name = left_table_ctx.get_label_str()?;
+            let left_table_name = left_table_ctx.get_label_str().map_err(|e| AnalyzerError::PlanCtx { pass: Pass::SchemaInference, source: e})?;
             let mut relations_found: Vec<&RelationshipSchema> = vec![];
     
-            for (_, relation_schema) in graph_schema.relationships.iter() {
+            for (_, relation_schema) in graph_schema.get_relationships_schemas().iter() {
                 if relation_schema.from_node == left_table_name
                     || relation_schema.to_node == left_table_name
                 {
@@ -377,31 +343,25 @@ impl SchemaInference {
                         ));
                     }
                 }
-            } else {
-                let relation_schema = relations_found
-                    .first()
-                    .ok_or(AnalyzerError::MissingRelationLabel)?;
+            } 
+            // Getting first relationship will mis lead the output. It is good to throw the Not enough information error.
+            // else {
+            //     let relation_schema = relations_found
+            //         .first()
+            //         .ok_or(AnalyzerError::MissingRelationLabel)?;
     
-                let right_table_name = if relation_schema.from_node == left_table_name {
-                    &graph_schema
-                        .nodes
-                        .get(&relation_schema.to_node)
-                        .ok_or(AnalyzerError::NoNodeSchemaFound)?
-                        .table_name
-                } else {
-                    &graph_schema
-                        .nodes
-                        .get(&relation_schema.from_node)
-                        .ok_or(AnalyzerError::NoNodeSchemaFound)?
-                        .table_name
-                };
-                let rel_table_name = &relation_schema.table_name;
-                return Ok((
-                    left_table_name.to_string(),
-                    rel_table_name.to_string(),
-                    right_table_name.to_string(),
-                ));
-            }
+            //     let right_table_name = if relation_schema.from_node == left_table_name {
+            //         &graph_schema.get_node_schema(&relation_schema.to_node)?.table_name
+            //     } else {
+            //         &graph_schema.get_node_schema(&relation_schema.from_node)?.table_name
+            //     };
+            //     let rel_table_name = &relation_schema.table_name;
+            //     return Ok((
+            //         left_table_name.to_string(),
+            //         rel_table_name.to_string(),
+            //         right_table_name.to_string(),
+            //     ));
+            // }
         }
     
         // left and relation missing
@@ -410,10 +370,10 @@ impl SchemaInference {
             && rel_table_ctx.get_label_opt().is_none()
             && right_table_ctx.get_label_opt().is_some()
         {
-            let right_table_name = right_table_ctx.get_label_str()?;
+            let right_table_name = right_table_ctx.get_label_str().map_err(|e| AnalyzerError::PlanCtx { pass: Pass::SchemaInference, source: e})?;
             let mut relations_found: Vec<&RelationshipSchema> = vec![];
     
-            for (_, relation_schema) in graph_schema.relationships.iter() {
+            for (_, relation_schema) in graph_schema.get_relationships_schemas().iter() {
                 if relation_schema.from_node == right_table_name
                     || relation_schema.to_node == right_table_name
                 {
@@ -423,6 +383,7 @@ impl SchemaInference {
     
             let extracted_left_node_table_result =
                 self.get_table_name_from_filters_and_projections(graph_schema, left_table_ctx);
+
     
             if relations_found.len() > 1 && extracted_left_node_table_result.is_some() {
                 let extracted_left_node_table_name = extracted_left_node_table_result.unwrap();
@@ -445,31 +406,25 @@ impl SchemaInference {
                         ));
                     }
                 }
-            } else {
-                let relation_schema = relations_found
-                    .first()
-                    .ok_or(AnalyzerError::MissingRelationLabel)?;
+            } 
+            
+            // else {
+            //     let relation_schema = relations_found
+            //         .first()
+            //         .ok_or(AnalyzerError::MissingRelationLabel)?;
     
-                let left_table_name = if relation_schema.from_node == right_table_name {
-                    &graph_schema
-                        .nodes
-                        .get(&relation_schema.to_node)
-                        .ok_or(AnalyzerError::NoNodeSchemaFound)?
-                        .table_name
-                } else {
-                    &graph_schema
-                        .nodes
-                        .get(&relation_schema.from_node)
-                        .ok_or(AnalyzerError::NoNodeSchemaFound)?
-                        .table_name
-                };
-                let rel_table_name = &relation_schema.table_name;
-                return Ok((
-                    left_table_name.to_string(),
-                    rel_table_name.to_string(),
-                    right_table_name.to_string(),
-                ));
-            }
+            //     let left_table_name = if relation_schema.from_node == right_table_name {
+            //         &graph_schema.get_node_schema(&relation_schema.to_node)?.table_name
+            //     } else {
+            //         &graph_schema.get_node_schema(&relation_schema.from_node)?.table_name
+            //     };
+            //     let rel_table_name = &relation_schema.table_name;
+            //     return Ok((
+            //         left_table_name.to_string(),
+            //         rel_table_name.to_string(),
+            //         right_table_name.to_string(),
+            //     ));
+            // }
         }
     
         // if all labels are missing
@@ -487,7 +442,7 @@ impl SchemaInference {
                 let left_table_name = extracted_left_node_table_result.unwrap();
                 let right_table_name = extracted_right_node_table_result.unwrap();
     
-                for (_, relation_schema) in graph_schema.relationships.iter() {
+                for (_, relation_schema) in graph_schema.get_relationships_schemas().iter() {
                     if (relation_schema.from_node == left_table_name
                         && relation_schema.to_node == right_table_name)
                         || (relation_schema.from_node == right_table_name
@@ -503,13 +458,9 @@ impl SchemaInference {
                 && extracted_right_node_table_result.is_none()
             {
                 let left_table_name = extracted_left_node_table_result.unwrap();
-                for (_, relation_schema) in graph_schema.relationships.iter() {
+                for (_, relation_schema) in graph_schema.get_relationships_schemas().iter() {
                     if relation_schema.from_node == left_table_name {
-                        let right_table_name = &graph_schema
-                            .nodes
-                            .get(&relation_schema.to_node)
-                            .ok_or(AnalyzerError::NoNodeSchemaFound)?
-                            .table_name;
+                        let right_table_name = &graph_schema.get_node_schema(&relation_schema.to_node)?.table_name;
                         let rel_table_name = &relation_schema.table_name;
                         return Ok((
                             left_table_name,
@@ -517,11 +468,7 @@ impl SchemaInference {
                             right_table_name.to_string(),
                         ));
                     } else if relation_schema.to_node == left_table_name {
-                        let right_table_name = &graph_schema
-                            .nodes
-                            .get(&relation_schema.from_node)
-                            .ok_or(AnalyzerError::NoNodeSchemaFound)?
-                            .table_name;
+                        let right_table_name = &graph_schema.get_node_schema(&relation_schema.from_node)?.table_name;
                         let rel_table_name = &relation_schema.table_name;
                         return Ok((
                             left_table_name,
@@ -536,13 +483,9 @@ impl SchemaInference {
                 && extracted_right_node_table_result.is_some()
             {
                 let right_table_name = extracted_right_node_table_result.unwrap();
-                for (_, relation_schema) in graph_schema.relationships.iter() {
+                for (_, relation_schema) in graph_schema.get_relationships_schemas().iter() {
                     if relation_schema.from_node == right_table_name {
-                        let left_table_name = &graph_schema
-                            .nodes
-                            .get(&relation_schema.to_node)
-                            .ok_or(AnalyzerError::NoNodeSchemaFound)?
-                            .table_name;
+                        let left_table_name = &graph_schema.get_node_schema(&relation_schema.to_node)?.table_name;
                         let rel_table_name = &relation_schema.table_name;
                         return Ok((
                             left_table_name.to_string(),
@@ -550,11 +493,7 @@ impl SchemaInference {
                             right_table_name,
                         ));
                     } else if relation_schema.to_node == right_table_name {
-                        let left_table_name = &graph_schema
-                            .nodes
-                            .get(&relation_schema.from_node)
-                            .ok_or(AnalyzerError::NoNodeSchemaFound)?
-                            .table_name;
+                        let left_table_name = &graph_schema.get_node_schema(&relation_schema.from_node)?.table_name;
                         let rel_table_name = &relation_schema.table_name;
                         return Ok((
                             left_table_name.to_string(),
@@ -586,7 +525,7 @@ impl SchemaInference {
             "".to_string()
         };
         if !column_name.is_empty() {
-            for (_, node_schema) in graph_schema.nodes.iter() {
+            for (_, node_schema) in graph_schema.get_nodes_schemas().iter() {
                 if node_schema.column_names.contains(&column_name) {
                     return Some(node_schema.table_name.clone());
                 }
@@ -648,6 +587,7 @@ impl SchemaInference {
                         None
                     }
             LogicalExpr::PropertyAccessExp(property_access) => Some(property_access.column.0.clone()),
+            LogicalExpr::Column(col) => Some(col.to_string()),
             _ => None
         }
     }

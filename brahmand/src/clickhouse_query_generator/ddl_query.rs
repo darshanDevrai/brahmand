@@ -184,12 +184,10 @@ fn generate_create_rel_table_query(
     let to_node = create_rel_table_clause.to;
 
     let from_table_schema = current_graph_schema
-        .nodes
-        .get(from_node)
+        .get_node_schema_opt(from_node)
         .ok_or(ClickhouseQueryGeneratorError::UnknownFromTableInRel)?;
     let to_table_schema = current_graph_schema
-        .nodes
-        .get(to_node)
+        .get_node_schema_opt(to_node)
         .ok_or(ClickhouseQueryGeneratorError::UnknownToTableInRel)?;
 
     let from_node_id_dtype = from_table_schema.node_id.dtype.clone();
@@ -705,11 +703,7 @@ mod tests {
                 },
             },
         );
-        GraphSchema {
-            version: 1,
-            nodes,
-            relationships: HashMap::new(),
-        }
+        GraphSchema::build(1, nodes,  HashMap::new())
     }
 
     #[test]

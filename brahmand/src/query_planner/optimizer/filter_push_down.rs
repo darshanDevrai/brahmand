@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::query_planner::{logical_expr::logical_expr::{LogicalExpr, Operator, OperatorApplication}, logical_plan::logical_plan::{Filter, LogicalPlan}, optimizer::optimizer_pass::{OptimizerPass, OptimizerResult}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed};
+use crate::query_planner::{logical_expr::logical_expr::{LogicalExpr, Operator, OperatorApplication}, logical_plan::logical_plan::{Filter, LogicalPlan}, optimizer::{errors::OptimizerError, optimizer_pass::{OptimizerPass, OptimizerResult}}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed};
 
 
 
@@ -29,7 +29,7 @@ impl OptimizerPass for FilterPushDown {
                         if let Some(table_ctx) = plan_ctx.get_mut_table_ctx_opt(&scan.table_alias) {
                             if !table_ctx.get_filters().is_empty() {
 
-                                let combined_predicate = self.get_combined_predicate(table_ctx.get_filters().clone()).unwrap();
+                                let combined_predicate = self.get_combined_predicate(table_ctx.get_filters().clone()).ok_or(OptimizerError::CombineFilterPredicate)?;
 
                                 let new_proj = Arc::new(LogicalPlan::Filter(Filter {
                                     input: logical_plan.clone(),

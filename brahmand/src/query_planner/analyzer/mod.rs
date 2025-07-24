@@ -28,9 +28,13 @@ pub fn initial_analyzing(plan: Arc<LogicalPlan>, plan_ctx: &mut PlanCtx, current
     // println!("\n plan_ctx Before {} \n\n", plan_ctx);
     // println!("\n\n PLAN Before  {} \n\n", plan);
 
+    // For initial schema inference, we do not propogate the error. We will try to infer schema in this initial pass. If not able to infer then it will be done in the later pass after projection and filter tagging.
     let schema_inference = SchemaInference::new();
-    let transformed_plan = schema_inference.analyze_with_graph_schema(plan.clone(), plan_ctx, current_graph_schema)?;
-    let plan = transformed_plan.get_plan();
+    let plan = if let Ok(transformed_plan) = schema_inference.analyze_with_graph_schema(plan.clone(), plan_ctx, current_graph_schema) {
+        transformed_plan.get_plan()
+    } else {
+        plan
+    };
 
     let filter_tagging = FilterTagging::new();
     let transformed_plan = filter_tagging.analyze(plan.clone(), plan_ctx)?;

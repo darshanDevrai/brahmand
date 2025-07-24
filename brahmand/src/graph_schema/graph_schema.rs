@@ -2,6 +2,8 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
+use super::errors::GraphSchemaError;
+
 
 
 
@@ -24,12 +26,6 @@ pub struct RelationshipSchema {
     pub to_node_id_dtype: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct GraphSchema {
-    pub version: u32,
-    pub nodes: HashMap<String, NodeSchema>,
-    pub relationships: HashMap<String, RelationshipSchema>,
-}
 
 #[derive(Debug, Clone)]
 pub enum GraphSchemaElement {
@@ -47,4 +43,59 @@ pub struct NodeIdSchema {
 pub struct EntityProperties {
     pub primary_keys: String,
     pub node_id: NodeIdSchema, // other props
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GraphSchema {
+    version: u32,
+    nodes: HashMap<String, NodeSchema>,
+    relationships: HashMap<String, RelationshipSchema>,
+}
+
+impl GraphSchema {
+
+    pub fn build(version: u32, nodes: HashMap<String, NodeSchema>, relationships: HashMap<String, RelationshipSchema>,) -> GraphSchema {
+        GraphSchema {
+            version,
+            nodes,
+            relationships
+        }
+    }
+
+    pub fn insert_node_schema(&mut self, node_label: String, node_schema:NodeSchema) {
+        self.nodes.insert(node_label, node_schema);
+    }
+
+    pub fn insert_rel_schema(&mut self, rel_label: String, rel_schema:RelationshipSchema) {
+        self.relationships.insert(rel_label, rel_schema);
+    }
+
+    pub fn get_version(&self) -> u32 {
+        self.version
+    }
+
+    pub fn increment_version(&mut self) {
+        self.version += 1;
+    }
+
+    pub fn get_node_schema(&self, node_label: &str) -> Result<&NodeSchema, GraphSchemaError> {
+        self.nodes.get(node_label).ok_or(GraphSchemaError::NoNodeSchemaFound{node_label: node_label.to_string()})
+    }
+
+    pub fn get_rel_schema(&self, rel_label: &str) -> Result<&RelationshipSchema, GraphSchemaError> {
+        self.relationships.get(rel_label).ok_or(GraphSchemaError::NoRelationSchemaFound{rel_label: rel_label.to_string()})
+    }
+
+    pub fn get_relationships_schemas(&self) -> &HashMap<String, RelationshipSchema> {
+        &self.relationships
+    }
+
+    pub fn get_nodes_schemas(&self) -> &HashMap<String, NodeSchema> {
+        &self.nodes
+    }
+
+    pub fn get_node_schema_opt(&self, node_label: &str) -> Option<&NodeSchema> {
+        self.nodes.get(node_label)
+    }
+
 }

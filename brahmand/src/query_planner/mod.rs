@@ -36,6 +36,8 @@ pub fn evaluate_read_query(query_ast: OpenCypherQueryAst, current_graph_schema: 
         // println!("\n\n PLAN Before  {} \n\n", logical_plan);
         // println!("\n plan_ctx {}",plan_ctx);
         let logical_plan = analyzer::initial_analyzing(logical_plan, &mut plan_ctx, current_graph_schema)?;
+        // println!("\n\n PLAN after initial analyzing - \n{} \n\n", logical_plan);
+        // println!("\n plan_ctx after initial analyzing - \n{}",plan_ctx);
         // logical_plan.print_graph_rels();
         let logical_plan = optimizer::initial_optimization(logical_plan, &mut plan_ctx)?;
         // logical_plan.print_graph_rels();

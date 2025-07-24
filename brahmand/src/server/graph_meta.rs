@@ -112,10 +112,10 @@ pub async fn validate_schema(graph_schema_element: &GraphSchemaElement) -> Resul
                 .await;
 
             if !graph_schema_lock
-                .nodes
+                .get_nodes_schemas()
                 .contains_key(&relationship_schema.from_node)
                 || !graph_schema_lock
-                    .nodes
+                    .get_nodes_schemas()
                     .contains_key(&relationship_schema.to_node)
             {
                 return Err("From and To node tables must be present before creating a relationship between them".to_string());
@@ -133,17 +133,15 @@ pub async fn add_to_schema(
     let mut graph_schema = GLOBAL_GRAPH_SCHEMA.get().unwrap().write().await;
     match graph_schema_element {
         GraphSchemaElement::Node(node_schema) => {
-            graph_schema
-                .nodes
-                .insert(node_schema.table_name.to_string(), node_schema);
-            graph_schema.version += 1;
+            graph_schema.insert_node_schema(node_schema.table_name.to_string(), node_schema);
+            graph_schema.increment_version(); 
         }
         GraphSchemaElement::Rel(relationship_schema) => {
-            graph_schema.relationships.insert(
+            graph_schema.insert_rel_schema(
                 relationship_schema.table_name.to_string(),
                 relationship_schema,
             );
-            graph_schema.version += 1;
+            graph_schema.increment_version();
         }
     }
 
@@ -184,7 +182,7 @@ pub async fn monitor_schema_updates(ch_client: Client) -> Result<(), String> {
             .read()
             .await;
 
-        let mem_version = in_mem_schema_guard.version;
+        let mem_version = in_mem_schema_guard.get_version();
 
         // Fetch the schema from ClickHouse.
         let remote_schema = match get_graph_meta(ch_client.clone()).await {
@@ -196,7 +194,7 @@ pub async fn monitor_schema_updates(ch_client: Client) -> Result<(), String> {
         };
 
         // Compare versions. If they differ, update the global schema.
-        if remote_schema.version != mem_version {
+        if remote_schema.get_version() != mem_version {
             let mut schema_guard = GLOBAL_GRAPH_SCHEMA
                 .get()
                 .expect("Global schema not initialized")
@@ -206,7 +204,7 @@ pub async fn monitor_schema_updates(ch_client: Client) -> Result<(), String> {
 
             println!(
                 "Global schema updated from version {} to {}",
-                mem_version, remote_schema.version
+                mem_version, remote_schema.get_version()
             );
         }
     }

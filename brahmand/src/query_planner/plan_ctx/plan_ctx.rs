@@ -5,6 +5,7 @@ use crate::query_planner::{logical_expr::logical_expr::{LogicalExpr, Property}, 
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct TableCtx {
+    alias: String,
     label: Option<String>,
     properties: Vec<Property>,
     filter_predicates: Vec<LogicalExpr>,
@@ -32,8 +33,9 @@ impl TableCtx {
         self.explicit_alias
     }
 
-    pub fn build(label: Option<String>, properties: Vec<Property>, is_rel: bool, explicit_alias: bool) -> Self {
+    pub fn build(alias: String,label: Option<String>, properties: Vec<Property>, is_rel: bool, explicit_alias: bool) -> Self {
         TableCtx { 
+            alias: alias,
             label: label, 
             properties: properties, 
             filter_predicates: vec![], 
@@ -45,7 +47,7 @@ impl TableCtx {
     }
 
     pub fn get_label_str(&self) -> Result<String, PlanCtxError> {
-        self.label.clone().ok_or(PlanCtxError::MissingLabel)
+        self.label.clone().ok_or(PlanCtxError::MissingLabel{alias: self.alias.clone()})
     }
 
     pub fn get_label_opt(&self) -> Option<String> {

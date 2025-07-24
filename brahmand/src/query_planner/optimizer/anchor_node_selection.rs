@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::query_planner::{logical_plan::logical_plan::{GraphRel, LogicalPlan}, optimizer::optimizer_pass::{OptimizerPass, OptimizerResult}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed};
+use crate::query_planner::{logical_plan::logical_plan::{GraphRel, LogicalPlan}, optimizer::{errors::OptimizerError, optimizer_pass::{OptimizerPass, OptimizerResult}}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed};
 
 
 
@@ -147,8 +147,7 @@ impl AnchorNodeSelection {
                     }));
                     return Ok(new_constructed_plan);
                 }
-                // TODO return error in this case
-                unreachable!()
+                Err(OptimizerError::MissingGraphRelInRotatePlan)
             },
             LogicalPlan::GraphRel(graph_rel) => {
 
@@ -187,8 +186,7 @@ impl AnchorNodeSelection {
                     return self.rotate_plan(new_constructed_plan, new_remaining);
                 }
 
-                // TODO return error in this case
-                unreachable!()
+                Err(OptimizerError::MissingGraphRelInRotatePlan)
                 
             },
             _ => Ok(new_plan.clone())
