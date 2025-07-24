@@ -48,15 +48,22 @@ pub enum AnalyzerError {
     // #[error("PlanCtxError: {0}")]
     // PlanCtx(#[from] PlanCtxError),
 
-    #[error("PlanCtxError: {source} in {pass}.")]
+    #[error("PlanCtxError: {pass}: {source}.")]
     PlanCtx {
         pass: Pass, //&'static str,
         #[source]
         source: PlanCtxError,
     },
 
-    #[error("GraphSchemaError: {0}.")]
-    GraphSchema(#[from] GraphSchemaError),
+    // #[error("GraphSchemaError: {0}.")]
+    // GraphSchema(#[from] GraphSchemaError),
+
+    #[error("GraphSchema: {pass}: {source}.")]
+    GraphSchema { 
+        pass: Pass,
+        #[source]
+        source: GraphSchemaError,
+    }
 
 
 }

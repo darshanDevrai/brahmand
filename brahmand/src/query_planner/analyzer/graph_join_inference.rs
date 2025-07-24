@@ -145,9 +145,9 @@ impl GraphJoinInference {
         let original_rel_label = rel_label.replace("_incoming", "").replace("_outgoing", "");
         let right_label = right_ctx.get_label_str().map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphJoinInference, source: e})?;
 
-        let left_schema = graph_schema.get_node_schema(&left_label)?;
-        let rel_schema = graph_schema.get_rel_schema(&original_rel_label)?;
-        let right_schema = graph_schema.get_node_schema(&right_label)?;
+        let left_schema = graph_schema.get_node_schema(&left_label).map_err(|e| AnalyzerError::GraphSchema { pass: Pass::GraphJoinInference, source: e})?;
+        let rel_schema = graph_schema.get_rel_schema(&original_rel_label).map_err(|e| AnalyzerError::GraphSchema { pass: Pass::GraphJoinInference, source: e})?;
+        let right_schema = graph_schema.get_node_schema(&right_label).map_err(|e| AnalyzerError::GraphSchema { pass: Pass::GraphJoinInference, source: e})?;
 
         let rel_cte_name = format!("{}_{}", rel_label, rel_alias);
         let right_cte_name = format!("{}_{}", right_label, right_alias);

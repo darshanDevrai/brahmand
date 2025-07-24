@@ -128,9 +128,9 @@ impl GraphTRaversalPlanning {
         let right_label = right_ctx.get_label_str().map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphTraversalPlanning, source: e})?;
 
 
-        let left_schema = graph_schema.get_node_schema(&left_label)?;
-        let rel_schema = graph_schema.get_rel_schema(&rel_label)?;
-        let right_schema = graph_schema.get_node_schema(&right_label)?;
+        let left_schema = graph_schema.get_node_schema(&left_label).map_err(|e| AnalyzerError::GraphSchema { pass: Pass::GraphTraversalPlanning, source: e})?;
+        let rel_schema = graph_schema.get_rel_schema(&rel_label).map_err(|e| AnalyzerError::GraphSchema { pass: Pass::GraphTraversalPlanning, source: e})?;
+        let right_schema = graph_schema.get_node_schema(&right_label).map_err(|e| AnalyzerError::GraphSchema { pass: Pass::GraphTraversalPlanning, source: e})?;
 
         let left_node_id_column = left_schema.node_id.column.clone();
         let right_node_id_column = right_schema.node_id.column.clone();
@@ -356,9 +356,9 @@ impl GraphTRaversalPlanning {
         let right_label = right_ctx.get_label_str().map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphTraversalPlanning, source: e})?;
 
 
-        let left_schema = graph_schema.get_node_schema(&left_label)?;
-        let rel_schema = graph_schema.get_rel_schema(&rel_label)?;
-        let right_schema = graph_schema.get_node_schema(&right_label)?;
+        let left_schema = graph_schema.get_node_schema(&left_label).map_err(|e| AnalyzerError::GraphSchema { pass: Pass::GraphTraversalPlanning, source: e})?;
+        let rel_schema = graph_schema.get_rel_schema(&rel_label).map_err(|e| AnalyzerError::GraphSchema { pass: Pass::GraphTraversalPlanning, source: e})?;
+        let right_schema = graph_schema.get_node_schema(&right_label).map_err(|e| AnalyzerError::GraphSchema { pass: Pass::GraphTraversalPlanning, source: e})?;
 
         let left_node_id_column = left_schema.node_id.column.clone();
         let right_node_id_column = right_schema.node_id.column.clone();

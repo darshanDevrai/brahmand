@@ -185,7 +185,7 @@ impl ProjectionTagging {
                         if aggregate_fn_call.name.to_lowercase() == "count" {
                             let table_ctx = plan_ctx.get_mut_table_ctx(t_alias).map_err(|e| AnalyzerError::PlanCtx { pass: Pass::ProjectionTagging, source: e})?;
                             let table_label = table_ctx.get_label_str().map_err(|e| AnalyzerError::PlanCtx { pass: Pass::ProjectionTagging, source: e})?;
-                            let table_schema = graph_schema.get_node_schema(&table_label)?;
+                            let table_schema = graph_schema.get_node_schema(&table_label).map_err(|e| AnalyzerError::GraphSchema { pass: Pass::ProjectionTagging, source: e})?;
                             let table_node_id = table_schema.node_id.column.clone();
                             item.expression = LogicalExpr::AggregateFnCall(AggregateFnCall{
                                 name: aggregate_fn_call.name.clone(),
