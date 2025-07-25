@@ -1,87 +1,11 @@
-use std::sync::Arc;
 
 use crate::query_planner::{logical_plan::{self, logical_plan::LogicalPlan}, render_plan::{errors::RenderBuildError, render_expr::{AggregateFnCall, Operator, OperatorApplication, RenderExpr, ScalarFnCall}, render_plan::{Cte, CteItems, FilterItems, FromTable, GroupByExpressions, Join, JoinItems, LimitItem, OrderByItem, OrderByItems, RenderPlan, SelectItem, SelectItems, SkipItem}}};
 
 
 
 
-fn clean_last_node_filters(filter_expr: RenderExpr) -> Option<RenderExpr> {
-    match filter_expr {
-        // remove InSubqeuery as we have added it in graph_traversal_planning phase. Since this is for last node, we are going to select that node directly
-        // we do not need this InSubquery
-        RenderExpr::InSubquery(_sq) => None,
-        RenderExpr::OperatorApplicationExp(op) => {
-            let mut stripped = Vec::new();
-            for operand in op.operands {
-                if let Some(e) = clean_last_node_filters(operand) {
-                    stripped.push(e);
-                }
-            }
-            match stripped.len() {
-                0 => None,
-                1 => Some(stripped.into_iter().next().unwrap()),
-                _ => Some(RenderExpr::OperatorApplicationExp(OperatorApplication {
-                    operator: op.operator,
-                    operands: stripped,
-                })),
-            }
-        }
-        RenderExpr::List(list) => {
-            let mut stripped = Vec::new();
-            for inner in list {
-                if let Some(e) = clean_last_node_filters(inner) {
-                    stripped.push(e);
-                }
-            }
-            match stripped.len() {
-                0 => None,
-                1 => Some(stripped.into_iter().next().unwrap()),
-                _ => Some(RenderExpr::List(stripped)),
-            }
-        }
-        RenderExpr::AggregateFnCall(agg) => {
-            let mut stripped_args = Vec::new();
-            for arg in agg.args {
-                if let Some(e) = clean_last_node_filters(arg) {
-                    stripped_args.push(e);
-                }
-            }
-            if stripped_args.is_empty() {
-                None
-            } else {
-                Some(RenderExpr::AggregateFnCall(AggregateFnCall {
-                    name: agg.name,
-                    args: stripped_args,
-                }))
-            }
-        }
-        RenderExpr::ScalarFnCall(func) => {
-            let mut stripped_args = Vec::new();
-            for arg in func.args {
-                if let Some(e) = clean_last_node_filters(arg) {
-                    stripped_args.push(e);
-                }
-            }
-            if stripped_args.is_empty() {
-                None
-            } else {
-                Some(RenderExpr::ScalarFnCall(ScalarFnCall {
-                    name: func.name,
-                    args: stripped_args,
-                }))
-            }
-        }
-        other => Some(other),
-        // RenderExpr::PropertyAccessExp(pa) => Some(RenderExpr::PropertyAccessExp(pa)),
-        // RenderExpr::Literal(l) => Some(RenderExpr::Literal(l)),
-        // RenderExpr::Variable(v) => Some(RenderExpr::Variable(v)),
-        // RenderExpr::Star => Some(RenderExpr::Star),
-        // RenderExpr::TableAlias(ta) => Some(RenderExpr::TableAlias(ta)),
-        // RenderExpr::ColumnAlias(ca) => Some(RenderExpr::ColumnAlias(ca)),
-        // RenderExpr::Column(c) => Some(RenderExpr::Column(c)),
-        // RenderExpr::Parameter(p) => Some(RenderExpr::Parameter(p)),
-    }
-}
+
+pub type RenderPlanBuilderResult<T> = Result<T, RenderBuildError>;
 
 pub(crate) trait RenderPlanBuilder {
 
@@ -89,7 +13,7 @@ pub(crate) trait RenderPlanBuilder {
 
     fn extract_final_filters(&self) -> Option<RenderExpr>;
 
-    fn extract_ctes(&self, last_node_alias: &str) -> Vec<Cte>;
+    fn extract_ctes(&self, last_node_alias: &str) -> RenderPlanBuilderResult<Vec<Cte>>;
 
     fn extract_select_items(&self) -> Vec<SelectItem>;
 
@@ -107,7 +31,7 @@ pub(crate) trait RenderPlanBuilder {
 
     fn extract_skip(&self) -> Option<i64>;
 
-    fn to_render_plan(&self) -> RenderPlan;
+    fn to_render_plan(&self) -> RenderPlanBuilderResult<RenderPlan>;
 
 }
 
@@ -145,44 +69,46 @@ impl RenderPlanBuilder for LogicalPlan {
                 let filters = logical_cte.input.extract_filters();
                 // TODO check if it is empty then throw error
                 let select_items = logical_cte.input.extract_select_items();
-                let from_table_opt = logical_cte.input.extract_from();
-
-                let from_table = from_table_opt.unwrap();
-                
-                let render_cte = Cte{ 
-                    cte_name: logical_cte.name.clone(), 
-                    select: SelectItems(select_items),
-                    from: from_table, 
-                    filters: FilterItems(filters)
-                };
-                Some(render_cte)
+                if select_items.is_empty() {
+                    return  None;
+                }
+                if let Some(from_table) = logical_cte.input.extract_from() {
+                    let render_cte = Cte{ 
+                        cte_name: logical_cte.name.clone(), 
+                        select: SelectItems(select_items),
+                        from: from_table, 
+                        filters: FilterItems(filters)
+                    };
+                    return Some(render_cte);
+                }
+                None                
             }
         }
     }
 
-    fn extract_ctes(&self, last_node_alias: &str) -> Vec<Cte> {
+    fn extract_ctes(&self, last_node_alias: &str) -> RenderPlanBuilderResult<Vec<Cte>> {
         
         match &self {
-            LogicalPlan::Empty => vec![],
-            LogicalPlan::Scan(_) => vec![],
+            LogicalPlan::Empty => Ok(vec![]),
+            LogicalPlan::Scan(_) => Ok(vec![]),
             LogicalPlan::GraphNode(graph_node) => {
                 graph_node.input.extract_ctes(last_node_alias)
             },
             LogicalPlan::GraphRel(graph_rel) => {
                 
                 // first extract the bottom one
-                let mut right_cte = graph_rel.right.extract_ctes(last_node_alias);
+                let mut right_cte = graph_rel.right.extract_ctes(last_node_alias)?;
                 // then process the center
-                let mut center_cte = graph_rel.center.extract_ctes(last_node_alias);
+                let mut center_cte = graph_rel.center.extract_ctes(last_node_alias)?;
                 right_cte.append(&mut center_cte);
                 // then left 
                 let left_alias = &graph_rel.left_connection;
                 if left_alias != &last_node_alias{
-                    let mut left_cte = graph_rel.left.extract_ctes(last_node_alias);
+                    let mut left_cte = graph_rel.left.extract_ctes(last_node_alias)?;
                     right_cte.append(&mut left_cte);
                 }
                 
-                right_cte
+                Ok(right_cte)
             },
             LogicalPlan::Filter(filter) => filter.input.extract_ctes(last_node_alias),
             LogicalPlan::Projection(projection) => projection.input.extract_ctes(last_node_alias),
@@ -192,8 +118,11 @@ impl RenderPlanBuilder for LogicalPlan {
             LogicalPlan::Skip(skip) => skip.input.extract_ctes(last_node_alias),
             LogicalPlan::Limit(limit) => limit.input.extract_ctes(last_node_alias),
             LogicalPlan::Cte(logical_cte) => {
-                // TODO check if it is empty then throw error
                 let mut select_items = logical_cte.input.extract_select_items();
+
+                if select_items.is_empty() {
+                    return  Err(RenderBuildError::MissingSelectItems);
+                }
 
                 for select_item in select_items.iter_mut() {
                     if let RenderExpr::PropertyAccessExp(pro_acc) = &select_item.expression {
@@ -204,16 +133,15 @@ impl RenderPlanBuilder for LogicalPlan {
                     }
                 }
 
-                let from_table_opt = logical_cte.input.extract_from();
-                let mut from_table = from_table_opt.unwrap();
+                let mut from_table = logical_cte.input.extract_from().ok_or(RenderBuildError::MissingFromTable)?;
                 from_table.table_alias = None;
                 let filters = logical_cte.input.extract_filters();
-                vec![Cte{ 
+                Ok(vec![Cte{ 
                     cte_name: logical_cte.name.clone(), 
                     select: SelectItems(select_items),
                     from: from_table, 
                     filters: FilterItems(filters) 
-                }]
+                }])
             }
         }
     }
@@ -473,7 +401,7 @@ impl RenderPlanBuilder for LogicalPlan {
 
     
 
-    fn to_render_plan(&self) -> RenderPlan {
+    fn to_render_plan(&self) -> RenderPlanBuilderResult<RenderPlan> {
 
         let mut extracted_ctes: Vec<Cte> = vec![];
         let final_from: FromTable;
@@ -483,13 +411,11 @@ impl RenderPlanBuilder for LogicalPlan {
         // TODO remove unwrap with error
         let last_node_cte = self.extract_last_node_cte();
 
+        if let Some(last_node_cte) = self.extract_last_node_cte() {
 
-        if last_node_cte.is_some() {
-            let last_node_cte = last_node_cte.unwrap();
+            let last_node_alias = last_node_cte.cte_name.split('_').nth(1).ok_or(RenderBuildError::MalformedCTEName)?;
 
-            let last_node_alias = last_node_cte.cte_name.split('_').nth(1).unwrap();
-
-            extracted_ctes = self.extract_ctes(last_node_alias);
+            extracted_ctes = self.extract_ctes(last_node_alias)?;
             final_from = last_node_cte.from;
 
             last_node_filters_opt = clean_last_node_filters(last_node_cte.filters.0.unwrap());
@@ -512,12 +438,16 @@ impl RenderPlanBuilder for LogicalPlan {
             final_filters = final_combined_filters;
 
         } else {
-            final_from = self.extract_from().unwrap();
+            final_from = self.extract_from().ok_or(RenderBuildError::MissingFromTable)?;
             final_filters = self.extract_filters();
         }
 
         
         let final_select_items = self.extract_select_items();
+
+        if final_select_items.is_empty() {
+            return  Err(RenderBuildError::MissingSelectItems);
+        }
 
         let mut extracted_joins = self.extract_joins();
         extracted_joins.sort_by_key(|join| join.joining_on.len());
@@ -531,7 +461,7 @@ impl RenderPlanBuilder for LogicalPlan {
 
         let extracted_skip_item = self.extract_skip();
  
-        RenderPlan {
+        Ok(RenderPlan {
             ctes: CteItems(extracted_ctes),
             select: SelectItems(final_select_items),
             from: final_from,
@@ -541,9 +471,89 @@ impl RenderPlanBuilder for LogicalPlan {
             order_by: OrderByItems(extracted_order_by),
             limit: LimitItem(extracted_limit_item),
             skip: SkipItem(extracted_skip_item),
-        }
+        })
 
 
     }
     
+}
+
+
+
+fn clean_last_node_filters(filter_expr: RenderExpr) -> Option<RenderExpr> {
+    match filter_expr {
+        // remove InSubqeuery as we have added it in graph_traversal_planning phase. Since this is for last node, we are going to select that node directly
+        // we do not need this InSubquery
+        RenderExpr::InSubquery(_sq) => None,
+        RenderExpr::OperatorApplicationExp(op) => {
+            let mut stripped = Vec::new();
+            for operand in op.operands {
+                if let Some(e) = clean_last_node_filters(operand) {
+                    stripped.push(e);
+                }
+            }
+            match stripped.len() {
+                0 => None,
+                1 => Some(stripped.into_iter().next().unwrap()),
+                _ => Some(RenderExpr::OperatorApplicationExp(OperatorApplication {
+                    operator: op.operator,
+                    operands: stripped,
+                })),
+            }
+        }
+        RenderExpr::List(list) => {
+            let mut stripped = Vec::new();
+            for inner in list {
+                if let Some(e) = clean_last_node_filters(inner) {
+                    stripped.push(e);
+                }
+            }
+            match stripped.len() {
+                0 => None,
+                1 => Some(stripped.into_iter().next().unwrap()),
+                _ => Some(RenderExpr::List(stripped)),
+            }
+        }
+        RenderExpr::AggregateFnCall(agg) => {
+            let mut stripped_args = Vec::new();
+            for arg in agg.args {
+                if let Some(e) = clean_last_node_filters(arg) {
+                    stripped_args.push(e);
+                }
+            }
+            if stripped_args.is_empty() {
+                None
+            } else {
+                Some(RenderExpr::AggregateFnCall(AggregateFnCall {
+                    name: agg.name,
+                    args: stripped_args,
+                }))
+            }
+        }
+        RenderExpr::ScalarFnCall(func) => {
+            let mut stripped_args = Vec::new();
+            for arg in func.args {
+                if let Some(e) = clean_last_node_filters(arg) {
+                    stripped_args.push(e);
+                }
+            }
+            if stripped_args.is_empty() {
+                None
+            } else {
+                Some(RenderExpr::ScalarFnCall(ScalarFnCall {
+                    name: func.name,
+                    args: stripped_args,
+                }))
+            }
+        }
+        other => Some(other),
+        // RenderExpr::PropertyAccessExp(pa) => Some(RenderExpr::PropertyAccessExp(pa)),
+        // RenderExpr::Literal(l) => Some(RenderExpr::Literal(l)),
+        // RenderExpr::Variable(v) => Some(RenderExpr::Variable(v)),
+        // RenderExpr::Star => Some(RenderExpr::Star),
+        // RenderExpr::TableAlias(ta) => Some(RenderExpr::TableAlias(ta)),
+        // RenderExpr::ColumnAlias(ca) => Some(RenderExpr::ColumnAlias(ca)),
+        // RenderExpr::Column(c) => Some(RenderExpr::Column(c)),
+        // RenderExpr::Parameter(p) => Some(RenderExpr::Parameter(p)),
+    }
 }

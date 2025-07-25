@@ -146,9 +146,6 @@ impl ToSql for CteItems {
 
         for (i, cte) in self.0.iter().enumerate() {
             sql.push_str(&cte.to_sql());
-            // s.push_str(&format!("{} AS (", cte.cte_name));
-            // s.push_str(&cte.to_sql_inner());
-            // s.push(')');
             if i + 1 < self.0.len() { 
                 sql.push_str(", "); 
             }
@@ -167,26 +164,12 @@ impl ToSql for Cte {
         // FROM
         cte_body.push_str("    ");
         cte_body.push_str(&self.from.to_sql());
-        // cte_body.push_str("  ");
-        // inner.push_str("\nFROM ");
-        // inner.push_str(&format!(
-        //     "{}{}",
-        //     self.from.table_name,
-        //     self.from
-        //         .table_alias
-        //         .as_ref()
-        //         .map(|a| format!(" {}", a))
-        //         .unwrap_or_default()
-        // ));
+
         // WHERE
         let where_str = &self.filters.to_sql();
         if !where_str.is_empty() {
             cte_body.push_str(&format!("    {}", where_str));
         }
-        // if let Some(f) = &self.filters.0 {
-        //     inner.push_str("\nWHERE ");
-        //     inner.push_str(&f.to_sql());
-        // }
 
         let sql = format!("{} AS ({})", self.cte_name, cte_body);
         sql
@@ -198,7 +181,6 @@ impl ToSql for JoinItems {
         let mut sql = String::new();
         for join in &self.0 {
             sql.push_str(&join.to_sql());
-            // s.push('\n');
         }
         sql
     }
@@ -224,17 +206,12 @@ impl ToSql for Join {
 
 
 
-// Finally, hook it all up:
 impl RenderPlan {
     pub fn to_sql(&self) -> String {
         let mut sql = String::new();
         sql.push_str(&self.ctes.to_sql());
-        // sql.push_str("SELECT ");
         sql.push_str(&self.select.to_sql());
-        // sql.push('\n');
-        // sql.push_str("FROM ");
         sql.push_str(&self.from.to_sql());
-        // sql.push('\n');
         sql.push_str(&self.joins.to_sql());
         sql.push_str(&self.filters.to_sql());
         sql.push_str(&self.group_by.to_sql());

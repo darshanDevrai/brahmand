@@ -140,11 +140,24 @@ impl From<LogicalExpr> for RenderExpr {
     }
 }
 
+// impl TryFrom<LogicalInSubquery> for InSubquery {
+//     type Error = RenderBuildError;
+
+//     fn try_from(value: LogicalInSubquery) -> Result<Self, Self::Error> {
+//         let sub_plan = value.subplan.clone().to_render_plan()?;
+//         Ok(InSubquery {
+//             expr: Box::new((value.expr.as_ref().clone()).into()),
+//             subplan: Box::new(sub_plan),
+//         })
+//     }
+// }
+
 impl From<LogicalInSubquery> for InSubquery {
     fn from(value: LogicalInSubquery) -> Self {
         InSubquery {
             expr: Box::new((value.expr.as_ref().clone()).into()),
-            subplan: Box::new(value.subplan.clone().to_render_plan()),
+            // TODO Remove this Unwrap.
+            subplan: Box::new(value.subplan.clone().to_render_plan().unwrap()),
         }
     }
 }
