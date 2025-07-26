@@ -12,7 +12,7 @@ use tokio::io::AsyncBufReadExt;
 use uuid::Uuid;
 
 use crate::{
-    clickhouse_query_generator, graph_schema::graph_schema::GraphSchemaElement, open_cypher_parser::{self}, query_planner::{self, types::QueryType}
+    clickhouse_query_generator::{self, to_sql::ToSql}, graph_schema::graph_schema::GraphSchemaElement, open_cypher_parser::{self}, query_planner::{self, types::QueryType}
 };
 
 

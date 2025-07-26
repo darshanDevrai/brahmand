@@ -243,7 +243,7 @@ impl SchemaInference {
                     ));
                 }
             }
-            return Err(AnalyzerError::MissingRelationLabel);
+            return Err(AnalyzerError::MissingRelationLabel{pass: Pass::SchemaInference});
         }
     
         // both left and right nodes are missing but relation is present
@@ -505,7 +505,7 @@ impl SchemaInference {
             }
         }
     
-        Err(AnalyzerError::NotEnoughLabels)
+        Err(AnalyzerError::NotEnoughLabels{ pass: Pass::SchemaInference})
     }
 
     fn get_table_name_from_filters_and_projections(

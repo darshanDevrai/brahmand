@@ -1,3 +1,4 @@
+use crate::query_planner::render_plan::errors::RenderBuildError;
 use crate::query_planner::render_plan::render_expr::{ColumnAlias, OperatorApplication, RenderExpr};
 
 use crate::query_planner::logical_plan::logical_plan::{
@@ -15,8 +16,8 @@ pub struct RenderPlan {
     pub filters: FilterItems,
     pub group_by: GroupByExpressions,
     pub order_by: OrderByItems,
-    pub limit: LimitItem,
     pub skip: SkipItem,
+    pub limit: LimitItem,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -51,13 +52,17 @@ pub struct Join {
     pub joining_on: Vec<OperatorApplication>
 }
 
-impl From<LogicalJoin> for Join {
-    fn from(value: LogicalJoin) -> Self {
-        Join {
+
+impl TryFrom<LogicalJoin> for Join {
+    type Error = RenderBuildError;
+
+    fn try_from(value: LogicalJoin) -> Result<Self, Self::Error> {
+        let join = Join {
             table_alias: value.table_alias,
             table_name: value.table_name,
-            joining_on: value.joining_on.clone().into_iter().map(Into::into).collect()
-        }
+            joining_on: value.joining_on.clone().into_iter().map(OperatorApplication::try_from).collect::<Result<Vec<OperatorApplication>, RenderBuildError>>()?,
+        };
+        Ok(join)
     }
 }
 
@@ -100,12 +105,16 @@ pub struct OrderByItem {
     pub order: OrderByOrder,
 }
 
-impl From<LogicalOrderByItem> for OrderByItem {
-    fn from(value: LogicalOrderByItem) -> Self {
-        OrderByItem {
-            expression: value.expression.into(),
-            order: value.order.into()
-        }
+
+impl TryFrom<LogicalOrderByItem> for OrderByItem {
+    type Error = RenderBuildError;
+
+    fn try_from(value: LogicalOrderByItem) -> Result<Self, Self::Error> {
+        let order_by_item = OrderByItem {
+            expression: value.expression.try_into()?,
+            order: value.order.try_into()?
+        };
+        Ok(order_by_item)
     }
 }
 
@@ -115,15 +124,18 @@ pub enum OrderByOrder {
     Desc,
 }
 
-impl From<LogicalOrderByOrder> for OrderByOrder {
-    fn from(value: LogicalOrderByOrder) -> Self {
-        match value {
+
+impl TryFrom<LogicalOrderByOrder> for OrderByOrder {
+    type Error = RenderBuildError;
+
+    fn try_from(value: LogicalOrderByOrder) -> Result<Self, Self::Error> {
+        let order_by = match value {
             LogicalOrderByOrder::Asc => OrderByOrder::Asc,
             LogicalOrderByOrder::Desc => OrderByOrder::Desc,
-        }
+        };
+        Ok(order_by)
     }
 }
-
 
 
 impl fmt::Display for RenderPlan {

@@ -17,9 +17,17 @@ impl ToSql for RenderPlan {
         sql.push_str(&self.filters.to_sql());
         sql.push_str(&self.group_by.to_sql());
         sql.push_str(&self.order_by.to_sql());
-        sql.push_str(&self.limit.to_sql());
-        sql.push_str(&self.skip.to_sql());
-        println!("\n\n sql - \n{}", sql);
+
+        
+        if let Some(m) = self.limit.0 {
+            let skip_str = if let Some(n) = self.skip.0 {
+                format!("{n},")
+            } else{
+                "".to_string()
+            };
+            let limit_str = format!("LIMIT {skip_str} {m}");
+            sql.push_str(&limit_str)
+        }
         return sql
     }
 }
@@ -114,25 +122,6 @@ impl ToSql for OrderByItems {
     }
 }
 
-impl ToSql for LimitItem {
-    fn to_sql(&self) -> String {
-        if let Some(n) = self.0 {
-            format!("LIMIT {}\n", n)
-        } else {
-            "".into()
-        }
-    }
-}
-
-impl ToSql for SkipItem {
-    fn to_sql(&self) -> String {
-        if let Some(n) = self.0 {
-            format!("SKIP {}\n", n)
-        } else {
-            "".into()
-        }
-    }
-}
 
 
 impl ToSql for CteItems {
@@ -206,21 +195,7 @@ impl ToSql for Join {
 
 
 
-impl RenderPlan {
-    pub fn to_sql(&self) -> String {
-        let mut sql = String::new();
-        sql.push_str(&self.ctes.to_sql());
-        sql.push_str(&self.select.to_sql());
-        sql.push_str(&self.from.to_sql());
-        sql.push_str(&self.joins.to_sql());
-        sql.push_str(&self.filters.to_sql());
-        sql.push_str(&self.group_by.to_sql());
-        sql.push_str(&self.order_by.to_sql());
-        sql.push_str(&self.limit.to_sql());
-        sql.push_str(&self.skip.to_sql());
-        sql
-    }
-}
+
 
 
 impl RenderExpr {

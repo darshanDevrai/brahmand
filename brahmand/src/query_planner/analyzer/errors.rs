@@ -6,11 +6,11 @@ use crate::{graph_schema::errors::GraphSchemaError, query_planner::plan_ctx::err
 
 #[derive(Debug, Clone, Error, PartialEq)]
 pub enum Pass {
-    DuplicateScansRemoving,
+    // DuplicateScansRemoving,
     FilterTagging,
     GraphJoinInference,
     GraphTraversalPlanning,
-    GroupByBuilding,
+    // GroupByBuilding,
     ProjectionTagging,
     SchemaInference
 }
@@ -19,10 +19,10 @@ impl Display for Pass {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Pass::FilterTagging => write!(f, "FilterTagging"),
-            Pass::DuplicateScansRemoving => write!(f, "DuplicateScansRemoving"),
+            // Pass::DuplicateScansRemoving => write!(f, "DuplicateScansRemoving"),
             Pass::GraphJoinInference => write!(f, "GraphJoinInference"),
             Pass::GraphTraversalPlanning => write!(f, "GraphTraversalPlanning"),
-            Pass::GroupByBuilding => write!(f, "GroupByBuilding"),
+            // Pass::GroupByBuilding => write!(f, "GroupByBuilding"),
             Pass::ProjectionTagging => write!(f, "ProjectionTagging"),
             Pass::SchemaInference => write!(f, "SchemaInference"),
         }
@@ -32,21 +32,16 @@ impl Display for Pass {
 #[derive(Debug, Clone, Error, PartialEq)]
 pub enum AnalyzerError {
 
-    #[error(
-        "No relation label found. Currently we need label to identify the relationship table. This will change in future."
-    )]
-    MissingRelationLabel,
-    #[error("No relationship schema found.")]
-    NoRelationSchemaFound,
+    #[error(" {pass}: No relation label found. Currently we need label to identify the relationship table. This will change in future.")]
+    MissingRelationLabel {pass: Pass},
+    #[error(" {pass}: No relationship schema found.")]
+    NoRelationSchemaFound {pass: Pass},
 
-    #[error("Not enough information. Labels are required to identify nodes and relationships.")]
-    NotEnoughLabels,
+    #[error(" {pass}: Not enough information. Labels are required to identify nodes and relationships.")]
+    NotEnoughLabels {pass: Pass},
 
-    #[error("Alias `{alias}` not found in Match Clause. Alias should be from Match Clause.")]
-    OrphanAlias {alias: String},
-
-    // #[error("PlanCtxError: {0}")]
-    // PlanCtx(#[from] PlanCtxError),
+    #[error(" {pass}: Alias `{alias}` not found in Match Clause. Alias should be from Match Clause.")]
+    OrphanAlias {pass: Pass, alias: String},
 
     #[error("PlanCtxError: {pass}: {source}.")]
     PlanCtx {
@@ -54,9 +49,6 @@ pub enum AnalyzerError {
         #[source]
         source: PlanCtxError,
     },
-
-    // #[error("GraphSchemaError: {0}.")]
-    // GraphSchema(#[from] GraphSchemaError),
 
     #[error("GraphSchema: {pass}: {source}.")]
     GraphSchema { 

@@ -555,6 +555,6 @@ impl GraphTRaversalPlanning {
             return Ok(format!("{}_incoming", rel_label));
         }
 
-        Err(AnalyzerError::NoRelationSchemaFound)
+        Err(AnalyzerError::NoRelationSchemaFound{ pass: Pass::GraphTraversalPlanning})
     }
 }

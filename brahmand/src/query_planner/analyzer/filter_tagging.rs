@@ -1,6 +1,6 @@
 use std::{collections::HashSet, sync::Arc};
 
-use crate::query_planner::{analyzer::{analyzer_pass::{AnalyzerPass, AnalyzerResult}, errors::AnalyzerError}, logical_expr::logical_expr::{AggregateFnCall, LogicalExpr, Operator, OperatorApplication, PropertyAccess, ScalarFnCall}, logical_plan::logical_plan::{Filter, LogicalPlan, ProjectionItem}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed};
+use crate::query_planner::{analyzer::{analyzer_pass::{AnalyzerPass, AnalyzerResult}, errors::{AnalyzerError, Pass}}, logical_expr::logical_expr::{AggregateFnCall, LogicalExpr, Operator, OperatorApplication, PropertyAccess, ScalarFnCall}, logical_plan::logical_plan::{Filter, LogicalPlan, ProjectionItem}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed};
 
 
 
@@ -128,7 +128,7 @@ impl FilterTagging {
                     table_ctx.set_use_edge_list(true);
                 }
             } else {
-                return Err(AnalyzerError::OrphanAlias { alias: table_name.to_string() });
+                return Err(AnalyzerError::OrphanAlias { pass: Pass::FilterTagging, alias: table_name.to_string() });
             }
 
         }
@@ -146,10 +146,9 @@ impl FilterTagging {
                 if table_ctx.is_relation() {
                     table_ctx.set_use_edge_list(true);
                 }
+            } else {
+                return Err(AnalyzerError::OrphanAlias { pass: Pass::FilterTagging, alias: table_alias.to_string() });
             }
-
-            return Err(AnalyzerError::OrphanAlias { alias: table_alias.to_string() });
-            // else TODO throw error
 
         }
 
