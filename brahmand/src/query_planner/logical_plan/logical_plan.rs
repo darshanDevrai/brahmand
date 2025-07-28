@@ -437,5 +437,373 @@ impl LogicalPlan {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::query_planner::logical_expr::logical_expr::{
+        Column, Literal, LogicalExpr, Operator, OperatorApplication, PropertyAccess, TableAlias
+    };
+    use crate::open_cypher_parser::ast;
+
+    #[test]
+    fn test_filter_rebuild_or_clone_with_transformation() {
+        let original_input = Arc::new(LogicalPlan::Empty);
+        let new_input = Arc::new(LogicalPlan::Scan(Scan {
+            table_alias: "employees".to_string(),
+            table_name: Some("employee_table".to_string()),
+        }));
+        
+        let filter = Filter {
+            input: original_input.clone(),
+            predicate: LogicalExpr::Literal(Literal::Boolean(true)),
+        };
+        
+        let old_plan = Arc::new(LogicalPlan::Filter(filter.clone()));
+        let input_transformed = Transformed::Yes(new_input.clone());
+        
+        let result = filter.rebuild_or_clone(input_transformed, old_plan.clone());
+        
+        match result {
+            Transformed::Yes(new_plan) => {
+                match new_plan.as_ref() {
+                    LogicalPlan::Filter(new_filter) => {
+                        assert_eq!(new_filter.input, new_input);
+                        assert_eq!(new_filter.predicate, LogicalExpr::Literal(Literal::Boolean(true)));
+                    },
+                    _ => panic!("Expected Filter plan"),
+                }
+            },
+            _ => panic!("Expected transformation"),
+        }
+    }
+
+    #[test]
+    fn test_filter_rebuild_or_clone_without_transformation() {
+        let input = Arc::new(LogicalPlan::Empty);
+        let filter = Filter {
+            input: input.clone(),
+            predicate: LogicalExpr::Literal(Literal::Boolean(true)),
+        };
+        
+        let old_plan = Arc::new(LogicalPlan::Filter(filter.clone()));
+        let input_not_transformed = Transformed::No(input.clone());
+        
+        let result = filter.rebuild_or_clone(input_not_transformed, old_plan.clone());
+        
+        match result {
+            Transformed::No(plan) => {
+                assert_eq!(plan, old_plan);
+            },
+            _ => panic!("Expected no transformation"),
+        }
+    }
+
+    #[test]
+    fn test_projection_rebuild_or_clone_with_transformation() {
+        let original_input = Arc::new(LogicalPlan::Empty);
+        let new_input = Arc::new(LogicalPlan::Scan(Scan {
+            table_alias: "customers".to_string(),
+            table_name: Some("customer_table".to_string()),
+        }));
+        
+        let projection_items = vec![
+            ProjectionItem {
+                expression: LogicalExpr::PropertyAccessExp(PropertyAccess {
+                    table_alias: TableAlias("customer".to_string()),
+                    column: Column("name".to_string()),
+                }),
+                col_alias: None,
+            },
+        ];
+        
+        let projection = Projection {
+            input: original_input.clone(),
+            items: projection_items.clone(),
+        };
+        
+        let old_plan = Arc::new(LogicalPlan::Projection(projection.clone()));
+        let input_transformed = Transformed::Yes(new_input.clone());
+        
+        let result = projection.rebuild_or_clone(input_transformed, old_plan.clone());
+        
+        match result {
+            Transformed::Yes(new_plan) => {
+                match new_plan.as_ref() {
+                    LogicalPlan::Projection(new_projection) => {
+                        assert_eq!(new_projection.input, new_input);
+                        assert_eq!(new_projection.items.len(), 1);
+                    },
+                    _ => panic!("Expected Projection plan"),
+                }
+            },
+            _ => panic!("Expected transformation"),
+        }
+    }
+
+    #[test]
+    fn test_graph_node_rebuild_or_clone() {
+        let original_input = Arc::new(LogicalPlan::Empty);
+        let new_input = Arc::new(LogicalPlan::Scan(Scan {
+            table_alias: "users".to_string(),
+            table_name: Some("user_table".to_string()),
+        }));
+        
+        let graph_node = GraphNode {
+            input: original_input.clone(),
+            alias: "person".to_string(),
+        };
+        
+        let old_plan = Arc::new(LogicalPlan::GraphNode(graph_node.clone()));
+        let input_transformed = Transformed::Yes(new_input.clone());
+        
+        let result = graph_node.rebuild_or_clone(input_transformed, old_plan.clone());
+        
+        match result {
+            Transformed::Yes(new_plan) => {
+                match new_plan.as_ref() {
+                    LogicalPlan::GraphNode(new_graph_node) => {
+                        assert_eq!(new_graph_node.input, new_input);
+                        assert_eq!(new_graph_node.alias, "person");
+                    },
+                    _ => panic!("Expected GraphNode plan"),
+                }
+            },
+            _ => panic!("Expected transformation"),
+        }
+    }
+
+    #[test]
+    fn test_graph_rel_rebuild_or_clone() {
+        let left_plan = Arc::new(LogicalPlan::Empty);
+        let center_plan = Arc::new(LogicalPlan::Empty);
+        let right_plan = Arc::new(LogicalPlan::Empty);
+        let new_left_plan = Arc::new(LogicalPlan::Scan(Scan {
+            table_alias: "users".to_string(),
+            table_name: Some("user_table".to_string()),
+        }));
+        
+        let graph_rel = GraphRel {
+            left: left_plan.clone(),
+            center: center_plan.clone(),
+            right: right_plan.clone(),
+            alias: "works_for".to_string(),
+            direction: Direction::Outgoing,
+            left_connection: "employee_id".to_string(),
+            right_connection: "company_id".to_string(),
+            is_rel_anchor: false,
+        };
+        
+        let old_plan = Arc::new(LogicalPlan::GraphRel(graph_rel.clone()));
+        let left_transformed = Transformed::Yes(new_left_plan.clone());
+        let center_not_transformed = Transformed::No(center_plan.clone());
+        let right_not_transformed = Transformed::No(right_plan.clone());
+        
+        let result = graph_rel.rebuild_or_clone(
+            left_transformed,
+            center_not_transformed,
+            right_not_transformed,
+            old_plan.clone()
+        );
+        
+        match result {
+            Transformed::Yes(new_plan) => {
+                match new_plan.as_ref() {
+                    LogicalPlan::GraphRel(new_graph_rel) => {
+                        assert_eq!(new_graph_rel.left, new_left_plan);
+                        assert_eq!(new_graph_rel.center, center_plan);
+                        assert_eq!(new_graph_rel.right, right_plan);
+                        assert_eq!(new_graph_rel.alias, "works_for");
+                    },
+                    _ => panic!("Expected GraphRel plan"),
+                }
+            },
+            _ => panic!("Expected transformation"),
+        }
+    }
+
+    #[test]
+    fn test_cte_rebuild_or_clone_with_empty_input() {
+        let original_input = Arc::new(LogicalPlan::Scan(Scan {
+            table_alias: "temp".to_string(),
+            table_name: Some("temp_table".to_string()),
+        }));
+        let empty_input = Arc::new(LogicalPlan::Empty);
+        
+        let cte = Cte {
+            input: original_input.clone(),
+            name: "temp_results".to_string(),
+        };
+        
+        let old_plan = Arc::new(LogicalPlan::Cte(cte.clone()));
+        let input_transformed = Transformed::Yes(empty_input.clone());
+        
+        let result = cte.rebuild_or_clone(input_transformed, old_plan.clone());
+        
+        match result {
+            Transformed::Yes(new_plan) => {
+                // When input is empty, CTE should be removed and return the empty plan
+                assert_eq!(new_plan, empty_input);
+            },
+            _ => panic!("Expected transformation"),
+        }
+    }
+
+    #[test]
+    fn test_projection_item_from_ast() {
+        let ast_return_item = ast::ReturnItem {
+            expression: ast::Expression::Variable("customer_name"),
+            alias: Some("full_name"),
+        };
+        
+        let projection_item = ProjectionItem::from(ast_return_item);
+        
+        match projection_item.expression {
+            LogicalExpr::TableAlias(alias) => assert_eq!(alias.0, "customer_name"),
+            _ => panic!("Expected TableAlias"),
+        }
+        assert_eq!(projection_item.col_alias, Some(ColumnAlias("full_name".to_string())));
+    }
+
+    #[test]
+    fn test_order_by_item_from_ast() {
+        let ast_order_item = ast::OrderByItem {
+            expression: ast::Expression::Variable("price"),
+            order: ast::OrerByOrder::Desc,
+        };
+        
+        let order_by_item = OrderByItem::from(ast_order_item);
+        
+        match order_by_item.expression {
+            LogicalExpr::ColumnAlias(alias) => assert_eq!(alias.0, "price"),
+            _ => panic!("Expected ColumnAlias"),
+        }
+        assert_eq!(order_by_item.order, OrderByOrder::Desc);
+    }
+
+    #[test]
+    fn test_logical_plan_variant_names() {
+        let scan = LogicalPlan::Scan(Scan {
+            table_alias: "products".to_string(),
+            table_name: Some("product_catalog".to_string()),
+        });
+        assert_eq!(scan.variant_name(), "scan(products)");
+        
+        let graph_node = LogicalPlan::GraphNode(GraphNode {
+            input: Arc::new(LogicalPlan::Empty),
+            alias: "customer".to_string(),
+        });
+        assert_eq!(graph_node.variant_name(), "Node(customer)");
+        
+        let graph_rel = LogicalPlan::GraphRel(GraphRel {
+            left: Arc::new(LogicalPlan::Empty),
+            center: Arc::new(LogicalPlan::Empty),
+            right: Arc::new(LogicalPlan::Empty),
+            alias: "purchased".to_string(),
+            direction: Direction::Outgoing,
+            left_connection: "customer_id".to_string(),
+            right_connection: "order_id".to_string(),
+            is_rel_anchor: true,
+        });
+        assert_eq!(graph_rel.variant_name(), "GraphRel(Outgoing)(is_rel_anchor: true)");
+        
+        let filter = LogicalPlan::Filter(Filter {
+            input: Arc::new(LogicalPlan::Empty),
+            predicate: LogicalExpr::Literal(Literal::Boolean(true)),
+        });
+        assert_eq!(filter.variant_name(), "Filter");
+        
+        let projection = LogicalPlan::Projection(Projection {
+            input: Arc::new(LogicalPlan::Empty),
+            items: vec![],
+        });
+        assert_eq!(projection.variant_name(), "Projection");
+        
+        let empty = LogicalPlan::Empty;
+        assert_eq!(empty.variant_name(), "");
+        
+        let cte = LogicalPlan::Cte(Cte {
+            input: Arc::new(LogicalPlan::Empty),
+            name: "active_users".to_string(),
+        });
+        assert_eq!(cte.variant_name(), "Cte(active_users)");
+    }
+
+    #[test]
+    fn test_complex_logical_plan_structure() {
+        // Create a complex plan: Projection -> Filter -> GraphNode -> Scan
+        let scan = LogicalPlan::Scan(Scan {
+            table_alias: "users".to_string(),
+            table_name: Some("user_accounts".to_string()),
+        });
+        
+        let graph_node = LogicalPlan::GraphNode(GraphNode {
+            input: Arc::new(scan),
+            alias: "user".to_string(),
+        });
+        
+        let filter = LogicalPlan::Filter(Filter {
+            input: Arc::new(graph_node),
+            predicate: LogicalExpr::OperatorApplicationExp(OperatorApplication {
+                operator: Operator::GreaterThan,
+                operands: vec![
+                    LogicalExpr::PropertyAccessExp(PropertyAccess {
+                        table_alias: TableAlias("user".to_string()),
+                        column: Column("age".to_string()),
+                    }),
+                    LogicalExpr::Literal(Literal::Integer(18)),
+                ],
+            }),
+        });
+        
+        let projection = LogicalPlan::Projection(Projection {
+            input: Arc::new(filter),
+            items: vec![
+                ProjectionItem {
+                    expression: LogicalExpr::PropertyAccessExp(PropertyAccess {
+                        table_alias: TableAlias("user".to_string()),
+                        column: Column("email".to_string()),
+                    }),
+                    col_alias: Some(ColumnAlias("email_address".to_string())),
+                },
+                ProjectionItem {
+                    expression: LogicalExpr::PropertyAccessExp(PropertyAccess {
+                        table_alias: TableAlias("user".to_string()),
+                        column: Column("first_name".to_string()),
+                    }),
+                    col_alias: None,
+                },
+            ],
+        });
+        
+        // Verify the structure
+        match projection {
+            LogicalPlan::Projection(proj) => {
+                assert_eq!(proj.items.len(), 2);
+                match proj.input.as_ref() {
+                    LogicalPlan::Filter(filter_node) => {
+                        match filter_node.input.as_ref() {
+                            LogicalPlan::GraphNode(graph_node) => {
+                                assert_eq!(graph_node.alias, "user");
+                                match graph_node.input.as_ref() {
+                                    LogicalPlan::Scan(scan_node) => {
+                                        assert_eq!(scan_node.table_alias, "users");
+                                        assert_eq!(scan_node.table_name, Some("user_accounts".to_string()));
+                                    },
+                                    _ => panic!("Expected Scan at bottom"),
+                                }
+                            },
+                            _ => panic!("Expected GraphNode"),
+                        }
+                    },
+                    _ => panic!("Expected Filter"),
+                }
+            },
+            _ => panic!("Expected Projection at top"),
+        }
+    }
+
+
+}
+
 
 
