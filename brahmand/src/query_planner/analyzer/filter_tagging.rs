@@ -94,33 +94,38 @@ impl FilterTagging {
 
         // tag extracted filters to respective table data
         for extracted_filter in extracted_filters {
-            let mut table_name = "";
-            for operand in &extracted_filter.operands {
-                match operand {
-                    LogicalExpr::PropertyAccessExp(property_access) => {
-                        table_name = &property_access.table_alias.0;
-                    },
-                    // in case of fn, we check for any argument is of type prop access
-                    LogicalExpr::ScalarFnCall(scalar_fn_call) => {
-                        for arg in &scalar_fn_call.args {
-                            if let LogicalExpr::PropertyAccessExp(property_access) = arg {
-                                table_name = &property_access.table_alias.0;
-                            }
-                        }
-                    },
-                    // in case of fn, we check for any argument is of type prop access
-                    LogicalExpr::AggregateFnCall(aggregate_fn_call) => {
-                        for arg in &aggregate_fn_call.args {
-                            if let LogicalExpr::PropertyAccessExp(property_access) = arg {
-                                table_name = &property_access.table_alias.0;
-                            }
-                        }
-                    },
-                    _ => ()
-                }
-            }
+            let table_alias = if let Some(single_table_alias) = self.get_table_alias_if_single_table_condition(&LogicalExpr::OperatorApplicationExp(extracted_filter.clone()), true) {
+                single_table_alias
+            } else {
+                String::new()
+            };
+            // let mut table_alias = "";
+            // for operand in &extracted_filter.operands {
+            //     match operand {
+            //         LogicalExpr::PropertyAccessExp(property_access) => {
+            //             table_alias = &property_access.table_alias.0;
+            //         },
+            //         // in case of fn, we check for any argument is of type prop access
+            //         LogicalExpr::ScalarFnCall(scalar_fn_call) => {
+            //             for arg in &scalar_fn_call.args {
+            //                 if let LogicalExpr::PropertyAccessExp(property_access) = arg {
+            //                     table_alias = &property_access.table_alias.0;
+            //                 }
+            //             }
+            //         },
+            //         // in case of fn, we check for any argument is of type prop access
+            //         LogicalExpr::AggregateFnCall(aggregate_fn_call) => {
+            //             for arg in &aggregate_fn_call.args {
+            //                 if let LogicalExpr::PropertyAccessExp(property_access) = arg {
+            //                     table_alias = &property_access.table_alias.0;
+            //                 }
+            //             }
+            //         },
+            //         _ => ()
+            //     }
+            // }
 
-            if let Some(table_ctx) = plan_ctx.get_mut_table_ctx_opt(table_name) {
+            if let Some(table_ctx) = plan_ctx.get_mut_table_ctx_opt(&table_alias) {
                 let converted_filters = self.convert_prop_acc_to_column(LogicalExpr::OperatorApplicationExp(extracted_filter));
                 table_ctx.insert_filter(converted_filters);
 
@@ -128,7 +133,7 @@ impl FilterTagging {
                     table_ctx.set_use_edge_list(true);
                 }
             } else {
-                return Err(AnalyzerError::OrphanAlias { pass: Pass::FilterTagging, alias: table_name.to_string() });
+                return Err(AnalyzerError::OrphanAlias { pass: Pass::FilterTagging, alias: table_alias.to_string() });
             }
 
         }
@@ -220,6 +225,15 @@ impl FilterTagging {
             LogicalExpr::OperatorApplicationExp(mut op_app) => {
                 // Check if the current operator is an Or.
                 let current_is_or = op_app.operator == Operator::Or;
+
+                if current_is_or {
+                    let cloned_op_app = LogicalExpr::OperatorApplicationExp(op_app.clone());
+                    // If the entire OR belongs to single table then we extract it. This OR should not have any agg fns.
+                    if self.get_table_alias_if_single_table_condition(&cloned_op_app, false).is_some() {
+                        extracted_filters.push(op_app);
+                        return None;
+                    }
+                }
                 // Update our flag: once inside an Or, we stay inside.
                 let new_in_or = in_or || current_is_or;
     
@@ -346,61 +360,64 @@ impl FilterTagging {
         }
     }
 
-    // // this function is used to get the table alias from an expression.
-    // // it is used to check if all the operands of an operator application have the same table alias.
-    // // if they don't then we return None.
-    // fn get_table_alias_from_expr(&self, expr: &LogicalExpr) -> Option<String> {
-    //     let table_alias = match &expr {
-    //         LogicalExpr::PropertyAccessExp(prop_acc) => Some(prop_acc.table_alias.0.clone()),
-    //         LogicalExpr::OperatorApplicationExp(op_app) => {
-    //             let mut found_table_alias_opt: Option<String> = None;
-    //             for operand in &op_app.operands {
-    //                 if let Some(current_table_alias) = self.get_table_alias_from_expr(operand) {
-    //                     if let Some(found_table_alias) = found_table_alias_opt.as_ref() {
-    //                         if *found_table_alias != current_table_alias {
-    //                             return None;
-    //                         }
-    //                     } else {
-    //                         found_table_alias_opt = Some(current_table_alias.clone());
-    //                     }
-    //                 }
-    //             }
-    //             found_table_alias_opt
-    //         },
-    //         LogicalExpr::ScalarFnCall(scalar_fn_call) => {
-    //             let mut found_table_alias_opt: Option<String> = None;
-    //             for arg in &scalar_fn_call.args {
-    //                 if let Some(current_table_alias) = self.get_table_alias_from_expr(arg) {
-    //                     if let Some(found_table_alias) = found_table_alias_opt.as_ref() {
-    //                         if *found_table_alias != current_table_alias {
-    //                             return None;
-    //                         }
-    //                     } else {
-    //                         found_table_alias_opt = Some(current_table_alias.clone());
-    //                     }
-    //                 }
-    //             }
-    //             found_table_alias_opt
-    //         },
-    //         LogicalExpr::AggregateFnCall(aggregate_fn_call) => {
-    //             let mut found_table_alias_opt: Option<String> = None;
-    //             for arg in &aggregate_fn_call.args {
-    //                 if let Some(current_table_alias) = self.get_table_alias_from_expr(arg) {
-    //                     if let Some(found_table_alias) = found_table_alias_opt.as_ref() {
-    //                         if *found_table_alias != current_table_alias {
-    //                             return None;
-    //                         }
-    //                     } else {
-    //                         found_table_alias_opt = Some(current_table_alias.clone());
-    //                     }
-    //                 }
-    //             }
-    //             found_table_alias_opt
-    //         },
-    //         _ => None,
-    //     };
-    //     table_alias
-    // }
+    // this function is used to get the table alias from an expression. We use this for OR conditions.
+    // it is used to check if all the operands of an operator application have the same table alias.
+    // if they don't then we return None.
+    fn get_table_alias_if_single_table_condition(&self, expr: &LogicalExpr, with_agg_fn: bool) -> Option<String> {
+        let table_alias = match &expr {
+            LogicalExpr::PropertyAccessExp(prop_acc) => Some(prop_acc.table_alias.0.clone()),
+            LogicalExpr::OperatorApplicationExp(op_app) => {
+                let mut found_table_alias_opt: Option<String> = None;
+                for operand in &op_app.operands {
+                    if let Some(current_table_alias) = self.get_table_alias_if_single_table_condition(operand, with_agg_fn) {
+                        if let Some(found_table_alias) = found_table_alias_opt.as_ref() {
+                            if *found_table_alias != current_table_alias {
+                                return None;
+                            }
+                        } else {
+                            found_table_alias_opt = Some(current_table_alias.clone());
+                        }
+                    }
+                }
+                found_table_alias_opt
+            },
+            LogicalExpr::ScalarFnCall(scalar_fn_call) => {
+                let mut found_table_alias_opt: Option<String> = None;
+                for arg in &scalar_fn_call.args {
+                    if let Some(current_table_alias) = self.get_table_alias_if_single_table_condition(arg, with_agg_fn) {
+                        if let Some(found_table_alias) = found_table_alias_opt.as_ref() {
+                            if *found_table_alias != current_table_alias {
+                                return None;
+                            }
+                        } else {
+                            found_table_alias_opt = Some(current_table_alias.clone());
+                        }
+                    }
+                }
+                found_table_alias_opt
+            },
+            LogicalExpr::AggregateFnCall(aggregate_fn_call) => {
+                let mut found_table_alias_opt: Option<String> = None;
+                if with_agg_fn {
+                    for arg in &aggregate_fn_call.args {
+                        if let Some(current_table_alias) = self.get_table_alias_if_single_table_condition(arg, with_agg_fn) {
+                            if let Some(found_table_alias) = found_table_alias_opt.as_ref() {
+                                if *found_table_alias != current_table_alias {
+                                    return None;
+                                }
+                            } else {
+                                found_table_alias_opt = Some(current_table_alias.clone());
+                            }
+                        }
+                    }
+                }
+                found_table_alias_opt
+                
+            },
+            _ => None,
+        };
+        table_alias
+    }
     
     
 }
@@ -409,7 +426,7 @@ impl FilterTagging {
 mod tests {
     use super::*;
     use crate::query_planner::logical_expr::logical_expr::{
-        Column, Direction, Literal, PropertyAccess, TableAlias, ColumnAlias
+        Column, Literal, PropertyAccess, TableAlias
     };
     use crate::query_planner::logical_plan::logical_plan::{
         Filter, GraphNode, LogicalPlan, Scan
@@ -549,7 +566,7 @@ mod tests {
     }
 
     #[test]
-    fn test_or_condition_not_extracted() {
+    fn test_or_condition_single_table_extracted() {
         let analyzer = FilterTagging::new();
         let mut plan_ctx = setup_plan_ctx_with_tables();
 
@@ -571,6 +588,37 @@ mod tests {
         let result = analyzer.extract_filters(filter_expr, &mut plan_ctx).unwrap();
 
         // Should NOT extract filters inside OR (remains in final where clause)
+        assert!(result.is_none());
+
+        // Should extract filters to user table but should add projections
+        let user_ctx = plan_ctx.get_table_ctx("user").unwrap();
+        assert_eq!(user_ctx.get_filters().len(), 1);
+        
+    }
+
+    #[test]
+    fn test_or_condition_multi_table_not_extracted() {
+        let analyzer = FilterTagging::new();
+        let mut plan_ctx = setup_plan_ctx_with_tables();
+
+        // Test OR condition: user.age = 25 OR company.status = 'active'
+        let filter_expr = LogicalExpr::OperatorApplicationExp(OperatorApplication {
+            operator: Operator::Or,
+            operands: vec![
+                create_simple_filter("user", "age", 25),
+                LogicalExpr::OperatorApplicationExp(OperatorApplication {
+                    operator: Operator::Equal,
+                    operands: vec![
+                        create_property_access("company", "status"),
+                        LogicalExpr::Literal(Literal::String("active".to_string())),
+                    ],
+                }),
+            ],
+        });
+
+        let result = analyzer.extract_filters(filter_expr, &mut plan_ctx).unwrap();
+
+        // Should NOT extract filters inside OR (remains in final where clause)
         assert!(result.is_some());
         match result.unwrap() {
             LogicalExpr::OperatorApplicationExp(op_app) => {
@@ -583,9 +631,16 @@ mod tests {
         // Should not extract any filters to user table but should add projections
         let user_ctx = plan_ctx.get_table_ctx("user").unwrap();
         assert_eq!(user_ctx.get_filters().len(), 0);
-        
         // Should add projections for the property accesses in OR condition
-        assert_eq!(user_ctx.get_projections().len(), 2); // age and status properties
+        assert_eq!(user_ctx.get_projections().len(), 1); // age 
+
+        // Should not extract any filters to user table but should add projections
+        let company_ctx = plan_ctx.get_table_ctx("company").unwrap();
+        assert_eq!(company_ctx.get_filters().len(), 0);
+        // Should add projections for the property accesses in OR condition
+        assert_eq!(company_ctx.get_projections().len(), 1); // status 
+        
+       
     }
 
     #[test]
@@ -805,5 +860,146 @@ mod tests {
             },
             _ => panic!("Expected OrphanAlias error"),
         }
+    }
+
+    #[test]
+    fn test_get_table_alias_single_property_access() {
+        let analyzer = FilterTagging::new();
+        
+        // Test single property access: user.name
+        let expr = create_property_access("user", "name");
+        let result = analyzer.get_table_alias_if_single_table_condition(&expr, false);
+        
+        assert_eq!(result, Some("user".to_string()));
+    }
+
+    #[test]
+    fn test_get_table_alias_operator_application_same_table() {
+        let analyzer = FilterTagging::new();
+        
+        // Test operator with same table: user.age = 25
+        let expr = LogicalExpr::OperatorApplicationExp(OperatorApplication {
+            operator: Operator::Equal,
+            operands: vec![
+                create_property_access("user", "age"),
+                LogicalExpr::Literal(Literal::Integer(25)),
+            ],
+        });
+        
+        let result = analyzer.get_table_alias_if_single_table_condition(&expr, false);
+        assert_eq!(result, Some("user".to_string()));
+    }
+
+    #[test]
+    fn test_get_table_alias_operator_application_different_tables() {
+        let analyzer = FilterTagging::new();
+        
+        // Test operator with different tables: user.id = company.owner_id
+        let expr = LogicalExpr::OperatorApplicationExp(OperatorApplication {
+            operator: Operator::Equal,
+            operands: vec![
+                create_property_access("user", "id"),
+                create_property_access("company", "owner_id"),
+            ],
+        });
+        
+        let result = analyzer.get_table_alias_if_single_table_condition(&expr, false);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_get_table_alias_scalar_function_same_table() {
+        let analyzer = FilterTagging::new();
+        
+        // Test scalar function with same table: length(user.name)
+        let expr = LogicalExpr::ScalarFnCall(ScalarFnCall {
+            name: "length".to_string(),
+            args: vec![create_property_access("user", "name")],
+        });
+        
+        let result = analyzer.get_table_alias_if_single_table_condition(&expr, false);
+        assert_eq!(result, Some("user".to_string()));
+    }
+
+    #[test]
+    fn test_get_table_alias_scalar_function_different_tables() {
+        let analyzer = FilterTagging::new();
+        
+        // Test scalar function with different tables: concat(user.first_name, company.suffix)
+        let expr = LogicalExpr::ScalarFnCall(ScalarFnCall {
+            name: "concat".to_string(),
+            args: vec![
+                create_property_access("user", "first_name"),
+                create_property_access("company", "suffix"),
+            ],
+        });
+        
+        let result = analyzer.get_table_alias_if_single_table_condition(&expr, false);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_get_table_alias_aggregate_function_with_agg_fn_true() {
+        let analyzer = FilterTagging::new();
+        
+        // Test aggregate function with with_agg_fn=true: count(user.id)
+        let expr = LogicalExpr::AggregateFnCall(AggregateFnCall {
+            name: "count".to_string(),
+            args: vec![create_property_access("user", "id")],
+        });
+        
+        let result = analyzer.get_table_alias_if_single_table_condition(&expr, true);
+        assert_eq!(result, Some("user".to_string()));
+    }
+
+    #[test]
+    fn test_get_table_alias_aggregate_function_with_agg_fn_false() {
+        let analyzer = FilterTagging::new();
+        
+        // Test aggregate function with with_agg_fn=false: count(user.id)
+        let expr = LogicalExpr::AggregateFnCall(AggregateFnCall {
+            name: "count".to_string(),
+            args: vec![create_property_access("user", "id")],
+        });
+        
+        let result = analyzer.get_table_alias_if_single_table_condition(&expr, false);
+        assert_eq!(result, None); // Should return None when with_agg_fn is false
+    }
+
+    #[test]
+    fn test_get_table_alias_mixed_expression_same_table() {
+        let analyzer = FilterTagging::new();
+        
+        // Test mixed expression with scalar function and property: length(user.name) > user.min_length
+        let expr = LogicalExpr::OperatorApplicationExp(OperatorApplication {
+            operator: Operator::GreaterThan,
+            operands: vec![
+                LogicalExpr::ScalarFnCall(ScalarFnCall {
+                    name: "length".to_string(),
+                    args: vec![create_property_access("user", "name")],
+                }),
+                create_property_access("user", "min_length"),
+            ],
+        });
+        
+        let result = analyzer.get_table_alias_if_single_table_condition(&expr, false);
+        assert_eq!(result, Some("user".to_string()));
+    }
+
+    #[test]
+    fn test_get_table_alias_literals_only() {
+        let analyzer = FilterTagging::new();
+        
+        // Test expression with only literals: 42 = 42
+        let expr = LogicalExpr::OperatorApplicationExp(OperatorApplication {
+            operator: Operator::Equal,
+            operands: vec![
+                LogicalExpr::Literal(Literal::Integer(42)),
+                LogicalExpr::Literal(Literal::Integer(42)),
+            ],
+        });
+        
+        let result = analyzer.get_table_alias_if_single_table_condition(&expr, false);
+        assert_eq!(result, None); // No property accesses, should return None
     }
 }

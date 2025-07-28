@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::query_planner::{logical_plan::logical_plan::{GraphRel, LogicalPlan}, optimizer::{errors::OptimizerError, optimizer_pass::{OptimizerPass, OptimizerResult}}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed};
+use crate::query_planner::{logical_expr::logical_expr::{LogicalExpr, Operator}, logical_plan::logical_plan::{GraphRel, LogicalPlan}, optimizer::{errors::OptimizerError, optimizer_pass::{OptimizerPass, OptimizerResult}}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed};
 
 
 
@@ -25,14 +25,91 @@ impl AnchorNodeSelection {
         AnchorNodeSelection
     }
 
+    // Get anchor node with max number of filters. If there is a tie, then check for any filter with OR operator.
+    // If there is no such filter, then return any one of the matched
+    // TODO: Should we also check for other condtion precedence? Like IN, NOT IN, etc.
     fn find_anchor_node(&self, plan_ctx: &PlanCtx) -> Option<String> {
-        let (alias, ctx) = plan_ctx.get_alias_table_ctx_map()
-            .iter()
-            .max_by_key(|(_, ctx)| ctx.get_filters().len())?;
-        if ctx.get_filters().is_empty() {
-            None
-        } else {
-            Some(alias.clone())
+        let mut max_filter_count = 0;
+        let mut candidates = Vec::new();
+        
+        // find tables with maximum number of filters
+        for (alias, table_ctx) in plan_ctx.get_alias_table_ctx_map() {
+            let filter_count = table_ctx.get_filters().len();
+            
+            if filter_count > max_filter_count {
+                max_filter_count = filter_count;
+                candidates.clear();
+                candidates.push(alias.clone());
+            } else if filter_count == max_filter_count && filter_count > 0 {
+                candidates.push(alias.clone());
+            }
+        }
+        
+        // If no table has filters, return None
+        if max_filter_count == 0 {
+            return None;
+        }
+        
+        // If only one candidate, return it
+        if candidates.len() == 1 {
+            return Some(candidates[0].clone());
+        }
+        
+        // If multiple candidates (tie), check for OR operators
+        for candidate in &candidates {
+            if let Ok(table_ctx) = plan_ctx.get_table_ctx(candidate) {
+                for filter in table_ctx.get_filters() {
+                    if self.has_or_operator(filter) {
+                        return Some(candidate.clone());
+                    }
+                }
+            }
+        }
+        
+        // If no OR operator found, return the first candidate
+        candidates.into_iter().next()
+    }
+
+    // check for OR operators in expressions
+    fn has_or_operator(&self, expr: &LogicalExpr) -> bool {
+        match expr {
+            LogicalExpr::OperatorApplicationExp(op_app) => {
+                if op_app.operator == Operator::Or {
+                    return true;
+                }
+                // check operands for nested OR conditions
+                for operand in &op_app.operands {
+                    if self.has_or_operator(operand) {
+                        return true;
+                    }
+                }
+                false
+            },
+            LogicalExpr::ScalarFnCall(fc) => {
+                for arg in &fc.args {
+                    if self.has_or_operator(arg) {
+                        return true;
+                    }
+                }
+                false
+            },
+            LogicalExpr::AggregateFnCall(fc) => {
+                for arg in &fc.args {
+                    if self.has_or_operator(arg) {
+                        return true;
+                    }
+                }
+                false
+            },
+            LogicalExpr::List(exprs) => {
+                for expr in exprs {
+                    if self.has_or_operator(expr) {
+                        return true;
+                    }
+                }
+                false
+            },
+            _ => false,
         }
     }
 
