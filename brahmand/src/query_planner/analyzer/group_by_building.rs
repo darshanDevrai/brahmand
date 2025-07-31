@@ -78,3 +78,228 @@ impl GroupByBuilding {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::query_planner::logical_expr::logical_expr::{
+        AggregateFnCall, Column, Literal, PropertyAccess, ScalarFnCall, TableAlias
+    };
+    use crate::query_planner::logical_plan::logical_plan::{
+        GraphNode, LogicalPlan, Projection, Scan
+    };
+
+    fn create_property_access(table: &str, column: &str) -> LogicalExpr {
+        LogicalExpr::PropertyAccessExp(PropertyAccess {
+            table_alias: TableAlias(table.to_string()),
+            column: Column(column.to_string()),
+        })
+    }
+
+    fn create_aggregate_function(name: &str, arg_table: &str, arg_column: &str) -> LogicalExpr {
+        LogicalExpr::AggregateFnCall(AggregateFnCall {
+            name: name.to_string(),
+            args: vec![create_property_access(arg_table, arg_column)],
+        })
+    }
+
+    fn create_scan(alias: &str, table_name: &str) -> Arc<LogicalPlan> {
+        Arc::new(LogicalPlan::Scan(Scan {
+            table_alias: alias.to_string(),
+            table_name: Some(table_name.to_string()),
+        }))
+    }
+
+    #[test]
+    fn test_projection_with_mixed_aggregate_and_non_aggregate() {
+        let analyzer = GroupByBuilding::new();
+        let mut plan_ctx = PlanCtx::default();
+
+        // Test projection: SELECT user.name, COUNT(order.id) FROM ...
+        let scan = create_scan("user", "users");
+        let projection = Arc::new(LogicalPlan::Projection(Projection {
+            input: scan,
+            items: vec![
+                ProjectionItem {
+                    expression: create_property_access("user", "name"),
+                    col_alias: None,
+                },
+                ProjectionItem {
+                    expression: create_aggregate_function("count", "order", "id"),
+                    col_alias: None,
+                },
+            ],
+        }));
+
+        let result = analyzer.analyze(projection.clone(), &mut plan_ctx).unwrap();
+
+        // Should create GroupBy plan wrapping the projection
+        match result {
+            Transformed::Yes(new_plan) => {
+                match new_plan.as_ref() {
+                    LogicalPlan::GroupBy(group_by) => {
+                        // GroupBy should wrap the original projection
+                        assert_eq!(group_by.input, projection);
+                        
+                        // Group expressions should contain only non-aggregate expressions
+                        assert_eq!(group_by.expressions.len(), 1);
+                        match &group_by.expressions[0] {
+                            LogicalExpr::PropertyAccessExp(prop_acc) => {
+                                assert_eq!(prop_acc.table_alias.0, "user");
+                                assert_eq!(prop_acc.column.0, "name");
+                            },
+                            _ => panic!("Expected PropertyAccess in group expressions"),
+                        }
+                    },
+                    _ => panic!("Expected GroupBy plan"),
+                }
+            },
+            _ => panic!("Expected transformation"),
+        }
+    }
+
+    #[test]
+    fn test_projection_with_only_aggregates_no_groupby() {
+        let analyzer = GroupByBuilding::new();
+        let mut plan_ctx = PlanCtx::default();
+
+        // Test projection: SELECT COUNT(order.id), SUM(order.amount) FROM ...
+        let scan = create_scan("order", "orders");
+        let projection = Arc::new(LogicalPlan::Projection(Projection {
+            input: scan,
+            items: vec![
+                ProjectionItem {
+                    expression: create_aggregate_function("count", "order", "id"),
+                    col_alias: None,
+                },
+                ProjectionItem {
+                    expression: create_aggregate_function("sum", "order", "amount"),
+                    col_alias: None,
+                },
+            ],
+        }));
+
+        let result = analyzer.analyze(projection.clone(), &mut plan_ctx).unwrap();
+
+        // Should NOT create GroupBy (only aggregates, no grouping needed)
+        match result {
+            Transformed::No(plan) => {
+                assert_eq!(plan, projection); // Should return original plan unchanged
+            },
+            _ => panic!("Expected no transformation for aggregates-only projection"),
+        }
+    }
+
+    #[test]
+    fn test_projection_with_only_non_aggregates_no_groupby() {
+        let analyzer = GroupByBuilding::new();
+        let mut plan_ctx = PlanCtx::default();
+
+        // Test projection: SELECT user.name, user.email FROM ...
+        let scan = create_scan("user", "users");
+        let projection = Arc::new(LogicalPlan::Projection(Projection {
+            input: scan,
+            items: vec![
+                ProjectionItem {
+                    expression: create_property_access("user", "name"),
+                    col_alias: None,
+                },
+                ProjectionItem {
+                    expression: create_property_access("user", "email"),
+                    col_alias: None,
+                },
+            ],
+        }));
+
+        let result = analyzer.analyze(projection.clone(), &mut plan_ctx).unwrap();
+
+        // Should NOT create GroupBy (no aggregates present)
+        match result {
+            Transformed::No(plan) => {
+                assert_eq!(plan, projection); // Should return original plan unchanged
+            },
+            _ => panic!("Expected no transformation for non-aggregates-only projection"),
+        }
+    }
+
+    #[test]
+    fn test_projection_with_multiple_non_aggregates_and_aggregate() {
+        let analyzer = GroupByBuilding::new();
+        let mut plan_ctx = PlanCtx::default();
+
+        // Test projection: SELECT user.name, user.city, COUNT(order.id) FROM ...
+        let scan = create_scan("user", "users");
+        let projection = Arc::new(LogicalPlan::Projection(Projection {
+            input: scan,
+            items: vec![
+                ProjectionItem {
+                    expression: create_property_access("user", "name"),
+                    col_alias: None,
+                },
+                ProjectionItem {
+                    expression: create_property_access("user", "city"),
+                    col_alias: None,
+                },
+                ProjectionItem {
+                    expression: create_aggregate_function("count", "order", "id"),
+                    col_alias: None,
+                },
+            ],
+        }));
+
+        let result = analyzer.analyze(projection.clone(), &mut plan_ctx).unwrap();
+
+        // Should create GroupBy with both non-aggregate expressions
+        match result {
+            Transformed::Yes(new_plan) => {
+                match new_plan.as_ref() {
+                    LogicalPlan::GroupBy(group_by) => {
+                        assert_eq!(group_by.expressions.len(), 2);
+                        
+                        // First group expression: user.name
+                        match &group_by.expressions[0] {
+                            LogicalExpr::PropertyAccessExp(prop_acc) => {
+                                assert_eq!(prop_acc.column.0, "name");
+                            },
+                            _ => panic!("Expected PropertyAccess"),
+                        }
+                        
+                        // Second group expression: user.city
+                        match &group_by.expressions[1] {
+                            LogicalExpr::PropertyAccessExp(prop_acc) => {
+                                assert_eq!(prop_acc.column.0, "city");
+                            },
+                            _ => panic!("Expected PropertyAccess"),
+                        }
+                    },
+                    _ => panic!("Expected GroupBy plan"),
+                }
+            },
+            _ => panic!("Expected transformation"),
+        }
+    }
+
+    #[test]
+    fn test_empty_projection_no_groupby() {
+        let analyzer = GroupByBuilding::new();
+        let mut plan_ctx = PlanCtx::default();
+
+        // Test empty projection
+        let scan = create_scan("user", "users");
+        let projection = Arc::new(LogicalPlan::Projection(Projection {
+            input: scan,
+            items: vec![],
+        }));
+
+        let result = analyzer.analyze(projection.clone(), &mut plan_ctx).unwrap();
+
+        // Should NOT create GroupBy (empty projection)
+        match result {
+            Transformed::No(plan) => {
+                assert_eq!(plan, projection);
+            },
+            _ => panic!("Expected no transformation for empty projection"),
+        }
+    }
+
+}
+

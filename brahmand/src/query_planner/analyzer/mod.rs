@@ -18,7 +18,6 @@ mod group_by_building;
 mod schema_inference;
 mod graph_traversal_planning;
 mod duplicate_scans_removing;
-// mod last_node_tagging;
 mod graph_join_inference;
 pub mod errors;
 
