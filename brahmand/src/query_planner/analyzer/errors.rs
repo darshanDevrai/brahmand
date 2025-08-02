@@ -12,7 +12,8 @@ pub enum Pass {
     GraphTraversalPlanning,
     // GroupByBuilding,
     ProjectionTagging,
-    SchemaInference
+    SchemaInference,
+    PlanSanitization
 }
 
 impl Display for Pass {
@@ -25,6 +26,7 @@ impl Display for Pass {
             // Pass::GroupByBuilding => write!(f, "GroupByBuilding"),
             Pass::ProjectionTagging => write!(f, "ProjectionTagging"),
             Pass::SchemaInference => write!(f, "SchemaInference"),
+            Pass::PlanSanitization => write!(f, "PlanSanitization"),
         }
     }
 }

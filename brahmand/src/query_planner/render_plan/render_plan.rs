@@ -11,13 +11,14 @@ use std::fmt;
 pub struct RenderPlan {
     pub ctes: CteItems,
     pub select: SelectItems,
-    pub from: FromTable,
+    pub from: FromTableItem,
     pub joins: JoinItems,
     pub filters: FilterItems,
     pub group_by: GroupByExpressions,
     pub order_by: OrderByItems,
     pub skip: SkipItem,
     pub limit: LimitItem,
+    pub union: UnionItems,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -34,6 +35,9 @@ pub struct FromTable {
     pub table_name: String,
     pub table_alias: Option<String>
 }
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct FromTableItem(pub Option<FromTable>);
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct FilterItems(pub Option<RenderExpr>);
@@ -73,10 +77,14 @@ pub struct CteItems(pub Vec<Cte>);
 #[derive(Debug, PartialEq, Clone)]
 pub struct Cte {
     pub cte_name: String,
-    pub select: SelectItems,
-    pub from: FromTable,
-    pub filters: FilterItems
+    pub cte_plan: RenderPlan
+    // pub select: SelectItems,
+    // pub from: FromTable,
+    // pub filters: FilterItems
 }
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct UnionItems(pub Vec<RenderPlan>);
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct InSubquery {

@@ -56,6 +56,18 @@ pub enum Direction {
     Either,
 }
 
+impl fmt::Display for Direction {
+    
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Direction::Incoming => f.write_str("incoming"),
+            Direction::Outgoing  => f.write_str("outgoing"),
+            Direction::Either => f.write_str("either"),
+        }
+    }
+}
+
+
 impl Direction {
     pub fn reverse(self) -> Self {
         if self == Direction::Incoming {

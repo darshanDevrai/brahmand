@@ -27,7 +27,9 @@ pub enum LogicalPlan {
 
     Cte(Cte),
 
-    GraphJoins(GraphJoins)
+    GraphJoins(GraphJoins),
+
+    Union(Union)
 
 }
 
@@ -35,7 +37,7 @@ pub enum LogicalPlan {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Scan {
-    pub table_alias: String,
+    pub table_alias: Option<String>,
     pub table_name: Option<String>,
 }
 
@@ -61,6 +63,11 @@ pub struct GraphRel {
 pub struct Cte {
     pub input: Arc<LogicalPlan>,
     pub name: String
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct Union {
+    pub inputs: Vec<Arc<LogicalPlan>>,
 }
 
 
@@ -328,6 +335,30 @@ impl GraphJoins {
     }
 }
 
+impl Union {
+
+    pub fn rebuild_or_clone(&self, inputs_tf: Vec<Transformed<Arc<LogicalPlan>>>, old_plan: Arc<LogicalPlan>) -> Transformed<Arc<LogicalPlan>> {
+
+        // iterate over inputs_tf vec and check if any one of them is transformed. 
+        // If yes then break the iteration and club all inputs irrespective of transformation status. 
+        // If no then return the old plan. 
+        let mut is_transformed = false;
+        for input_tf in &inputs_tf {
+            if input_tf.is_yes() {
+                is_transformed = true;
+                break;
+            }
+        }
+        if is_transformed {
+            let new_inputs: Vec<Arc<LogicalPlan>> = inputs_tf.into_iter().map(|tf| tf.get_plan()).collect();
+            let new_union = LogicalPlan::Union(Union { inputs: new_inputs });
+            Transformed::Yes(Arc::new(new_union))
+        } else {    
+            Transformed::No(old_plan.clone())
+        }
+    }
+}
+
 impl<'a> From<crate::open_cypher_parser::ast::ReturnItem<'a>> for ProjectionItem {
     fn from(value: crate::open_cypher_parser::ast::ReturnItem<'a>) -> Self {
         ProjectionItem {
@@ -423,7 +454,7 @@ impl LogicalPlan {
         match self {
             LogicalPlan::GraphNode(graph_node) => format!("Node({})", graph_node.alias),
             LogicalPlan::GraphRel(graph_rel) => format!("GraphRel({:?})(is_rel_anchor: {:?})", graph_rel.direction, graph_rel.is_rel_anchor),
-            LogicalPlan::Scan(scan) => format!("scan({})", scan.table_alias),
+            LogicalPlan::Scan(scan) => format!("scan({:?})", scan.table_alias),
             LogicalPlan::Empty => "".to_string(),
             LogicalPlan::Filter(_) => "Filter".to_string(),
             LogicalPlan::Projection(_) => "Projection".to_string(),
@@ -433,6 +464,7 @@ impl LogicalPlan {
             LogicalPlan::GroupBy(_) => "GroupBy".to_string(),
             LogicalPlan::Cte(cte) => format!("Cte({})", cte.name),
             LogicalPlan::GraphJoins(_) => "GraphJoins".to_string(),
+            LogicalPlan::Union(_) => "Union".to_string(),
         }
     }
 }
@@ -449,7 +481,7 @@ mod tests {
     fn test_filter_rebuild_or_clone_with_transformation() {
         let original_input = Arc::new(LogicalPlan::Empty);
         let new_input = Arc::new(LogicalPlan::Scan(Scan {
-            table_alias: "employees".to_string(),
+            table_alias: Some("employees".to_string()),
             table_name: Some("employee_table".to_string()),
         }));
         
@@ -502,7 +534,7 @@ mod tests {
     fn test_projection_rebuild_or_clone_with_transformation() {
         let original_input = Arc::new(LogicalPlan::Empty);
         let new_input = Arc::new(LogicalPlan::Scan(Scan {
-            table_alias: "customers".to_string(),
+            table_alias: Some("customers".to_string()),
             table_name: Some("customer_table".to_string()),
         }));
         
@@ -544,7 +576,7 @@ mod tests {
     fn test_graph_node_rebuild_or_clone() {
         let original_input = Arc::new(LogicalPlan::Empty);
         let new_input = Arc::new(LogicalPlan::Scan(Scan {
-            table_alias: "users".to_string(),
+            table_alias: Some("users".to_string()),
             table_name: Some("user_table".to_string()),
         }));
         
@@ -578,7 +610,7 @@ mod tests {
         let center_plan = Arc::new(LogicalPlan::Empty);
         let right_plan = Arc::new(LogicalPlan::Empty);
         let new_left_plan = Arc::new(LogicalPlan::Scan(Scan {
-            table_alias: "users".to_string(),
+            table_alias: Some("users".to_string()),
             table_name: Some("user_table".to_string()),
         }));
         
@@ -624,7 +656,7 @@ mod tests {
     #[test]
     fn test_cte_rebuild_or_clone_with_empty_input() {
         let original_input = Arc::new(LogicalPlan::Scan(Scan {
-            table_alias: "temp".to_string(),
+            table_alias: Some("temp".to_string()),
             table_name: Some("temp_table".to_string()),
         }));
         let empty_input = Arc::new(LogicalPlan::Empty);
@@ -683,7 +715,7 @@ mod tests {
     #[test]
     fn test_logical_plan_variant_names() {
         let scan = LogicalPlan::Scan(Scan {
-            table_alias: "products".to_string(),
+            table_alias: Some("products".to_string()),
             table_name: Some("product_catalog".to_string()),
         });
         assert_eq!(scan.variant_name(), "scan(products)");
@@ -732,7 +764,7 @@ mod tests {
     fn test_complex_logical_plan_structure() {
         // Create a complex plan: Projection -> Filter -> GraphNode -> Scan
         let scan = LogicalPlan::Scan(Scan {
-            table_alias: "users".to_string(),
+            table_alias: Some("users".to_string()),
             table_name: Some("user_accounts".to_string()),
         });
         
@@ -786,7 +818,7 @@ mod tests {
                                 assert_eq!(graph_node.alias, "user");
                                 match graph_node.input.as_ref() {
                                     LogicalPlan::Scan(scan_node) => {
-                                        assert_eq!(scan_node.table_alias, "users");
+                                        assert_eq!(scan_node.table_alias, Some("users".to_string()));
                                         assert_eq!(scan_node.table_name, Some("user_accounts".to_string()));
                                     },
                                     _ => panic!("Expected Scan at bottom"),

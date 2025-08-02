@@ -1,4 +1,4 @@
-use crate::query_planner::render_plan::{render_expr::{Column, ColumnAlias, InSubquery, Literal, Operator, PropertyAccess, RenderExpr, TableAlias}, render_plan::{Cte, CteItems, FilterItems, FromTable, GroupByExpressions, Join, JoinItems, LimitItem, OrderByItems, RenderPlan, SelectItems, SkipItem, OrderByOrder}};
+use crate::query_planner::render_plan::{render_expr::{Column, ColumnAlias, InSubquery, Literal, Operator, PropertyAccess, RenderExpr, TableAlias}, render_plan::{Cte, CteItems, FilterItems, FromTable, FromTableItem, GroupByExpressions, Join, JoinItems, LimitItem, OrderByItems, OrderByOrder, RenderPlan, SelectItems, SkipItem}};
 use crate::query_planner::render_plan::render_expr::OperatorApplication;
 
 
@@ -58,19 +58,43 @@ impl ToSql for SelectItems {
     }
 }
 
-impl ToSql for FromTable {
+impl ToSql for FromTableItem {
     fn to_sql(&self) -> String {
-        let mut sql = "FROM ".to_string();
-    
-        sql.push_str(&self.table_name);
-        if let Some(alias) = &self.table_alias {
-            if !alias.is_empty() {
-                sql.push_str(" AS ");
-                sql.push_str(&alias);
+
+        if let Some(from_table) = &self.0 {
+            let mut sql: String = String::new();
+            sql.push_str("FROM ");
+
+            sql.push_str(&from_table.table_name);
+            if let Some(alias) = &from_table.table_alias {
+                if !alias.is_empty() {
+                    sql.push_str(" AS ");
+                    sql.push_str(&alias);
+                }
             }
+            sql.push('\n');
+            sql
+        } else {
+            "".into()
         }
-        sql.push('\n');
-        sql
+
+        // let mut sql: String = String::new();
+        // if self.0.is_none() { 
+        //     return sql;
+        // }
+        // sql.push_str("FROM ");
+
+
+    
+        // sql.push_str(&self.table_name);
+        // if let Some(alias) = &self.table_alias {
+        //     if !alias.is_empty() {
+        //         sql.push_str(" AS ");
+        //         sql.push_str(&alias);
+        //     }
+        // }
+        // sql.push('\n');
+        // sql
     }
 }
 
@@ -147,18 +171,20 @@ impl ToSql for CteItems {
 impl ToSql for Cte {
     fn to_sql(&self) -> String {
         let mut cte_body = String::new();
-        // SELECT
         cte_body.push_str("\n    ");
-        cte_body.push_str(&self.select.to_sql());
-        // FROM
-        cte_body.push_str("    ");
-        cte_body.push_str(&self.from.to_sql());
+        cte_body.push_str(&self.cte_plan.to_sql());
+        // // SELECT
+        // cte_body.push_str("\n    ");
+        // cte_body.push_str(&self.select.to_sql());
+        // // FROM
+        // cte_body.push_str("    ");
+        // cte_body.push_str(&self.from.to_sql());
 
-        // WHERE
-        let where_str = &self.filters.to_sql();
-        if !where_str.is_empty() {
-            cte_body.push_str(&format!("    {}", where_str));
-        }
+        // // WHERE
+        // let where_str = &self.filters.to_sql();
+        // if !where_str.is_empty() {
+        //     cte_body.push_str(&format!("    {}", where_str));
+        // }
 
         let sql = format!("{} AS ({})", self.cte_name, cte_body);
         sql

@@ -41,13 +41,17 @@ pub fn evaluate_read_query(query_ast: OpenCypherQueryAst, current_graph_schema: 
         // logical_plan.print_graph_rels();
         let logical_plan = optimizer::initial_optimization(logical_plan, &mut plan_ctx)?;
         // logical_plan.print_graph_rels();
-        let logical_plan = analyzer::final_analyzing(logical_plan, &mut plan_ctx, current_graph_schema)?;
+        let logical_plan = analyzer::intermediate_analyzing(logical_plan, &mut plan_ctx, current_graph_schema)?;
         let logical_plan = optimizer::final_optimization(logical_plan, &mut plan_ctx)?;
+
+        let logical_plan = analyzer::final_analyzing(logical_plan, &mut plan_ctx, current_graph_schema)?;
         
         // println!("\n\n plan_ctx after \n {}",plan_ctx);
         // println!("\n plan after{}", logical_plan);
 
         let render_plan = logical_plan.to_render_plan()?;
+
+        // println!("\n\n render_plan {}", render_plan);
 
         Ok(render_plan)
 

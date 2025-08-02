@@ -25,17 +25,17 @@ impl DuplicateScansRemoving {
 
     fn remove_duplicate_scans(&self, logical_plan: Arc<LogicalPlan>, traversed: &mut HashSet<String>) ->  AnalyzerResult<Transformed<Arc<LogicalPlan>>> {
 
-        match logical_plan.as_ref() {
+        let transformed_plan = match logical_plan.as_ref() {
             LogicalPlan::Projection(projection) => {
                         let child_tf = self.remove_duplicate_scans(projection.input.clone(), traversed)?;
-                        Ok(projection.rebuild_or_clone(child_tf, logical_plan.clone()))
+                        projection.rebuild_or_clone(child_tf, logical_plan.clone())
                     },
             LogicalPlan::GraphNode(graph_node) => {
                         traversed.insert(graph_node.alias.clone());
 
                         let child_tf = self.remove_duplicate_scans(graph_node.input.clone(), traversed)?;
                         // let self_tf = self.remove_duplicate_scans(graph_node.self_plan.clone(), traversed);
-                        Ok(graph_node.rebuild_or_clone(child_tf, logical_plan.clone()))
+                        graph_node.rebuild_or_clone(child_tf, logical_plan.clone())
                     },
             LogicalPlan::GraphRel(graph_rel) => {
                         let right_tf = self.remove_duplicate_scans(graph_rel.right.clone(), traversed)?;
@@ -55,41 +55,50 @@ impl DuplicateScansRemoving {
                 
                 
 
-                        Ok(graph_rel.rebuild_or_clone(left_tf, center_tf, right_tf, logical_plan.clone()))
+                        graph_rel.rebuild_or_clone(left_tf, center_tf, right_tf, logical_plan.clone())
                     },
             LogicalPlan::Cte(cte   ) => {
                         let child_tf = self.remove_duplicate_scans( cte.input.clone(), traversed)?;
-                        Ok(cte.rebuild_or_clone(child_tf, logical_plan.clone()))
+                        cte.rebuild_or_clone(child_tf, logical_plan.clone())
                     },
             LogicalPlan::Scan(_) => {
-                        Ok(Transformed::No(logical_plan.clone()))
+                        Transformed::No(logical_plan.clone())
                     },
-            LogicalPlan::Empty => Ok(Transformed::No(logical_plan.clone())),
+            LogicalPlan::Empty => Transformed::No(logical_plan.clone()),
             LogicalPlan::GraphJoins(graph_joins) => {
                         let child_tf = self.remove_duplicate_scans(graph_joins.input.clone(), traversed)?;
-                        Ok(graph_joins.rebuild_or_clone(child_tf, logical_plan.clone()))
+                        graph_joins.rebuild_or_clone(child_tf, logical_plan.clone())
                     },
             LogicalPlan::Filter(filter) => {
                         let child_tf = self.remove_duplicate_scans(filter.input.clone(), traversed)?;
-                        Ok(filter.rebuild_or_clone(child_tf, logical_plan.clone()))
+                        filter.rebuild_or_clone(child_tf, logical_plan.clone())
                     },
             LogicalPlan::GroupBy(group_by   ) => {
                         let child_tf = self.remove_duplicate_scans(group_by.input.clone(), traversed)?;
-                        Ok(group_by.rebuild_or_clone(child_tf, logical_plan.clone()))
+                        group_by.rebuild_or_clone(child_tf, logical_plan.clone())
                     },
             LogicalPlan::OrderBy(order_by) => {
                         let child_tf = self.remove_duplicate_scans(order_by.input.clone(), traversed)?;
-                        Ok(order_by.rebuild_or_clone(child_tf, logical_plan.clone()))
+                        order_by.rebuild_or_clone(child_tf, logical_plan.clone())
                     },
             LogicalPlan::Skip(skip) => {
                         let child_tf = self.remove_duplicate_scans(skip.input.clone(), traversed)?;
-                        Ok(skip.rebuild_or_clone(child_tf, logical_plan.clone()))
+                        skip.rebuild_or_clone(child_tf, logical_plan.clone())
                     },
             LogicalPlan::Limit(limit) => {
                         let child_tf = self.remove_duplicate_scans(limit.input.clone(), traversed)?;
-                        Ok(limit.rebuild_or_clone(child_tf, logical_plan.clone()))
+                        limit.rebuild_or_clone(child_tf, logical_plan.clone())
                     },
-        }
+            LogicalPlan::Union(union) => {
+                        let mut inputs_tf: Vec<Transformed<Arc<LogicalPlan>>> = vec![];
+                        for input_plan in union.inputs.iter() {
+                            let child_tf = self.remove_duplicate_scans(input_plan.clone(), traversed)?; 
+                            inputs_tf.push(child_tf);
+                        }
+                        union.rebuild_or_clone(inputs_tf, logical_plan.clone())
+                    },
+        };
+        Ok(transformed_plan)
     }
 }
 
@@ -102,9 +111,9 @@ mod tests {
     };
 
     // helper functions
-    fn create_scan(alias: &str, table_name: Option<&str>) -> Arc<LogicalPlan> {
+    fn create_scan(alias: Option<String>, table_name: Option<String>) -> Arc<LogicalPlan> {
         Arc::new(LogicalPlan::Scan(Scan {
-            table_alias: alias.to_string(),
+            table_alias: alias.map(|s| s.to_string()),
             table_name: table_name.map(|s| s.to_string()),
         }))
     }
@@ -145,12 +154,12 @@ mod tests {
         
         // Create a complex plan: Projection -> Filter -> GraphRel with duplicate detection
         
-        let left_user_scan = create_scan("user", Some("users"));
+        let left_user_scan = create_scan(Some("user".to_string()), Some("users".to_string()));
         let left_user_node = create_graph_node("user", left_user_scan);
         
-        let center_scan = create_scan("follows", Some("follows_table"));
+        let center_scan = create_scan(Some("follows".to_string()), Some("follows_table".to_string()));
         
-        let right_user_scan = create_scan("user", Some("users")); // Duplicate of left
+        let right_user_scan = create_scan(Some("user".to_string()), Some("users".to_string())); // Duplicate of left
         let right_user_node = create_graph_node("user", right_user_scan);
         
         let graph_rel = create_graph_rel(
@@ -226,13 +235,13 @@ mod tests {
         // Structure: (userA)-[rel1]->(userB)-[rel2]->(userA)
         // The second userA should be detected as duplicate
         
-        let user_a_scan = create_scan("userA", Some("users"));
+        let user_a_scan = create_scan(Some("userA".to_string()), Some("users".to_string()));
         let user_a_node = create_graph_node("userA", user_a_scan);
         
-        let user_b_scan = create_scan("userB", Some("users"));
+        let user_b_scan = create_scan(Some("userB".to_string()), Some("users".to_string()));
         let user_b_node = create_graph_node("userB", user_b_scan);
         
-        let rel1_scan = create_scan("follows", Some("follows"));
+        let rel1_scan = create_scan(Some("follows".to_string()), Some("follows".to_string()));
         
         // First relationship: (userA)-[follows]->(userB)
         let first_rel = create_graph_rel(
@@ -246,10 +255,10 @@ mod tests {
         );
         
         // Second relationship involving userA again (should detect duplicate)
-        let duplicate_user_a_scan = create_scan("userA", Some("users"));
+        let duplicate_user_a_scan = create_scan(Some("userA".to_string()), Some("users".to_string()));
         let duplicate_user_a_node = create_graph_node("userA", duplicate_user_a_scan);
         
-        let rel2_scan = create_scan("likes", Some("likes"));
+        let rel2_scan = create_scan(Some("likes".to_string()), Some("likes".to_string()));
         
         let second_rel = create_graph_rel(
             duplicate_user_a_node,  // This should become Empty

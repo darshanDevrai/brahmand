@@ -6,8 +6,9 @@ use crate::{open_cypher_parser::ast, query_planner::{logical_expr::logical_expr:
 
 
 fn generate_scan(alias: String, label: Option<String>) -> Arc<LogicalPlan> {
+    let table_alias = if alias.is_empty() { None } else { Some(alias) };
     Arc::new(LogicalPlan::Scan(Scan{
-        table_alias: alias,
+        table_alias: table_alias,
         table_name: label,
     }))
 }
@@ -355,7 +356,7 @@ mod tests {
                 // Input should be a scan
                 match graph_node.input.as_ref() {
                     LogicalPlan::Scan(scan) => {
-                        assert_eq!(scan.table_alias, "customer");
+                        assert_eq!(scan.table_alias, Some("customer".to_string()));
                         assert_eq!(scan.table_name, None); // generate_scan sets table_name to label, but we pass None
                     },
                     _ => panic!("Expected Scan as input"),
@@ -731,7 +732,7 @@ mod tests {
         
         match scan.as_ref() {
             LogicalPlan::Scan(scan_plan) => {
-                assert_eq!(scan_plan.table_alias, "customers");
+                assert_eq!(scan_plan.table_alias, Some("customers".to_string()));
                 assert_eq!(scan_plan.table_name, Some("Customer".to_string()));
             },
             _ => panic!("Expected Scan plan"),

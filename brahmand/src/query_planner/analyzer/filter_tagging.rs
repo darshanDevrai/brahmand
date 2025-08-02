@@ -14,26 +14,26 @@ impl AnalyzerPass for FilterTagging {
 
     fn analyze(&self, logical_plan: Arc<LogicalPlan>, plan_ctx: &mut PlanCtx) -> AnalyzerResult<Transformed<Arc<LogicalPlan>>> {
         
-        match logical_plan.as_ref() {
+        let transformed_plan = match logical_plan.as_ref() {
             LogicalPlan::GraphNode(graph_node) => {
                 let child_tf = self.analyze(graph_node.input.clone(), plan_ctx)?;
-                Ok(graph_node.rebuild_or_clone(child_tf, logical_plan.clone()))
+                graph_node.rebuild_or_clone(child_tf, logical_plan.clone())
             },
             LogicalPlan::GraphRel(graph_rel) => {
                 let left_tf = self.analyze(graph_rel.left.clone(), plan_ctx)?;
                 let center_tf = self.analyze(graph_rel.center.clone(), plan_ctx)?;
                 let right_tf = self.analyze(graph_rel.right.clone(), plan_ctx)?;
-                Ok(graph_rel.rebuild_or_clone(left_tf, center_tf, right_tf, logical_plan.clone()))
+                graph_rel.rebuild_or_clone(left_tf, center_tf, right_tf, logical_plan.clone())
             },
             LogicalPlan::Cte(cte   ) => {
                 let child_tf = self.analyze( cte.input.clone(), plan_ctx)?;
-                Ok(cte.rebuild_or_clone(child_tf, logical_plan.clone()))
+                cte.rebuild_or_clone(child_tf, logical_plan.clone())
             },
-            LogicalPlan::Empty => Ok(Transformed::No(logical_plan.clone())),
-            LogicalPlan::Scan(_) => Ok(Transformed::No(logical_plan.clone())),
+            LogicalPlan::Empty => Transformed::No(logical_plan.clone()),
+            LogicalPlan::Scan(_) => Transformed::No(logical_plan.clone()),
             LogicalPlan::GraphJoins(graph_joins) => {
                 let child_tf = self.analyze(graph_joins.input.clone(), plan_ctx)?;
-                Ok(graph_joins.rebuild_or_clone(child_tf, logical_plan.clone()))
+                graph_joins.rebuild_or_clone(child_tf, logical_plan.clone())
             },
             LogicalPlan::Filter(filter) => {
                         let child_tf = self.analyze(filter.input.clone(), plan_ctx)?;
@@ -41,36 +41,44 @@ impl AnalyzerPass for FilterTagging {
                         let final_filter_opt = self.extract_filters(filter.predicate.clone(), plan_ctx)?;
                         // if final filter has some predicate left then create new filter else remove the filter node and return the child input
                         if let Some(final_filter) = final_filter_opt {
-                            Ok(Transformed::Yes(Arc::new(LogicalPlan::Filter(Filter {
+                            Transformed::Yes(Arc::new(LogicalPlan::Filter(Filter {
                                 input: child_tf.get_plan(),
                                 predicate: final_filter,
-                            }))))
+                            })))
                         } else {
-                            Ok(Transformed::Yes(child_tf.get_plan()))
+                            Transformed::Yes(child_tf.get_plan())
                         }
                     },
             LogicalPlan::Projection(projection) => {
                         let child_tf = self.analyze(projection.input.clone(), plan_ctx)?;
-                        Ok(projection.rebuild_or_clone(child_tf, logical_plan.clone()))
+                        projection.rebuild_or_clone(child_tf, logical_plan.clone())
                     },
             LogicalPlan::GroupBy(group_by   ) => {
                         let child_tf = self.analyze(group_by.input.clone(), plan_ctx)?;
-                        Ok(group_by.rebuild_or_clone(child_tf, logical_plan.clone()))
+                        group_by.rebuild_or_clone(child_tf, logical_plan.clone())
                     },
             LogicalPlan::OrderBy(order_by) => {
                         let child_tf = self.analyze(order_by.input.clone(), plan_ctx)?;
-                        Ok(order_by.rebuild_or_clone(child_tf, logical_plan.clone()))
+                        order_by.rebuild_or_clone(child_tf, logical_plan.clone())
                     },
             LogicalPlan::Skip(skip) => {
                         let child_tf = self.analyze(skip.input.clone(), plan_ctx)?;
-                        Ok(skip.rebuild_or_clone(child_tf, logical_plan.clone()))
+                        skip.rebuild_or_clone(child_tf, logical_plan.clone())
                     },
             LogicalPlan::Limit(limit) => {
                         let child_tf = self.analyze(limit.input.clone(), plan_ctx)?;
-                        Ok(limit.rebuild_or_clone(child_tf,logical_plan.clone()))
+                        limit.rebuild_or_clone(child_tf,logical_plan.clone())
+                    },  
+            LogicalPlan::Union(union) => {
+                        let mut inputs_tf: Vec<Transformed<Arc<LogicalPlan>>> = vec![];
+                        for input_plan in union.inputs.iter() {
+                            let child_tf = self.analyze(input_plan.clone(), plan_ctx)?; 
+                            inputs_tf.push(child_tf);
+                        }
+                        union.rebuild_or_clone(inputs_tf, logical_plan.clone())
                     },
-            
-        }
+        };
+        Ok(transformed_plan)
         
     }
 }
@@ -770,7 +778,7 @@ mod tests {
 
         // Create a Filter node with completely extractable predicate
         let scan = Arc::new(LogicalPlan::Scan(Scan {
-            table_alias: "user".to_string(),
+            table_alias: Some("user".to_string()),
             table_name: Some("users".to_string()),
         }));
 
@@ -801,7 +809,7 @@ mod tests {
 
         // Create complex nested plan: GraphNode -> Filter -> Scan
         let scan = Arc::new(LogicalPlan::Scan(Scan {
-            table_alias: "user".to_string(),
+            table_alias: Some("user".to_string()),
             table_name: Some("users".to_string()),
         }));
 
@@ -826,7 +834,7 @@ mod tests {
                         assert_eq!(node.alias, "user");
                         match node.input.as_ref() {
                             LogicalPlan::Scan(scan) => {
-                                assert_eq!(scan.table_alias, "user");
+                                assert_eq!(scan.table_alias, Some("user".to_string()));
                             },
                             _ => panic!("Expected scan as direct input after filter removal"),
                         }
