@@ -1,6 +1,6 @@
 use std::{collections::HashSet, sync::Arc};
 
-use crate::{ graph_schema::graph_schema::GraphSchema, query_planner::{analyzer::{analyzer_pass::{AnalyzerPass, AnalyzerResult}, errors::{AnalyzerError, Pass}}, logical_expr::logical_expr::{Column, Direction, LogicalExpr, Operator, OperatorApplication, PropertyAccess, TableAlias}, logical_plan::logical_plan::{GraphJoins, GraphRel, Join, LogicalPlan}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed}};
+use crate::{ graph_schema::graph_schema::GraphSchema, query_planner::{analyzer::{analyzer_pass::{AnalyzerPass, AnalyzerResult}, errors::{AnalyzerError, Pass}}, logical_expr::logical_expr::{Column, Direction, LogicalExpr, Operator, OperatorApplication, PropertyAccess, TableAlias}, logical_plan::logical_plan::{GraphJoins, GraphRel, Join, JoinType, LogicalPlan}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed}};
 
 
 
@@ -201,6 +201,7 @@ impl GraphJoinInference {
                                 ]
                             }
                         ],
+                        join_type: JoinType::Inner
                     };
 
                     let left_graph_join = Join {
@@ -215,6 +216,7 @@ impl GraphJoinInference {
                                 ]
                             }
                         ],
+                        join_type: JoinType::Inner
                     };
 
                     if is_standalone_rel {
@@ -266,6 +268,7 @@ impl GraphJoinInference {
                                 ]
                             }
                         ],
+                        join_type: JoinType::Inner
                     };
 
                     let right_graph_join = Join {
@@ -280,6 +283,7 @@ impl GraphJoinInference {
                                 ]
                             }
                         ],
+                        join_type: JoinType::Inner
                     };
 
                     if is_standalone_rel {
@@ -328,6 +332,7 @@ impl GraphJoinInference {
                                 ]
                             }
                         ],
+                        join_type: JoinType::Inner
                     };
 
                     let left_graph_join = Join {
@@ -342,6 +347,7 @@ impl GraphJoinInference {
                                 ]
                             }
                         ],
+                        join_type: JoinType::Inner
                     };
 
                     if is_standalone_rel {
@@ -386,6 +392,7 @@ impl GraphJoinInference {
                                 ]
                             }
                         ],
+                        join_type: JoinType::Inner
                     };
 
                     let right_graph_join = Join {
@@ -400,6 +407,7 @@ impl GraphJoinInference {
                                 ]
                             }
                         ],
+                        join_type: JoinType::Inner
                     };
 
                     if is_standalone_rel {
@@ -446,6 +454,7 @@ impl GraphJoinInference {
                                 ]
                             }
                         ],
+                        join_type: JoinType::Inner
                     };
 
                     let left_graph_join = Join {
@@ -460,6 +469,7 @@ impl GraphJoinInference {
                                 ]
                             }
                         ],
+                        join_type: JoinType::Inner
                     };
 
                     if is_standalone_rel {
@@ -503,6 +513,7 @@ impl GraphJoinInference {
                                 ]
                             }
                         ],
+                        join_type: JoinType::Inner
                     };
 
                     let right_graph_join = Join {
@@ -517,6 +528,7 @@ impl GraphJoinInference {
                                 ]
                             }
                         ],
+                        join_type: JoinType::Inner
                     };
 
                     if is_standalone_rel {
@@ -562,6 +574,7 @@ impl GraphJoinInference {
                             ]
                         }
                     ],
+                    join_type: JoinType::Inner
                 };
                 
                 let left_graph_join = Join {
@@ -576,6 +589,7 @@ impl GraphJoinInference {
                             ]
                         }
                     ],
+                    join_type: JoinType::Inner
                 };
 
                 if is_standalone_rel {
@@ -620,6 +634,7 @@ impl GraphJoinInference {
                             ]
                         }
                     ],
+                    join_type: JoinType::Inner
                 };
 
                 let right_graph_join = Join {
@@ -634,6 +649,7 @@ impl GraphJoinInference {
                             ]
                         }
                     ],
+                    join_type: JoinType::Inner
                 };
 
                 if is_standalone_rel {

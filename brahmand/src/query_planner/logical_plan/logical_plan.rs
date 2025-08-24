@@ -87,8 +87,18 @@ pub struct GraphJoins {
 pub struct Join {
     pub table_name: String,
     pub table_alias: String,
-    pub joining_on: Vec<OperatorApplication>
+    pub joining_on: Vec<OperatorApplication>,
+    pub join_type: JoinType
 }
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum JoinType {
+    Join, 
+    Inner,
+    Left,
+    Right
+}
+
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct ConnectedTraversal {

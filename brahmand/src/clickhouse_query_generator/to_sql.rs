@@ -1,4 +1,4 @@
-use crate::query_planner::render_plan::{render_expr::{Column, ColumnAlias, InSubquery, Literal, Operator, PropertyAccess, RenderExpr, TableAlias}, render_plan::{Cte, CteItems, FilterItems, FromTable, FromTableItem, GroupByExpressions, Join, JoinItems, LimitItem, OrderByItems, OrderByOrder, RenderPlan, SelectItems, SkipItem, UnionItems, UnionType}};
+use crate::query_planner::render_plan::{render_expr::{Column, ColumnAlias, InSubquery, Literal, Operator, PropertyAccess, RenderExpr, TableAlias}, render_plan::{Cte, CteItems, FilterItems, FromTable, FromTableItem, GroupByExpressions, Join, JoinItems, JoinType, LimitItem, OrderByItems, OrderByOrder, RenderPlan, SelectItems, SkipItem, UnionItems, UnionType}};
 use crate::query_planner::render_plan::render_expr::OperatorApplication;
 
 
@@ -223,16 +223,22 @@ impl ToSql for JoinItems {
 
 impl ToSql for Join {
     fn to_sql(&self) -> String {
-        let mut sql = format!("JOIN {} AS {}", self.table_name, self.table_alias);
-        if !self.joining_on.is_empty() {
-            sql.push_str(" ON ");
-            for (i, cond) in self.joining_on.iter().enumerate() {
-                sql.push_str(&cond.to_sql());
-                if i + 1 < self.joining_on.len() {
-                    sql.push_str(" AND ");
-                }
-            }
-        }
+
+        let join_type_tr = match self.join_type {
+            JoinType::Join => "JOIN",
+            JoinType::Inner => "INNER JOIN",
+            JoinType::Left => "LEFT JOIN",
+            JoinType::Right => "RIGHT JOIN",
+        };
+
+        let mut sql = format!("{} {} AS {}", join_type_tr, self.table_name, self.table_alias);
+
+        let joining_on_str_vec:Vec<String> = self.joining_on.iter().map(|cond| cond.to_sql()).collect();
+
+        let joining_on_str = joining_on_str_vec.join(" AND ");
+
+        sql.push_str(&format!(" ON {joining_on_str}"));
+        
         sql.push('\n');
         sql
     }

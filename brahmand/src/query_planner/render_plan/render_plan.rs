@@ -3,7 +3,7 @@ use crate::query_planner::render_plan::render_expr::{ColumnAlias, OperatorApplic
 
 use crate::query_planner::logical_plan::logical_plan::{
     OrderByOrder as LogicalOrderByOrder, OrderByItem as LogicalOrderByItem, Join as LogicalJoin,
-    UnionType as LogicalUnionType
+    UnionType as LogicalUnionType, JoinType as LogicalJoinType
 };
 
 use std::fmt;
@@ -54,7 +54,30 @@ pub struct JoinItems(pub Vec<Join>);
 pub struct Join {
     pub table_name: String,
     pub table_alias: String,
-    pub joining_on: Vec<OperatorApplication>
+    pub joining_on: Vec<OperatorApplication>,
+    pub join_type: JoinType
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum JoinType {
+    Join, 
+    Inner,
+    Left,
+    Right
+}
+
+impl TryFrom<LogicalJoinType> for JoinType {
+    type Error = RenderBuildError;
+
+    fn try_from(value: LogicalJoinType) -> Result<Self, Self::Error> {
+        let join_type = match value {
+            LogicalJoinType::Join => JoinType::Join,
+            LogicalJoinType::Inner => JoinType::Inner,
+            LogicalJoinType::Left => JoinType::Left,
+            LogicalJoinType::Right => JoinType::Right,
+        };
+        Ok(join_type)
+    }
 }
 
 
@@ -66,6 +89,7 @@ impl TryFrom<LogicalJoin> for Join {
             table_alias: value.table_alias,
             table_name: value.table_name,
             joining_on: value.joining_on.clone().into_iter().map(OperatorApplication::try_from).collect::<Result<Vec<OperatorApplication>, RenderBuildError>>()?,
+            join_type: value.join_type.clone().try_into()?
         };
         Ok(join)
     }
