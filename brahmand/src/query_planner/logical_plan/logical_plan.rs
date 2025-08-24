@@ -68,8 +68,14 @@ pub struct Cte {
 #[derive(Debug, PartialEq, Clone)]
 pub struct Union {
     pub inputs: Vec<Arc<LogicalPlan>>,
+    // pub union_type: UnionType
 }
 
+#[derive(Debug, PartialEq, Clone)]
+pub enum UnionType {
+    Distinct,
+    All,
+}
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct GraphJoins {
@@ -439,6 +445,11 @@ impl LogicalPlan {
                     }
             LogicalPlan::Cte(cte) => {
                 children.push(&cte.input);
+            }
+            LogicalPlan::Union(union) => {
+                for input in &union.inputs {
+                    children.push(input);
+                }
             }
             _ => {}
         }

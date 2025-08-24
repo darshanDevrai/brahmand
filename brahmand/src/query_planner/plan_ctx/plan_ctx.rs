@@ -130,29 +130,29 @@ impl PlanCtx {
     }
 
     pub fn get_table_ctx(&self, alias: &str) -> Result<&TableCtx, PlanCtxError> {
-        self.alias_table_ctx_map.get(alias).ok_or(PlanCtxError::MissingTableCtx)
+        self.alias_table_ctx_map.get(alias).ok_or(PlanCtxError::MissingTableCtx{alias: alias.to_string()})
     } 
 
     pub fn get_table_ctx_from_alias_opt(&self, alias: &Option<String>) -> Result<&TableCtx, PlanCtxError> {
-        let alias = alias.clone().ok_or(PlanCtxError::MissingTableCtx)?;
-        self.alias_table_ctx_map.get(&alias).ok_or(PlanCtxError::MissingTableCtx)
+        let alias = alias.clone().ok_or(PlanCtxError::MissingTableCtx{alias: "".to_string()})?;
+        self.alias_table_ctx_map.get(&alias).ok_or(PlanCtxError::MissingTableCtx{alias: alias.clone()})
     } 
 
     pub fn get_node_table_ctx(&self, node_alias: &str) -> Result<&TableCtx, PlanCtxError> {
-        self.alias_table_ctx_map.get(node_alias).ok_or(PlanCtxError::MissingNodeTableCtx)
+        self.alias_table_ctx_map.get(node_alias).ok_or(PlanCtxError::MissingNodeTableCtx{alias: node_alias.to_string()})
     }
 
     pub fn get_rel_table_ctx(&self, rel_alias: &str) -> Result<&TableCtx, PlanCtxError> {
-        self.alias_table_ctx_map.get(rel_alias).ok_or(PlanCtxError::MissingRelTableCtx)
+        self.alias_table_ctx_map.get(rel_alias).ok_or(PlanCtxError::MissingRelTableCtx{alias: rel_alias.to_string()})
     }
 
     pub fn get_mut_table_ctx(&mut self, alias: &str) -> Result<&mut TableCtx, PlanCtxError> {
-        self.alias_table_ctx_map.get_mut(alias).ok_or(PlanCtxError::MissingTableCtx)
+        self.alias_table_ctx_map.get_mut(alias).ok_or(PlanCtxError::MissingTableCtx{alias: alias.to_string()})
     } 
 
     pub fn get_mut_table_ctx_from_alias_opt(&mut self, alias: &Option<String>) -> Result<&mut TableCtx, PlanCtxError> {
-        let alias = alias.clone().ok_or(PlanCtxError::MissingTableCtx)?;
-        self.alias_table_ctx_map.get_mut(&alias).ok_or(PlanCtxError::MissingTableCtx)
+        let alias = alias.clone().ok_or(PlanCtxError::MissingTableCtx{alias: "".to_string()})?;
+        self.alias_table_ctx_map.get_mut(&alias).ok_or(PlanCtxError::MissingTableCtx{alias: alias.clone()})
     } 
 
     pub fn get_mut_table_ctx_opt(&mut self, alias: &str) -> Option<&mut TableCtx> {
@@ -160,7 +160,7 @@ impl PlanCtx {
     } 
 
     pub fn get_mut_table_ctx_opt_from_alias_opt(&mut self, alias: &Option<String>) -> Result<Option<&mut TableCtx>, PlanCtxError> {
-        let alias = alias.clone().ok_or(PlanCtxError::MissingTableCtx)?;
+        let alias = alias.clone().ok_or(PlanCtxError::MissingTableCtx{alias: "".to_string()})?;
         Ok(self.alias_table_ctx_map.get_mut(&alias))
     } 
 

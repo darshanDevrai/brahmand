@@ -1,4 +1,4 @@
-use crate::query_planner::render_plan::{render_expr::{Column, ColumnAlias, InSubquery, Literal, Operator, PropertyAccess, RenderExpr, TableAlias}, render_plan::{Cte, CteItems, FilterItems, FromTable, FromTableItem, GroupByExpressions, Join, JoinItems, LimitItem, OrderByItems, OrderByOrder, RenderPlan, SelectItems, SkipItem}};
+use crate::query_planner::render_plan::{render_expr::{Column, ColumnAlias, InSubquery, Literal, Operator, PropertyAccess, RenderExpr, TableAlias}, render_plan::{Cte, CteItems, FilterItems, FromTable, FromTableItem, GroupByExpressions, Join, JoinItems, LimitItem, OrderByItems, OrderByOrder, RenderPlan, SelectItems, SkipItem, UnionItems}};
 use crate::query_planner::render_plan::render_expr::OperatorApplication;
 
 
@@ -17,6 +17,7 @@ impl ToSql for RenderPlan {
         sql.push_str(&self.filters.to_sql());
         sql.push_str(&self.group_by.to_sql());
         sql.push_str(&self.order_by.to_sql());
+        sql.push_str(&self.union.to_sql());
 
         
         if let Some(m) = self.limit.0 {
@@ -188,6 +189,17 @@ impl ToSql for Cte {
 
         let sql = format!("{} AS ({})", self.cte_name, cte_body);
         sql
+    }
+}
+
+impl ToSql for UnionItems {
+    fn to_sql(&self) -> String {
+
+        let union_sql_strs:Vec<String> = self.0.iter().map(|union_item| union_item.to_sql()).collect();
+
+        let sql = union_sql_strs.join("UNION DISTINCT \n");
+        sql
+        
     }
 }
 

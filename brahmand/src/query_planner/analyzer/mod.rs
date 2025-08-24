@@ -61,6 +61,9 @@ pub fn initial_analyzing(plan: Arc<LogicalPlan>, plan_ctx: &mut PlanCtx, current
 
 
 pub fn intermediate_analyzing(plan: Arc<LogicalPlan>, plan_ctx: &mut PlanCtx, current_graph_schema: &GraphSchema) -> AnalyzerResult<Arc<LogicalPlan>> {
+
+    // println!("\n plan_ctx Before intermediate_analyzing {} \n\n", plan_ctx);
+    // println!("\n\n PLAN Before intermediate_analyzing {} \n\n", plan);
     
     let schema_inference = SchemaInference::new();
     let transformed_plan = schema_inference.analyze_with_graph_schema(plan.clone(), plan_ctx, current_graph_schema)?;
@@ -81,6 +84,9 @@ pub fn intermediate_analyzing(plan: Arc<LogicalPlan>, plan_ctx: &mut PlanCtx, cu
     let graph_join_inference = GraphJoinInference::new();
     let transformed_plan = graph_join_inference.analyze_with_graph_schema(plan.clone(), plan_ctx, current_graph_schema)?;
     let plan = transformed_plan.get_plan();
+
+    // println!("\n plan_ctx After intermediate_analyzing {} \n\n", plan_ctx);
+    // println!("\n\n PLAN After intermediate_analyzing {} \n\n", plan);
 
     Ok(plan)
 }

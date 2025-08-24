@@ -4,6 +4,8 @@ use uuid::Uuid;
 
 use crate::{open_cypher_parser::ast, query_planner::{logical_expr::logical_expr::{Column, LogicalExpr, Operator, OperatorApplication, Property}, logical_plan::{errors::LogicalPlanError, logical_plan::{GraphNode, GraphRel, LogicalPlan, Scan}, plan_builder::LogicalPlanResult}, plan_ctx::plan_ctx::{PlanCtx, TableCtx}}};
 
+use super::generate_id;
+
 
 fn generate_scan(alias: String, label: Option<String>) -> Arc<LogicalPlan> {
     let table_alias = if alias.is_empty() { None } else { Some(alias) };
@@ -53,9 +55,6 @@ fn convert_properties_to_operator_application(plan_ctx: &mut PlanCtx) -> Logical
 }
 
 
-fn generate_id()-> String {
-    format!("a{}",Uuid::new_v4().to_string()[..10].to_string().replace("-", ""))
-}
 
 fn traverse_connected_pattern<'a>(connected_patterns: &Vec<ast::ConnectedPattern<'a>>, mut plan: Arc<LogicalPlan>, plan_ctx: &mut PlanCtx, path_pattern_idx: usize) -> LogicalPlanResult<Arc<LogicalPlan>> {
     

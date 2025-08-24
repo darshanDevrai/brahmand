@@ -30,10 +30,13 @@ impl OptimizerPass for ProjectionPushDown {
                             input: logical_plan.clone(),
                             items: table_ctx.get_projections().clone(),
                         }));
-                        return Ok(Transformed::Yes(new_proj))
+                        Transformed::Yes(new_proj)
+                    }else {
+                        Transformed::No(logical_plan.clone())
                     }
+                }else {
+                    Transformed::No(logical_plan.clone())
                 }
-                Transformed::No(logical_plan.clone())
             },
             LogicalPlan::Empty => Transformed::No(logical_plan.clone()),
             LogicalPlan::GraphJoins(graph_joins) => {

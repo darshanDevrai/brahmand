@@ -17,7 +17,7 @@ pub(crate) trait RenderPlanBuilder {
 
     fn extract_select_items(&self) -> RenderPlanBuilderResult<Vec<SelectItem>>;
 
-    fn extract_from(&self) -> RenderPlanBuilderResult<FromTable>;
+    fn extract_from(&self) -> RenderPlanBuilderResult<Option<FromTable>>;
 
     fn extract_filters(&self) -> RenderPlanBuilderResult<Option<RenderExpr>>;
 
@@ -159,10 +159,10 @@ impl RenderPlanBuilder for LogicalPlan {
 
     fn extract_select_items(&self) -> RenderPlanBuilderResult<Vec<SelectItem>> {
         let select_items = match &self {
-            LogicalPlan::Empty => Err(RenderBuildError::MissingSelectItems)?,
-            LogicalPlan::Scan(_) => Err(RenderBuildError::MissingSelectItems)?,
+            LogicalPlan::Empty => vec![],
+            LogicalPlan::Scan(_) => vec![],
             LogicalPlan::GraphNode(graph_node) => graph_node.input.extract_select_items()?,
-            LogicalPlan::GraphRel(_) => Err(RenderBuildError::MissingSelectItems)?,
+            LogicalPlan::GraphRel(_) => vec![],
             LogicalPlan::Filter(filter) => filter.input.extract_select_items()?,
             LogicalPlan::Projection(projection) => {
                 let items = projection.items.iter().map(|item| {
@@ -180,23 +180,23 @@ impl RenderPlanBuilder for LogicalPlan {
             LogicalPlan::Skip(skip) => skip.input.extract_select_items()?,
             LogicalPlan::Limit(limit) => limit.input.extract_select_items()?,
             LogicalPlan::Cte(cte) => cte.input.extract_select_items()?,
-            LogicalPlan::Union(_) => Err(RenderBuildError::MissingSelectItems)?,
+            LogicalPlan::Union(_) => vec![],
         };
 
         Ok(select_items)
     }
 
-    fn extract_from(&self) -> RenderPlanBuilderResult<FromTable> {
+    fn extract_from(&self) -> RenderPlanBuilderResult<Option<FromTable>> {
         let from_table = match &self {
-            LogicalPlan::Empty => Err(RenderBuildError::MissingFromTable)?,
+            LogicalPlan::Empty => None,
             LogicalPlan::Scan(scan) => {
-                        FromTable {
+                        Some(FromTable {
                             table_name: scan.table_name.clone().ok_or(RenderBuildError::MissingFromTable)?,
                             table_alias: scan.table_alias.clone(),
-                        }
+                        })
                     },
             LogicalPlan::GraphNode(graph_node) => graph_node.input.extract_from()?,
-            LogicalPlan::GraphRel(_) => Err(RenderBuildError::MissingFromTable)?,
+            LogicalPlan::GraphRel(_) => None,
             LogicalPlan::Filter(filter) => filter.input.extract_from()?,
             LogicalPlan::Projection(projection) => projection.input.extract_from()?,
             LogicalPlan::GraphJoins(graph_joins) => graph_joins.input.extract_from()?,
@@ -205,7 +205,7 @@ impl RenderPlanBuilder for LogicalPlan {
             LogicalPlan::Skip(skip) => skip.input.extract_from()?,
             LogicalPlan::Limit(limit) => limit.input.extract_from()?,
             LogicalPlan::Cte(cte) => cte.input.extract_from()?,
-            LogicalPlan::Union(_) => Err(RenderBuildError::MissingFromTable)?,
+            LogicalPlan::Union(_) => None,
         };
         Ok(from_table)
     }
@@ -337,7 +337,7 @@ impl RenderPlanBuilder for LogicalPlan {
             final_filters = final_combined_filters;
 
         } else {
-            final_from = Some(self.extract_from()?);
+            final_from = self.extract_from()?;
             final_filters = self.extract_filters()?;
         }
 

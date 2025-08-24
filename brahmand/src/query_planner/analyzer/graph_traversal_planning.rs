@@ -1,6 +1,6 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
-use crate::{ graph_schema::graph_schema::{GraphSchema, NodeSchema, RelationshipSchema}, query_planner::{analyzer::{analyzer_pass::{AnalyzerPass, AnalyzerResult}, errors::{AnalyzerError, Pass}}, logical_expr::logical_expr::{Column, ColumnAlias, Direction, InSubquery, LogicalExpr, PropertyAccess}, logical_plan::logical_plan::{Cte, GraphRel, LogicalPlan, Projection, ProjectionItem, Scan}, plan_ctx::plan_ctx::{PlanCtx, TableCtx}, transformed::Transformed}};
+use crate::{ graph_schema::graph_schema::{GraphSchema, NodeSchema, RelationshipSchema}, query_planner::{analyzer::{analyzer_pass::{AnalyzerPass, AnalyzerResult}, errors::{AnalyzerError, Pass}}, logical_expr::logical_expr::{Column, ColumnAlias, Direction, InSubquery, LogicalExpr, Operator, OperatorApplication, PropertyAccess}, logical_plan::{self, logical_plan::{Cte, Filter, GraphRel, LogicalPlan, Projection, ProjectionItem, Scan, Union}}, plan_ctx::plan_ctx::{PlanCtx, TableCtx}, transformed::Transformed}};
 
 
 
@@ -31,13 +31,28 @@ impl AnalyzerPass for GraphTRaversalPlanning {
                     let (new_graph_rel, ctxs_to_update) = self.infer_traversal(graph_rel, plan_ctx, graph_schema, true)?;
 
                     for mut ctx in ctxs_to_update.into_iter() {
-                        let table_ctx = plan_ctx.get_mut_table_ctx(&ctx.alias).map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphTraversalPlanning, source: e})?;
-                        table_ctx.set_label(Some(ctx.label));
-                        // table_ctx.projection_items.append(&mut ctx.projections);
-                        if let Some(plan_expr) = ctx.insubquery {
-                            table_ctx.insert_filter(plan_expr);
-                        } 
-                        table_ctx.append_projection(&mut ctx.projections);
+
+                        if let Some(table_ctx) = plan_ctx.get_mut_table_ctx_opt(&ctx.alias) {
+                            table_ctx.set_label(Some(ctx.label));
+                            // table_ctx.projection_items.append(&mut ctx.projections);
+                            if let Some(plan_expr) = ctx.insubquery {
+                                table_ctx.insert_filter(plan_expr);
+                            } 
+                            if ctx.override_projections {
+                                table_ctx.set_projections(ctx.projections);
+                            } else {
+                                table_ctx.append_projection(&mut ctx.projections);
+                            }
+                        } else {
+                            // add new table contexts
+                            let mut new_table_ctx = TableCtx::build(ctx.alias.clone(), Some(ctx.label), vec![], ctx.is_rel, false);
+                            if let Some(plan_expr) = ctx.insubquery {
+                                new_table_ctx.insert_filter(plan_expr);
+                            } 
+                            new_table_ctx.set_projections(ctx.projections);
+
+                            plan_ctx.insert_table_ctx(ctx.alias.clone(), new_table_ctx);
+                        }
                     }
 
                     Transformed::Yes(Arc::new(LogicalPlan::GraphRel(new_graph_rel)))
@@ -54,12 +69,28 @@ impl AnalyzerPass for GraphTRaversalPlanning {
                     let (new_graph_rel, ctxs_to_update) = self.infer_traversal(&updated_graph_rel, plan_ctx, graph_schema, false)?;
 
                     for mut ctx in ctxs_to_update.into_iter() {
-                        let table_ctx = plan_ctx.get_mut_table_ctx(&ctx.alias).map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphTraversalPlanning, source: e})?;
-                        table_ctx.set_label(Some(ctx.label));
-                        if let Some(plan_expr) = ctx.insubquery {
-                            table_ctx.insert_filter(plan_expr);
-                        } 
-                        table_ctx.append_projection(&mut ctx.projections);
+                        if let Some(table_ctx) = plan_ctx.get_mut_table_ctx_opt(&ctx.alias) {
+                            table_ctx.set_label(Some(ctx.label));
+                            // table_ctx.projection_items.append(&mut ctx.projections);
+                            if let Some(plan_expr) = ctx.insubquery {
+                                table_ctx.insert_filter(plan_expr);
+                            } 
+                            if ctx.override_projections {
+                                table_ctx.set_projections(ctx.projections);
+                            } else {
+                                table_ctx.append_projection(&mut ctx.projections);
+                            }
+                        } else {
+                            // add new table contexts
+                            let mut new_table_ctx = TableCtx::build(ctx.alias.clone(), Some(ctx.label), vec![], ctx.is_rel, false);
+                            if let Some(plan_expr) = ctx.insubquery {
+                                new_table_ctx.insert_filter(plan_expr);
+                            } 
+                            new_table_ctx.set_projections(ctx.projections);
+
+                            plan_ctx.insert_table_ctx(ctx.alias.clone(), new_table_ctx);
+                        }
+                    
                     }
 
                     Transformed::Yes(Arc::new(LogicalPlan::GraphRel(new_graph_rel)))
@@ -116,6 +147,8 @@ pub struct CtxToUpdate {
     label: String,
     projections: Vec<ProjectionItem>,
     insubquery: Option<LogicalExpr>,
+    override_projections: bool,
+    is_rel: bool
 }
 
 #[derive(Debug, Clone)]
@@ -225,7 +258,7 @@ impl GraphTRaversalPlanning {
         };
 
         if graph_context.rel.table_ctx.should_use_edge_list() {
-            self.handle_edge_list_traversal(graph_rel, graph_context, left_projections, right_projections, is_anchor_traversal)
+            self.handle_edge_list_traversal(graph_rel,  graph_context, left_projections, right_projections, is_anchor_traversal)
         } else {
             self.handle_bitmap_traversal(graph_rel, graph_context, left_projections, right_projections, is_anchor_traversal)
         }
@@ -237,29 +270,22 @@ impl GraphTRaversalPlanning {
 
         let mut ctxs_to_update: Vec<CtxToUpdate> = vec![];
     
-        
-        let rel_cte_name = format!("{}_{}", graph_context.rel.label, graph_context.rel.alias);
-            
-        let star_found = graph_context.rel.table_ctx.get_projections().iter().any(|item| item.expression == LogicalExpr::Star);
-        let rel_proj_input: Vec<(String, Option<ColumnAlias>)> = if !star_found {
-            vec![
-                (format!("from_{}", graph_context.rel.schema.from_node), Some(ColumnAlias("from_id".to_string()))),
-                (format!("to_{}", graph_context.rel.schema.to_node.clone()), Some(ColumnAlias("to_id".to_string())))
-            ]
-        } else { vec![] };
 
-        let rel_projections:Vec<ProjectionItem> = self.build_projections(rel_proj_input);
+        let rel_cte_name:String;
+        let mut rel_ctxs_to_update: Vec<CtxToUpdate>;
+        let rel_plan: Arc<LogicalPlan>;
 
-        let rel_insubquery: LogicalExpr;
         let right_insubquery: LogicalExpr;
         let left_insubquery: LogicalExpr;
         // when using edge list, we need to check which node joins to "from_id" and which node joins to "to_id"
         if graph_context.rel.schema.from_node == graph_context.right.schema.table_name {
-            rel_insubquery = self.build_insubquery("from_id".to_string(),
-            graph_context.right.cte_name.clone(),
-            graph_context.right.id_column.clone());
 
-            right_insubquery = self.build_insubquery(graph_context.right.id_column,
+            let (r_cte_name, r_plan, mut r_ctxs_to_update) = self.get_rel_ctx_for_edge_list(graph_rel, &graph_context,graph_context.right.cte_name.clone(), graph_context.right.id_column.clone(), graph_rel.is_rel_anchor);
+            rel_cte_name = r_cte_name;
+            rel_ctxs_to_update = r_ctxs_to_update;
+            rel_plan = r_plan;
+
+            right_insubquery = self.build_insubquery(graph_context.right.id_column.clone(),
                 rel_cte_name.clone(),
                 "from_id".to_string());
 
@@ -268,9 +294,14 @@ impl GraphTRaversalPlanning {
                 "to_id".to_string());
             
         }else{
-            rel_insubquery = self.build_insubquery("to_id".to_string(),
-            graph_context.right.cte_name.clone(),
-            graph_context.right.id_column.clone());
+            // rel_insubquery = self.build_insubquery("to_id".to_string(),
+            // graph_context.right.cte_name.clone(),
+            // graph_context.right.id_column.clone());
+
+            let (r_cte_name, r_plan, mut r_ctxs_to_update) = self.get_rel_ctx_for_edge_list(graph_rel, &graph_context,graph_context.left.cte_name.clone(), graph_context.left.id_column.clone(), graph_rel.is_rel_anchor);
+            rel_cte_name = r_cte_name;
+            rel_ctxs_to_update = r_ctxs_to_update;
+            rel_plan = r_plan;
 
             right_insubquery = self.build_insubquery(graph_context.right.id_column,
                 rel_cte_name.clone(),
@@ -287,29 +318,38 @@ impl GraphTRaversalPlanning {
                 label: graph_context.right.label,
                 projections: right_projections,
                 insubquery: Some(right_insubquery),
+                override_projections: false,
+                is_rel: true
             };
             ctxs_to_update.push(right_ctx_to_update);
 
-            let rel_ctx_to_update = CtxToUpdate {
-                alias: graph_context.rel.alias.to_string(),
-                label: graph_context.rel.label,
-                projections: rel_projections,
-                insubquery: None,
-            };
-            ctxs_to_update.push(rel_ctx_to_update);
+            rel_ctxs_to_update.first_mut().unwrap().insubquery = None;
+
+            // let rel_ctx_to_update = CtxToUpdate {
+            //     alias: graph_context.rel.alias.to_string(),
+            //     label: graph_context.rel.label,
+            //     projections: rel_projections,
+            //     insubquery: None,
+            //     override_projections: false
+            // };
+            ctxs_to_update.append(&mut rel_ctxs_to_update);
 
             let left_ctx_to_update = CtxToUpdate {
                 alias: graph_context.left.alias.to_string(),
                 label: graph_context.left.label,
                 projections: left_projections,
                 insubquery: Some(left_insubquery),
+                override_projections: false,
+                is_rel: false
             };
             ctxs_to_update.push(left_ctx_to_update);
 
             let new_graph_rel = GraphRel { 
                 left: Arc::new(LogicalPlan::Cte(Cte { input: graph_rel.left.clone(), name: graph_context.left.cte_name })),
-                center: Arc::new(LogicalPlan::Cte(Cte { input: graph_rel.center.clone(), name: graph_context.right.cte_name })),
-                right: Arc::new(LogicalPlan::Cte(Cte { input: graph_rel.right.clone(), name: rel_cte_name  })), 
+                // center: Arc::new(LogicalPlan::Cte(Cte { input: graph_rel.center.clone(), name: graph_context.right.cte_name })),
+                // right: Arc::new(LogicalPlan::Cte(Cte { input: graph_rel.right.clone(), name: rel_cte_name  })), 
+                center: Arc::new(LogicalPlan::Cte(Cte { input: graph_rel.right.clone(), name: graph_context.right.cte_name })),
+                right: Arc::new(LogicalPlan::Cte(Cte { input: rel_plan.clone(), name: rel_cte_name  })), 
                 ..graph_rel.clone()
             };
 
@@ -317,19 +357,22 @@ impl GraphTRaversalPlanning {
 
         }else{
 
-            let rel_ctx_to_update = CtxToUpdate {
-                alias: graph_context.rel.alias.to_string(),
-                label: graph_context.rel.label,
-                projections: rel_projections,
-                insubquery: Some(rel_insubquery),
-            };
-            ctxs_to_update.push(rel_ctx_to_update);
+            // let rel_ctx_to_update = CtxToUpdate {
+            //     alias: graph_context.rel.alias.to_string(),
+            //     label: graph_context.rel.label,
+            //     projections: rel_projections,
+            //     insubquery: Some(rel_insubquery),
+            //     override_projections: false
+            // };
+            ctxs_to_update.append(&mut rel_ctxs_to_update);
 
             let left_ctx_to_update = CtxToUpdate {
                 alias: graph_context.left.alias.to_string(),
                 label: graph_context.left.label,
                 projections: left_projections,
                 insubquery: Some(left_insubquery),
+                override_projections: false,
+                is_rel: false
             };
             ctxs_to_update.push(left_ctx_to_update);
 
@@ -339,12 +382,14 @@ impl GraphTRaversalPlanning {
                     label: graph_context.right.label,
                     projections: right_projections,
                     insubquery: None,
+                    override_projections: false,
+                    is_rel: false
                 };
                 ctxs_to_update.push(right_ctx_to_update);
 
                 let new_graph_rel = GraphRel { 
                     left: Arc::new(LogicalPlan::Cte(Cte { input: graph_rel.left.clone(), name: graph_context.left.cte_name })),
-                    center: Arc::new(LogicalPlan::Cte(Cte { input: graph_rel.center.clone(), name: rel_cte_name })),
+                    center: Arc::new(LogicalPlan::Cte(Cte { input: rel_plan.clone(), name: rel_cte_name })),
                     right: Arc::new(LogicalPlan::Cte(Cte { input: graph_rel.right.clone(), name: graph_context.right.cte_name })), 
                     ..graph_rel.clone()
                 };
@@ -352,7 +397,7 @@ impl GraphTRaversalPlanning {
             } else {
                 let new_graph_rel = GraphRel { 
                     left: Arc::new(LogicalPlan::Cte(Cte { input: graph_rel.left.clone(), name: graph_context.left.cte_name })),
-                    center: Arc::new(LogicalPlan::Cte(Cte { input: graph_rel.center.clone(), name: rel_cte_name })),
+                    center: Arc::new(LogicalPlan::Cte(Cte { input: rel_plan.clone(), name: rel_cte_name })),
                     right: graph_rel.right.clone(), 
                     ..graph_rel.clone()
                 };
@@ -366,26 +411,32 @@ impl GraphTRaversalPlanning {
 
         let mut ctxs_to_update: Vec<CtxToUpdate> = vec![];
 
-        let new_rel_label = self.get_relationship_table_name(graph_context.right.label.clone(), graph_context.left.label.clone(), graph_context.rel.label, graph_rel.direction.clone(), graph_context.rel.schema)?;
-        let rel_cte_name = format!("{}_{}", new_rel_label, graph_context.rel.alias);
+        // let new_rel_label = self.get_relationship_table_name(graph_context.right.label.clone(), graph_context.left.label.clone(), graph_context.rel.label, graph_rel.direction.clone(), graph_context.rel.schema)?;
+        // let rel_cte_name = format!("{}_{}", new_rel_label, graph_context.rel.alias);
 
+        // let rel_proj_input: Vec<(String, Option<ColumnAlias>)> = vec![
+        //     ("from_id".to_string(), None),
+        //     ("arrayJoin(bitmapToArray(to_id))".to_string(), Some(ColumnAlias("to_id".to_string())))
+        // ];
+        // let rel_projections = self.build_projections(rel_proj_input);
+        // let rel_insubquery = self.build_insubquery("from_id".to_string(),
+        //     graph_context.right.cte_name.clone(),
+        //     graph_context.right.id_column.clone());
 
-        let rel_proj_input: Vec<(String, Option<ColumnAlias>)> = vec![
-            ("from_id".to_string(), None),
-            ("arrayJoin(bitmapToArray(to_id))".to_string(), Some(ColumnAlias("to_id".to_string())))
-        ];
-        let rel_projections = self.build_projections(rel_proj_input);
-        let rel_insubquery = self.build_insubquery("from_id".to_string(),
-            graph_context.right.cte_name.clone(),
-            graph_context.right.id_column.clone());
-        let rel_ctx_to_update = CtxToUpdate {
-            alias: graph_context.rel.alias.to_string(),
-            label: new_rel_label,
-            projections: rel_projections,
-            insubquery: Some(rel_insubquery),
-        };
-        ctxs_to_update.push(rel_ctx_to_update);
         
+        // let rel_ctx_to_update = CtxToUpdate {
+        //     alias: graph_context.rel.alias.to_string(),
+        //     label: new_rel_label,
+        //     projections: rel_projections,
+        //     insubquery: Some(rel_insubquery),
+        //     override_projections: false,
+        //     is_rel: true
+        // };
+        // ctxs_to_update.push(rel_ctx_to_update);
+
+        let (rel_cte_name, rel_plan, mut rel_ctxs_to_update) = self.get_rel_ctx_for_bitmaps(&graph_rel, &graph_context, graph_context.right.cte_name.clone(), graph_context.right.id_column.clone());
+        
+        ctxs_to_update.append(&mut rel_ctxs_to_update);
 
         let left_insubquery = self.build_insubquery(graph_context.left.id_column,
             rel_cte_name.clone(),
@@ -395,6 +446,8 @@ impl GraphTRaversalPlanning {
             label: graph_context.left.label,
             projections: left_projections,
             insubquery: Some(left_insubquery),
+            override_projections: false,
+            is_rel: false
         };
         ctxs_to_update.push(left_ctx_to_update);
 
@@ -404,12 +457,14 @@ impl GraphTRaversalPlanning {
                 label: graph_context.right.label,
                 projections: right_projections,
                 insubquery: None,
+                override_projections: false,
+                is_rel: false
             };
             ctxs_to_update.push(right_ctx_to_update);
 
             let new_graph_rel = GraphRel { 
                 left: Arc::new(LogicalPlan::Cte(Cte { input: graph_rel.left.clone(), name: graph_context.left.cte_name })),
-                center: Arc::new(LogicalPlan::Cte(Cte { input: graph_rel.center.clone(), name: rel_cte_name })),
+                center: Arc::new(LogicalPlan::Cte(Cte { input: rel_plan, name: rel_cte_name })),
                 right: Arc::new(LogicalPlan::Cte(Cte { input: graph_rel.right.clone(), name: graph_context.right.cte_name })), 
                 ..graph_rel.clone()
             };
@@ -418,7 +473,7 @@ impl GraphTRaversalPlanning {
         } else {
             let new_graph_rel = GraphRel { 
                 left: Arc::new(LogicalPlan::Cte(Cte { input: graph_rel.left.clone(), name: graph_context.left.cte_name })),
-                center: Arc::new(LogicalPlan::Cte(Cte { input: graph_rel.center.clone(), name: rel_cte_name })),
+                center: Arc::new(LogicalPlan::Cte(Cte { input: rel_plan, name: rel_cte_name })),
                 right: graph_rel.right.clone(), 
                 ..graph_rel.clone()
             };
@@ -430,35 +485,303 @@ impl GraphTRaversalPlanning {
     }
 
     
-    // fn get_rel_for_edge_list_with_right_node_as_from_node(&self, graph_rel: &GraphRel, graph_context: GraphContext) -> AnalyzerResult<CtxToUpdate> {
+    fn get_rel_ctx_for_edge_list(&self, graph_rel: &GraphRel, graph_context: &GraphContext, connected_node_cte_name: String, connected_node_id_column: String, is_rel_anchor: bool) -> (String, Arc<LogicalPlan>, Vec<CtxToUpdate>) {
 
-    //     let rel_cte_name = format!("{}_{}_{}", graph_context.rel.label, graph_rel.direction, graph_context.rel.alias);
+        
+        // let rel_cte_name = format!("{}_{}", graph_context.rel.label, graph_context.rel.alias);
 
-    //     let star_found = graph_context.rel.table_ctx.get_projections().iter().any(|item| item.expression == LogicalExpr::Star);
-    //         let rel_proj_input: Vec<(String, Option<ColumnAlias>)> = if !star_found {
-    //             vec![
-    //                 (format!("from_{}", graph_context.rel.schema.from_node), Some(ColumnAlias("from_id".to_string()))),
-    //                 (format!("to_{}", graph_context.rel.schema.to_node), Some(ColumnAlias("to_id".to_string())))
-    //             ]
-    //         } else { vec![] };
+        let star_found = graph_context.rel.table_ctx.get_projections().iter().any(|item| item.expression == LogicalExpr::Star);
+        
+        // let rel_insubquery:LogicalExpr;
 
-    //     // if direction == Direction::Either and both nodes are of same types then use UNION of both.
-    //     if graph_rel.direction == Direction::Either && graph_context.left.label == graph_context.right.label { 
+        // let rel_projections:Vec<ProjectionItem>;
+
+        // let mut override_projections = false;
+
+        
+
+        // if direction == Direction::Either and both nodes are of same types then use UNION of both.
+        // TODO - currently Either direction on anchor relation is not supported. FIX this
+        if graph_rel.direction == Direction::Either && graph_context.left.label == graph_context.right.label && !is_rel_anchor { 
+            // let new_rel_label = format!("{}_{}", graph_context.rel.label, Direction::Either); //"Direction::Either);
+
+            let rel_cte_name = format!("{}_{}", graph_context.rel.label, graph_context.rel.alias);
+
+            let outgoing_alias = logical_plan::generate_id();
+            let incoming_alias = logical_plan::generate_id();
+
+            // let outgoing_label = format!("{}_{}", graph_context.rel.label, Direction::Outgoing);
+            // let incoming_label = format!("{}_{}", graph_context.rel.label, Direction::Incoming);
+
+            let rel_plan: Arc<LogicalPlan> = Arc::new(LogicalPlan::Union(Union{
+                inputs: vec![
+                    Arc::new(LogicalPlan::Scan(Scan { table_alias: Some(outgoing_alias.clone()), table_name: Some(graph_context.rel.label.clone()) })),
+                    Arc::new(LogicalPlan::Scan(Scan { table_alias: Some(incoming_alias.clone()), table_name: Some(graph_context.rel.label.clone()) }))
+                ]
+            }));
+
+            let rel_insubquery: LogicalExpr = self.build_insubquery("from_id".to_string(),
+                connected_node_cte_name.clone(),
+                connected_node_id_column.clone());
+
+            let from_edge_proj_input: Vec<(String, Option<ColumnAlias>)> = if !star_found {
+                vec![
+                    (format!("from_{}", graph_context.rel.schema.from_node), Some(ColumnAlias("from_id".to_string()))),
+                    (format!("to_{}", graph_context.rel.schema.to_node), Some(ColumnAlias("to_id".to_string())))
+                ]
+            } else { vec![] };
+    
+            let from_edge_projections = self.build_projections(from_edge_proj_input);
+
+            let from_edge_ctx_to_update = CtxToUpdate {
+                alias: outgoing_alias,
+                label: graph_context.rel.label.clone(),
+                projections: from_edge_projections,
+                insubquery: Some(rel_insubquery.clone()),
+                override_projections: false,
+                is_rel: true,
+            };
+
+            let to_edge_proj_input: Vec<(String, Option<ColumnAlias>)> = if !star_found {
+                vec![
+                    (format!("to_{}", graph_context.rel.schema.from_node), Some(ColumnAlias("from_id".to_string()))),
+                    (format!("from_{}", graph_context.rel.schema.to_node), Some(ColumnAlias("to_id".to_string())))
+                ]
+            } else { vec![] };
+    
+            let to_edge_projections = self.build_projections(to_edge_proj_input);
+
+
+            let to_edge_ctx_to_update = CtxToUpdate {
+                alias: incoming_alias,
+                label: graph_context.rel.label.clone(),
+                projections: to_edge_projections,
+                insubquery: Some(rel_insubquery),
+                override_projections: false,
+                is_rel: true,
+            };
+
+            return (rel_cte_name, rel_plan, vec![from_edge_ctx_to_update, to_edge_ctx_to_update])
+        } else {
+
+            let rel_cte_name = format!("{}_{}", graph_context.rel.label.clone(), graph_context.rel.alias);
+
+            let rel_proj_input: Vec<(String, Option<ColumnAlias>)> = if !star_found {
+                vec![
+                    (format!("from_{}", graph_context.rel.schema.from_node), Some(ColumnAlias("from_id".to_string()))),
+                    (format!("to_{}", graph_context.rel.schema.to_node), Some(ColumnAlias("to_id".to_string())))
+                ]
+            } else { vec![] };
+    
+            let rel_projections = self.build_projections(rel_proj_input);
+
+
+            let sub_in_expr_str = if graph_rel.direction == Direction::Outgoing {
+                "from_id".to_string()
+            } else {
+                "to_id".to_string()
+            };
+
+            let rel_insubquery = self.build_insubquery(sub_in_expr_str,
+            connected_node_cte_name,
+            connected_node_id_column);
+
+            let rel_plan = graph_rel.center.clone();
+
+            let rel_ctx_to_update = CtxToUpdate {
+                alias: graph_context.rel.alias.to_string(),
+                label: graph_context.rel.label.clone(),
+                projections: rel_projections,
+                insubquery: Some(rel_insubquery),
+                override_projections: false,
+                is_rel: true
+            };
+
+            return (rel_cte_name, rel_plan, vec![rel_ctx_to_update])
+
+        }
+    
+        // // if direction == Direction::Either and both nodes are of same types then use UNION of both.
+        // if graph_rel.direction == Direction::Either && graph_context.left.label == graph_context.right.label { 
+
+        //     if star_found {
+        //         rel_projections = vec![ProjectionItem {
+        //                 expression: LogicalExpr::OperatorApplicationExp(OperatorApplication { operator: Operator::Distinct, operands:  vec![LogicalExpr::Star]}),
+        //                 col_alias: None
+        //             }
+        //         ];
+        //     } else {
+        //         rel_projections = vec![
+        //             // ProjectionItem {
+        //             //     expression: LogicalExpr::OperatorApplicationExp(OperatorApplication { operator: Operator::Distinct, operands:  vec![LogicalExpr::Column(Column(format!("from_{}", graph_context.rel.schema.from_node)))]}),
+        //             //     col_alias: Some(ColumnAlias("from_id".to_string()))
+        //             // }, 
+        //             ProjectionItem {
+        //                 expression: LogicalExpr::Column(Column(format!("from_{}", graph_context.rel.schema.from_node))),
+        //                 col_alias: Some(ColumnAlias("from_id".to_string()))
+        //             },
+        //             ProjectionItem {
+        //                 expression: LogicalExpr::Column(Column(format!("to_{}", graph_context.rel.schema.from_node))),
+        //                 col_alias: Some(ColumnAlias("to_id".to_string()))
+        //             }
+        //         ];
+        //     }
+
+        //     override_projections = true;
+
+        //     let rel_from_insubquery = self.build_insubquery("from_id".to_string(),
+        //     connected_node_cte_name.clone(),
+        //     connected_node_id_column.clone());
+        //     // graph_context.right.cte_name.clone(),
+        //     // graph_context.right.id_column.clone());
+
+        //     let rel_to_insubquery = self.build_insubquery("to_id".to_string(),
+        //     connected_node_cte_name,
+        //     connected_node_id_column);
+
+        //     rel_insubquery = LogicalExpr::OperatorApplicationExp(OperatorApplication{
+        //         operator: Operator::Or,
+        //         operands: vec![rel_from_insubquery, rel_to_insubquery]
+        //     });
+
+        // } else if graph_context.rel.schema.from_node == graph_context.right.schema.table_name {
+        //     let rel_proj_input: Vec<(String, Option<ColumnAlias>)> = if !star_found {
+        //         vec![
+        //             (format!("from_{}", graph_context.rel.schema.from_node), Some(ColumnAlias("from_id".to_string()))),
+        //             (format!("to_{}", graph_context.rel.schema.to_node), Some(ColumnAlias("to_id".to_string())))
+        //         ]
+        //     } else { vec![] };
+    
+        //     rel_projections = self.build_projections(rel_proj_input);
+
+        //     rel_insubquery = self.build_insubquery("from_id".to_string(),
+        //     connected_node_cte_name,
+        //     connected_node_id_column);
+
+        // } else {
+        //     let rel_proj_input: Vec<(String, Option<ColumnAlias>)> = if !star_found {
+        //         vec![
+        //             (format!("from_{}", graph_context.rel.schema.from_node), Some(ColumnAlias("from_id".to_string()))),
+        //             (format!("to_{}", graph_context.rel.schema.to_node), Some(ColumnAlias("to_id".to_string())))
+        //         ]
+        //     } else { vec![] };
+    
+        //     rel_projections = self.build_projections(rel_proj_input);
+
+        //     rel_insubquery = self.build_insubquery("to_id".to_string(),
+        //     connected_node_cte_name,
+        //     connected_node_id_column);
+
+        // }
+
+        // let rel_ctx_to_update = CtxToUpdate {
+        //     alias: graph_context.rel.alias.to_string(),
+        //     label: graph_context.rel.label.clone(),
+        //     projections: rel_projections,
+        //     insubquery: Some(rel_insubquery),
+        //     override_projections: override_projections,
+        //     is_rel: true
+        // };
+        
+        // (rel_cte_name, rel_ctx_to_update)
+        
+    }
+    
+    fn get_rel_ctx_for_bitmaps(&self, graph_rel: &GraphRel, graph_context: &GraphContext, connected_node_cte_name: String, connected_node_id_column: String) -> (String, Arc<LogicalPlan>, Vec<CtxToUpdate>){
+        
+
+        let rel_proj_input: Vec<(String, Option<ColumnAlias>)> = vec![
+                ("from_id".to_string(), None),
+                ("arrayJoin(bitmapToArray(to_id))".to_string(), Some(ColumnAlias("to_id".to_string())))
+            ];
+        let rel_projections = self.build_projections(rel_proj_input);
+
+        // if direction == Direction::Either and both nodes are of same types then use UNION of both.
+        if graph_rel.direction == Direction::Either && graph_context.left.label == graph_context.right.label {
+            let new_rel_label = format!("{}_{}", graph_context.rel.label, Direction::Either); //"Direction::Either);
+
+            let rel_cte_name = format!("{}_{}", new_rel_label, graph_context.rel.alias);
+
+            let outgoing_alias = logical_plan::generate_id();
+            let incoming_alias = logical_plan::generate_id();
+
+            let outgoing_label = format!("{}_{}", graph_context.rel.label, Direction::Outgoing);
+            let incoming_label = format!("{}_{}", graph_context.rel.label, Direction::Incoming);
+
+            let rel_plan: Arc<LogicalPlan> = Arc::new(LogicalPlan::Union(Union{
+                inputs: vec![
+                    Arc::new(LogicalPlan::Scan(Scan { table_alias: Some(outgoing_alias.clone()), table_name: Some(outgoing_label.clone()) })),
+                    Arc::new(LogicalPlan::Scan(Scan { table_alias: Some(incoming_alias.clone()), table_name: Some(incoming_label.clone()) }))
+                ]
+            }));
             
 
+            let rel_insubquery = self.build_insubquery("from_id".to_string(),
+                connected_node_cte_name,
+                connected_node_id_column);
+
+            let outgoing_ctx_to_update = CtxToUpdate {
+                alias: outgoing_alias.clone(),
+                label: outgoing_label,
+                projections: rel_projections.clone(),
+                insubquery: Some(rel_insubquery.clone()),
+                override_projections: false,
+                is_rel: true,
+            };
 
 
-    //     } else if graph_context.rel.schema.from_node == graph_context.right.schema.table_name {
+            let incoming_ctx_to_update = CtxToUpdate {
+                alias: incoming_alias.clone(),
+                label: incoming_label,
+                projections: rel_projections.clone(),
+                insubquery: Some(rel_insubquery),
+                override_projections: false,
+                is_rel: true,
+            };
 
-    //     } else {
+            let existing_rel_ctx_to_update = CtxToUpdate {
+                alias: graph_context.rel.alias.to_string(),
+                label: new_rel_label, // just update the label so that in graph join inference we can derive the cte name
+                projections: vec![],
+                insubquery: None,
+                override_projections: false,
+                is_rel: true
+            };
 
-    //     }
-        
-        
-    //     todo!()
-    // }
-    
-    
+            return (rel_cte_name, rel_plan, vec![existing_rel_ctx_to_update, outgoing_ctx_to_update, incoming_ctx_to_update])
+
+
+        } else{
+            let index_direction  = if graph_context.left.label == graph_context.right.label {
+                graph_rel.direction.clone()
+            }  else if graph_context.rel.schema.from_node == graph_context.right.schema.table_name {
+                Direction::Outgoing
+            } else { 
+                Direction::Incoming
+            };
+            let new_rel_label = format!("{}_{}", graph_context.rel.label, index_direction);
+
+            let rel_cte_name = format!("{}_{}", new_rel_label, graph_context.rel.alias);
+
+            let rel_insubquery = self.build_insubquery("from_id".to_string(),
+                connected_node_cte_name,
+                connected_node_id_column);
+
+            let rel_plan = graph_rel.center.clone();
+
+            let ctx_to_update = CtxToUpdate {
+                alias: graph_context.rel.alias.to_string(),
+                label: new_rel_label,
+                projections: rel_projections,
+                insubquery: Some(rel_insubquery.clone()),
+                override_projections: false,
+                is_rel: true,
+            };
+
+            return (rel_cte_name, rel_plan, vec![ctx_to_update])
+        }
+
+    }
 
     fn build_projections(&self, items: Vec<(String, Option<ColumnAlias>)>) -> Vec<ProjectionItem> {
         items.into_iter().map(|(expr_str, alias)| {

@@ -1,6 +1,6 @@
 use std::{collections::HashSet, sync::Arc};
 
-use crate::{ graph_schema::graph_schema::GraphSchema, query_planner::{analyzer::{analyzer_pass::{AnalyzerPass, AnalyzerResult}, errors::{AnalyzerError, Pass}}, logical_expr::logical_expr::{Column, LogicalExpr, Operator, OperatorApplication, PropertyAccess, TableAlias}, logical_plan::logical_plan::{GraphJoins, GraphRel, Join, LogicalPlan}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed}};
+use crate::{ graph_schema::graph_schema::GraphSchema, query_planner::{analyzer::{analyzer_pass::{AnalyzerPass, AnalyzerResult}, errors::{AnalyzerError, Pass}}, logical_expr::logical_expr::{Column, Direction, LogicalExpr, Operator, OperatorApplication, PropertyAccess, TableAlias}, logical_plan::logical_plan::{GraphJoins, GraphRel, Join, LogicalPlan}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed}};
 
 
 
@@ -157,7 +157,7 @@ impl GraphJoinInference {
 
         let left_label = left_ctx.get_label_str().map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphJoinInference, source: e})?;
         let rel_label = rel_ctx.get_label_str().map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphJoinInference, source: e})?;
-        let original_rel_label = rel_label.replace("_incoming", "").replace("_outgoing", "");
+        let original_rel_label = rel_label.replace(format!("_{}", Direction::Incoming).as_str(), "").replace(format!("_{}", Direction::Outgoing).as_str(), "").replace(format!("_{}", Direction::Either).as_str(), "");
         let right_label = right_ctx.get_label_str().map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphJoinInference, source: e})?;
 
         let left_schema = graph_schema.get_node_schema(&left_label).map_err(|e| AnalyzerError::GraphSchema { pass: Pass::GraphJoinInference, source: e})?;
@@ -180,6 +180,135 @@ impl GraphJoinInference {
 
 
         if rel_ctx.should_use_edge_list() {
+            // If both nodes are of the same type then check the direction to determine where are the left and right nodes present in the edgelist.
+            if left_schema.table_name == right_schema.table_name {
+                if joined_entities.contains(right_alias) {
+                    // join the rel with right first and then join the left with rel
+                    let (rel_conn_with_right_node, left_conn_with_rel) = if graph_rel.direction == Direction::Incoming {
+                        ("from_id".to_string(), "to_id".to_string())
+                    } else {
+                        ("to_id".to_string(), "from_id".to_string())
+                    };
+                    let mut rel_graph_join = Join{
+                        table_name: rel_cte_name,
+                        table_alias: rel_alias.to_string(),
+                        joining_on: vec![
+                            OperatorApplication{
+                                operator: Operator::Equal,
+                                operands: vec![
+                                    LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(rel_alias.to_string()), column: Column(rel_conn_with_right_node) }),
+                                    LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(right_alias.to_string()), column: Column(right_node_id_column.clone()) })
+                                ]
+                            }
+                        ],
+                    };
+
+                    let left_graph_join = Join {
+                        table_name: left_cte_name,
+                        table_alias: left_alias.to_string(),
+                        joining_on: vec![
+                            OperatorApplication{
+                                operator: Operator::Equal,
+                                operands: vec![
+                                    LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(left_alias.to_string()), column: Column(left_node_id_column.clone()) }),
+                                    LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(rel_alias.to_string()), column: Column(left_conn_with_rel.clone()) })
+                                ]
+                            }
+                        ],
+                    };
+
+                    if is_standalone_rel {
+                        let rel_to_right_graph_join_keys = 
+                            OperatorApplication{
+                                operator: Operator::Equal,
+                                operands: vec![
+                                    LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(rel_alias.to_string()), column: Column(left_conn_with_rel) }),
+                                    LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(left_alias.to_string()), column: Column(left_node_id_column) }),
+                                ]
+                            };
+                        rel_graph_join.joining_on.push(rel_to_right_graph_join_keys);
+    
+                        collected_graph_joins.push(rel_graph_join);
+                        joined_entities.insert(rel_alias.to_string());
+                        // in this case we will only join relation so early return without pushing the other joins
+                        return Ok(());
+                    }
+    
+                    // push the relation first
+                    collected_graph_joins.push(rel_graph_join);
+                    joined_entities.insert(rel_alias.to_string());
+    
+                    joined_entities.insert(left_alias.to_string());
+                    collected_graph_joins.push(left_graph_join);
+                    Ok(())
+
+                } else {
+                    // When left is already joined or start of the join 
+
+                    // join the relation with left side first and then
+                    // the join the right side with relation
+
+                    let (rel_conn_with_left_node, right_conn_with_rel) = if graph_rel.direction == Direction::Incoming {
+                        ("from_id".to_string(), "to_id".to_string())
+                    } else {
+                        ("to_id".to_string(), "from_id".to_string())
+                    };
+
+                    let mut rel_graph_join = Join{
+                        table_name: rel_cte_name,
+                        table_alias: rel_alias.to_string(),
+                        joining_on: vec![
+                            OperatorApplication{
+                                operator: Operator::Equal,
+                                operands: vec![
+                                    LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(rel_alias.to_string()), column: Column(rel_conn_with_left_node) }),
+                                    LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(left_alias.to_string()), column: Column(left_node_id_column.clone()) })
+                                ]
+                            }
+                        ],
+                    };
+
+                    let right_graph_join = Join {
+                        table_name: right_cte_name,
+                        table_alias: right_alias.to_string(),
+                        joining_on: vec![
+                            OperatorApplication{
+                                operator: Operator::Equal,
+                                operands: vec![
+                                    LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(right_alias.to_string()), column: Column(right_node_id_column.clone()) }),
+                                    LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(rel_alias.to_string()), column: Column(right_conn_with_rel.clone()) })
+                                ]
+                            }
+                        ],
+                    };
+
+                    if is_standalone_rel {
+                        let rel_to_right_graph_join_keys = 
+                            OperatorApplication{
+                                operator: Operator::Equal,
+                                operands: vec![
+                                    LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(rel_alias.to_string()), column: Column(right_conn_with_rel) }),
+                                    LogicalExpr::PropertyAccessExp(PropertyAccess{ table_alias: TableAlias(right_alias.to_string()), column: Column(right_node_id_column) }),
+                                ]
+                            };
+                        rel_graph_join.joining_on.push(rel_to_right_graph_join_keys);
+
+                        collected_graph_joins.push(rel_graph_join);
+                        joined_entities.insert(rel_alias.to_string());
+                        // in this case we will only join relation so early return without pushing the other joins
+                        return Ok(());
+                    }
+
+                    // push the relation first
+                    collected_graph_joins.push(rel_graph_join);
+                    joined_entities.insert(rel_alias.to_string());
+
+                    joined_entities.insert(right_alias.to_string());
+                    collected_graph_joins.push(right_graph_join);
+                    Ok(())
+
+                }
+            } else
             // check if right is connected with edge list's from_node
             if rel_schema.from_node == right_schema.table_name {
                 // this means rel.from_node = right and to_node = left
