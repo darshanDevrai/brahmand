@@ -2,7 +2,8 @@ use crate::query_planner::render_plan::errors::RenderBuildError;
 use crate::query_planner::render_plan::render_expr::{ColumnAlias, OperatorApplication, RenderExpr};
 
 use crate::query_planner::logical_plan::logical_plan::{
-    OrderByOrder as LogicalOrderByOrder, OrderByItem as LogicalOrderByItem, Join as LogicalJoin
+    OrderByOrder as LogicalOrderByOrder, OrderByItem as LogicalOrderByItem, Join as LogicalJoin,
+    UnionType as LogicalUnionType
 };
 
 use std::fmt;
@@ -84,7 +85,19 @@ pub struct Cte {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct UnionItems(pub Vec<RenderPlan>);
+pub struct UnionItems(pub Option<Union>);
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct Union {
+    pub input: Vec<RenderPlan>,
+    pub union_type: UnionType,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum UnionType {
+    Distinct,
+    All,
+}
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct InSubquery {
@@ -132,6 +145,18 @@ pub enum OrderByOrder {
     Desc,
 }
 
+
+impl TryFrom<LogicalUnionType> for UnionType {
+    type Error = RenderBuildError;
+
+    fn try_from(value: LogicalUnionType) -> Result<Self, Self::Error> {
+        let union_type = match value {
+            LogicalUnionType::Distinct => UnionType::Distinct,
+            LogicalUnionType::All => UnionType::All,
+        };
+        Ok(union_type)
+    }
+}
 
 impl TryFrom<LogicalOrderByOrder> for OrderByOrder {
     type Error = RenderBuildError;

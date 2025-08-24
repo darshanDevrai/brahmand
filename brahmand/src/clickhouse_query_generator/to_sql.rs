@@ -1,4 +1,4 @@
-use crate::query_planner::render_plan::{render_expr::{Column, ColumnAlias, InSubquery, Literal, Operator, PropertyAccess, RenderExpr, TableAlias}, render_plan::{Cte, CteItems, FilterItems, FromTable, FromTableItem, GroupByExpressions, Join, JoinItems, LimitItem, OrderByItems, OrderByOrder, RenderPlan, SelectItems, SkipItem, UnionItems}};
+use crate::query_planner::render_plan::{render_expr::{Column, ColumnAlias, InSubquery, Literal, Operator, PropertyAccess, RenderExpr, TableAlias}, render_plan::{Cte, CteItems, FilterItems, FromTable, FromTableItem, GroupByExpressions, Join, JoinItems, LimitItem, OrderByItems, OrderByOrder, RenderPlan, SelectItems, SkipItem, UnionItems, UnionType}};
 use crate::query_planner::render_plan::render_expr::OperatorApplication;
 
 
@@ -195,10 +195,18 @@ impl ToSql for Cte {
 impl ToSql for UnionItems {
     fn to_sql(&self) -> String {
 
-        let union_sql_strs:Vec<String> = self.0.iter().map(|union_item| union_item.to_sql()).collect();
+        if let Some(union) = &self.0 {
+            let union_sql_strs:Vec<String> = union.input.iter().map(|union_item| union_item.to_sql()).collect();
 
-        let sql = union_sql_strs.join("UNION DISTINCT \n");
-        sql
+            let union_type_str = match union.union_type {
+                UnionType::Distinct => "UNION DISTINCT \n",
+                UnionType::All => "UNION ALL \n",
+            };
+            let sql = union_sql_strs.join(union_type_str);
+            sql
+        } else {
+            "".into()
+        }
         
     }
 }

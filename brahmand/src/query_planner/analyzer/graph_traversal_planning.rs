@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use crate::{ graph_schema::graph_schema::{GraphSchema, NodeSchema, RelationshipSchema}, query_planner::{analyzer::{analyzer_pass::{AnalyzerPass, AnalyzerResult}, errors::{AnalyzerError, Pass}}, logical_expr::logical_expr::{Column, ColumnAlias, Direction, InSubquery, LogicalExpr, Operator, OperatorApplication, PropertyAccess}, logical_plan::{self, logical_plan::{Cte, Filter, GraphRel, LogicalPlan, Projection, ProjectionItem, Scan, Union}}, plan_ctx::plan_ctx::{PlanCtx, TableCtx}, transformed::Transformed}};
+use crate::{ graph_schema::graph_schema::{GraphSchema, NodeSchema, RelationshipSchema}, query_planner::{analyzer::{analyzer_pass::{AnalyzerPass, AnalyzerResult}, errors::{AnalyzerError, Pass}}, logical_expr::logical_expr::{Column, ColumnAlias, Direction, InSubquery, LogicalExpr, Operator, OperatorApplication, PropertyAccess}, logical_plan::{self, logical_plan::{Cte, Filter, GraphRel, LogicalPlan, Projection, ProjectionItem, Scan, Union, UnionType}}, plan_ctx::plan_ctx::{PlanCtx, TableCtx}, transformed::Transformed}};
 
 
 
@@ -517,7 +517,8 @@ impl GraphTRaversalPlanning {
                 inputs: vec![
                     Arc::new(LogicalPlan::Scan(Scan { table_alias: Some(outgoing_alias.clone()), table_name: Some(graph_context.rel.label.clone()) })),
                     Arc::new(LogicalPlan::Scan(Scan { table_alias: Some(incoming_alias.clone()), table_name: Some(graph_context.rel.label.clone()) }))
-                ]
+                ],
+                union_type: UnionType::Distinct
             }));
 
             let rel_insubquery: LogicalExpr = self.build_insubquery("from_id".to_string(),
@@ -712,7 +713,8 @@ impl GraphTRaversalPlanning {
                 inputs: vec![
                     Arc::new(LogicalPlan::Scan(Scan { table_alias: Some(outgoing_alias.clone()), table_name: Some(outgoing_label.clone()) })),
                     Arc::new(LogicalPlan::Scan(Scan { table_alias: Some(incoming_alias.clone()), table_name: Some(incoming_label.clone()) }))
-                ]
+                ],
+                union_type: UnionType::Distinct
             }));
             
 

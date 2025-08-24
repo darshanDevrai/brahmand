@@ -68,7 +68,7 @@ pub struct Cte {
 #[derive(Debug, PartialEq, Clone)]
 pub struct Union {
     pub inputs: Vec<Arc<LogicalPlan>>,
-    // pub union_type: UnionType
+    pub union_type: UnionType
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -357,7 +357,10 @@ impl Union {
         }
         if is_transformed {
             let new_inputs: Vec<Arc<LogicalPlan>> = inputs_tf.into_iter().map(|tf| tf.get_plan()).collect();
-            let new_union = LogicalPlan::Union(Union { inputs: new_inputs });
+            let new_union = LogicalPlan::Union(Union { 
+                inputs: new_inputs,
+                union_type: self.union_type.clone() 
+            });
             Transformed::Yes(Arc::new(new_union))
         } else {    
             Transformed::No(old_plan.clone())

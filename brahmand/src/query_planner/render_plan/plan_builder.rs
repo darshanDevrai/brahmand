@@ -1,5 +1,5 @@
 
-use crate::query_planner::{logical_plan::{self, logical_plan::LogicalPlan}, render_plan::{errors::RenderBuildError, render_expr::{AggregateFnCall, ColumnAlias, Operator, OperatorApplication, RenderExpr, ScalarFnCall}, render_plan::{Cte, CteItems, FilterItems, FromTable, FromTableItem, GroupByExpressions, Join, JoinItems, LimitItem, OrderByItem, OrderByItems, RenderPlan, SelectItem, SelectItems, SkipItem, UnionItems}}};
+use crate::query_planner::{logical_plan::{self, logical_plan::LogicalPlan}, render_plan::{errors::RenderBuildError, render_expr::{AggregateFnCall, ColumnAlias, Operator, OperatorApplication, RenderExpr, ScalarFnCall}, render_plan::{Cte, CteItems, FilterItems, FromTable, FromTableItem, GroupByExpressions, Join, JoinItems, LimitItem, OrderByItem, OrderByItems, RenderPlan, SelectItem, SelectItems, SkipItem, Union, UnionItems}}};
 
 
 
@@ -31,7 +31,7 @@ pub(crate) trait RenderPlanBuilder {
 
     fn extract_skip(&self) -> Option<i64>;
 
-    fn extract_union(&self) -> RenderPlanBuilderResult<Vec<RenderPlan>>;
+    fn extract_union(&self) -> RenderPlanBuilderResult<Option<Union>>;
 
     fn to_render_plan(&self) -> RenderPlanBuilderResult<RenderPlan>;
 
@@ -291,13 +291,19 @@ impl RenderPlanBuilder for LogicalPlan {
         }
     }
 
-    fn extract_union(&self) -> RenderPlanBuilderResult<Vec<RenderPlan>> {
+    fn extract_union(&self) -> RenderPlanBuilderResult<Option<Union>> {
 
-        let union = match &self {
-            LogicalPlan::Union(union) => union.inputs.iter().map(|input| input.to_render_plan()).collect::<Result<Vec<RenderPlan>, RenderBuildError>>()?,
-            _ => vec![],
+        let union_opt = match &self {
+            LogicalPlan::Union(union) => {
+                Some(Union {
+                    input: union.inputs.iter().map(|input| input.to_render_plan()).collect::<Result<Vec<RenderPlan>, RenderBuildError>>()?,
+                    union_type: union.union_type.clone().try_into()?
+                })
+                
+            },
+            _ => None,
         };
-        Ok(union)
+        Ok(union_opt)
     }
 
 
