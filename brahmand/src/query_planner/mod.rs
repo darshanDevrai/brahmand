@@ -13,7 +13,6 @@ pub mod logical_plan;
 pub mod optimizer;
 pub mod transformed;
 pub mod analyzer;
-// pub mod render_plan;
 pub mod plan_ctx;
 pub mod types;
 mod errors;
