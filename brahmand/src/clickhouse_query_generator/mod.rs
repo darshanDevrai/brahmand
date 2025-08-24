@@ -1,12 +1,12 @@
 use errors::ClickhouseQueryGeneratorError;
 
-use crate::{graph_schema::graph_schema::{GraphSchema, GraphSchemaElement}, open_cypher_parser::ast::OpenCypherQueryAst};
+use crate::{graph_schema::graph_schema::{GraphSchema, GraphSchemaElement}, open_cypher_parser::ast::OpenCypherQueryAst, render_plan::{render_plan::RenderPlan, ToSql}};
 
 
 mod common;
 mod ddl_query;
 pub mod errors;
-pub mod to_sql;
+mod to_sql_query;
 
 // pub fn generate_sql(plan: RenderPlan) -> String{
 //     let mut sql = String::new();
@@ -22,6 +22,10 @@ pub mod to_sql;
 //     println!("\n\n sql - \n{}", sql);
 //     return sql
 // }
+
+pub fn generate_sql(plan: RenderPlan) -> String {
+    plan.to_sql()
+}
 
 pub fn generate_ddl_query(
     query_ast: OpenCypherQueryAst,

@@ -3,6 +3,7 @@ mod open_cypher_parser;
 mod query_planner;
 mod server;
 mod graph_schema;
+pub mod render_plan;
 pub mod clickhouse_query_generator;
 
 #[tokio::main]

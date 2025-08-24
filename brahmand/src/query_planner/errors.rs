@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use crate::query_planner::{logical_plan::errors::LogicalPlanError, optimizer::errors::OptimizerError, render_plan::errors::RenderBuildError};
+use crate::query_planner::{logical_plan::errors::LogicalPlanError, optimizer::errors::OptimizerError};
 
 use super::analyzer::errors::AnalyzerError;
 
@@ -13,7 +13,9 @@ pub enum QueryPlannerError {
     Optimizer(#[from] OptimizerError),
     #[error("AnalyzerError: {0}")]
     Analyzer(#[from] AnalyzerError),
-    #[error("RenderBuildError: {0}")]
-    RenderBuild(#[from] RenderBuildError),
+    // #[error("RenderBuildError: {0}")]
+    // RenderBuild(#[from] RenderBuildError),
+    #[error("Logical Plan Extractor")]
+    LogicalPlanExtractor,
 }
 

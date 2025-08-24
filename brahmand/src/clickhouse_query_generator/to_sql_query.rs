@@ -1,10 +1,8 @@
-use crate::query_planner::render_plan::{render_expr::{Column, ColumnAlias, InSubquery, Literal, Operator, PropertyAccess, RenderExpr, TableAlias}, render_plan::{Cte, CteItems, FilterItems, FromTable, FromTableItem, GroupByExpressions, Join, JoinItems, JoinType, LimitItem, OrderByItems, OrderByOrder, RenderPlan, SelectItems, SkipItem, UnionItems, UnionType}};
-use crate::query_planner::render_plan::render_expr::OperatorApplication;
+use crate::render_plan::{render_expr::{Column, ColumnAlias, InSubquery, Literal, Operator, PropertyAccess, RenderExpr, TableAlias}, render_plan::{Cte, CteItems, FilterItems, FromTableItem, GroupByExpressions, Join, JoinItems, JoinType, OrderByItems, OrderByOrder, RenderPlan, SelectItems, UnionItems, UnionType}, ToSql};
+use crate::render_plan::render_expr::OperatorApplication;
 
 
-pub trait ToSql {
-    fn to_sql(&self) -> String;
-}
+
 
 
 impl ToSql for RenderPlan {

@@ -12,7 +12,7 @@ use tokio::io::AsyncBufReadExt;
 use uuid::Uuid;
 
 use crate::{
-    clickhouse_query_generator::{self, to_sql::ToSql}, graph_schema::graph_schema::GraphSchemaElement, open_cypher_parser::{self}, query_planner::{self, types::QueryType}
+    clickhouse_query_generator, graph_schema::graph_schema::GraphSchemaElement, open_cypher_parser::{self}, query_planner::{self, types::QueryType}, render_plan::plan_builder::RenderPlanBuilder,
 };
 
 
@@ -40,9 +40,11 @@ pub async fn query_handler(
         let is_read = if query_type == QueryType::Read {true} else {false};
 
         if is_read {
-            let render_plan = query_planner::evaluate_read_query(cypher_ast, &graph_schema)
+            let logical_plan = query_planner::evaluate_read_query(cypher_ast, &graph_schema)
                 .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Brahmand Error: {}", e)))?;
-            let ch_query = render_plan.to_sql();
+
+            let render_plan = logical_plan.to_render_plan().map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Brahmand Error: {}", e)))?;
+            let ch_query = clickhouse_query_generator::generate_sql(render_plan);
             println!("\n ch_query \n {} \n", ch_query);
             (vec![ch_query], None, true)
         } else {
