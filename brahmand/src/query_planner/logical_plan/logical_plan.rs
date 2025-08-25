@@ -1,7 +1,7 @@
 
 use std::{sync::Arc, fmt};
 
-use crate::query_planner::{logical_expr::logical_expr::{ColumnAlias, Direction, OperatorApplication, LogicalExpr, Property, TableAlias}, transformed::Transformed};
+use crate::query_planner::{logical_expr::logical_expr::{ColumnAlias, Direction, Literal, LogicalExpr, Operator, OperatorApplication, Property, TableAlias}, transformed::Transformed};
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum LogicalPlan {
@@ -407,6 +407,27 @@ impl<'a> From<crate::open_cypher_parser::ast::OrderByItem<'a>> for OrderByItem {
 impl fmt::Display for LogicalPlan {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.fmt_with_tree(f, "", true, true)
+    }
+}
+
+impl LogicalPlan {
+    pub fn get_empty_match_plan() -> Self {
+        LogicalPlan::Projection(Projection {
+            input: Arc::new(LogicalPlan::Filter(Filter {
+                input: Arc::new(LogicalPlan::Empty),
+                predicate: LogicalExpr::OperatorApplicationExp(OperatorApplication {
+                    operator: Operator::Equal,
+                    operands: vec![
+                        LogicalExpr::Literal(Literal::Integer(1)),
+                        LogicalExpr::Literal(Literal::Integer(0)),
+                    ]
+                })
+            })),
+            items: vec![ProjectionItem {
+                expression: LogicalExpr::Literal(Literal::Integer(1)),
+                col_alias: None
+            }]
+        })
     }
 }
 

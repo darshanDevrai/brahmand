@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use analyzer_pass::AnalyzerResult;
 
-use crate::{graph_schema::graph_schema::GraphSchema, query_planner::{analyzer::{analyzer_pass::AnalyzerPass, duplicate_scans_removing::DuplicateScansRemoving, filter_tagging::FilterTagging, graph_join_inference::GraphJoinInference, graph_traversal_planning::GraphTRaversalPlanning, group_by_building::GroupByBuilding, plan_sanitization::PlanSanitization, projection_tagging::ProjectionTagging, schema_inference::SchemaInference}, logical_plan::logical_plan::LogicalPlan}};
+use crate::{graph_schema::graph_schema::GraphSchema, query_planner::{analyzer::{analyzer_pass::AnalyzerPass, duplicate_scans_removing::DuplicateScansRemoving, filter_tagging::FilterTagging, graph_join_inference::GraphJoinInference, graph_traversal_planning::GraphTRaversalPlanning, group_by_building::GroupByBuilding, plan_sanitization::PlanSanitization, projection_tagging::ProjectionTagging, query_validation::QueryValidation, schema_inference::SchemaInference}, logical_plan::logical_plan::LogicalPlan}};
 
 use super::plan_ctx::plan_ctx::PlanCtx;
 
@@ -20,6 +20,7 @@ mod graph_traversal_planning;
 mod duplicate_scans_removing;
 mod graph_join_inference;
 mod plan_sanitization;
+mod query_validation;
 pub mod errors;
 
 
@@ -69,9 +70,14 @@ pub fn intermediate_analyzing(plan: Arc<LogicalPlan>, plan_ctx: &mut PlanCtx, cu
     let transformed_plan = schema_inference.analyze_with_graph_schema(plan.clone(), plan_ctx, current_graph_schema)?;
     let plan = transformed_plan.get_plan();
 
+    let query_validation = QueryValidation::new();
+    let transformed_plan = query_validation.analyze_with_graph_schema(plan.clone(), plan_ctx, current_graph_schema)?;
+    let plan = transformed_plan.get_plan();
+
     let graph_traversal_planning = GraphTRaversalPlanning::new();
     let transformed_plan = graph_traversal_planning.analyze_with_graph_schema(plan.clone(), plan_ctx, current_graph_schema)?;
     let plan = transformed_plan.get_plan();
+
 
     let transformed_plan = schema_inference.push_inferred_table_names_to_scan(plan, plan_ctx)?;
     let plan = transformed_plan.get_plan();
@@ -79,7 +85,6 @@ pub fn intermediate_analyzing(plan: Arc<LogicalPlan>, plan_ctx: &mut PlanCtx, cu
     let duplicate_scans_removing = DuplicateScansRemoving::new();
     let transformed_plan = duplicate_scans_removing.analyze(plan.clone(), plan_ctx)?;
     let plan = transformed_plan.get_plan();
-
 
     let graph_join_inference = GraphJoinInference::new();
     let transformed_plan = graph_join_inference.analyze_with_graph_schema(plan.clone(), plan_ctx, current_graph_schema)?;

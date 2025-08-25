@@ -199,7 +199,6 @@ impl GraphTRaversalPlanning {
         let rel_label = rel_ctx.get_label_str().map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphTraversalPlanning, source: e})?;
         let right_label = right_ctx.get_label_str().map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphTraversalPlanning, source: e})?;
 
-
         let left_schema = graph_schema.get_node_schema(&left_label).map_err(|e| AnalyzerError::GraphSchema { pass: Pass::GraphTraversalPlanning, source: e})?;
         let rel_schema = graph_schema.get_rel_schema(&rel_label).map_err(|e| AnalyzerError::GraphSchema { pass: Pass::GraphTraversalPlanning, source: e})?;
         let right_schema = graph_schema.get_node_schema(&right_label).map_err(|e| AnalyzerError::GraphSchema { pass: Pass::GraphTraversalPlanning, source: e})?;
@@ -601,90 +600,6 @@ impl GraphTRaversalPlanning {
             return (rel_cte_name, rel_plan, vec![rel_ctx_to_update])
 
         }
-    
-        // // if direction == Direction::Either and both nodes are of same types then use UNION of both.
-        // if graph_rel.direction == Direction::Either && graph_context.left.label == graph_context.right.label { 
-
-        //     if star_found {
-        //         rel_projections = vec![ProjectionItem {
-        //                 expression: LogicalExpr::OperatorApplicationExp(OperatorApplication { operator: Operator::Distinct, operands:  vec![LogicalExpr::Star]}),
-        //                 col_alias: None
-        //             }
-        //         ];
-        //     } else {
-        //         rel_projections = vec![
-        //             // ProjectionItem {
-        //             //     expression: LogicalExpr::OperatorApplicationExp(OperatorApplication { operator: Operator::Distinct, operands:  vec![LogicalExpr::Column(Column(format!("from_{}", graph_context.rel.schema.from_node)))]}),
-        //             //     col_alias: Some(ColumnAlias("from_id".to_string()))
-        //             // }, 
-        //             ProjectionItem {
-        //                 expression: LogicalExpr::Column(Column(format!("from_{}", graph_context.rel.schema.from_node))),
-        //                 col_alias: Some(ColumnAlias("from_id".to_string()))
-        //             },
-        //             ProjectionItem {
-        //                 expression: LogicalExpr::Column(Column(format!("to_{}", graph_context.rel.schema.from_node))),
-        //                 col_alias: Some(ColumnAlias("to_id".to_string()))
-        //             }
-        //         ];
-        //     }
-
-        //     override_projections = true;
-
-        //     let rel_from_insubquery = self.build_insubquery("from_id".to_string(),
-        //     connected_node_cte_name.clone(),
-        //     connected_node_id_column.clone());
-        //     // graph_context.right.cte_name.clone(),
-        //     // graph_context.right.id_column.clone());
-
-        //     let rel_to_insubquery = self.build_insubquery("to_id".to_string(),
-        //     connected_node_cte_name,
-        //     connected_node_id_column);
-
-        //     rel_insubquery = LogicalExpr::OperatorApplicationExp(OperatorApplication{
-        //         operator: Operator::Or,
-        //         operands: vec![rel_from_insubquery, rel_to_insubquery]
-        //     });
-
-        // } else if graph_context.rel.schema.from_node == graph_context.right.schema.table_name {
-        //     let rel_proj_input: Vec<(String, Option<ColumnAlias>)> = if !star_found {
-        //         vec![
-        //             (format!("from_{}", graph_context.rel.schema.from_node), Some(ColumnAlias("from_id".to_string()))),
-        //             (format!("to_{}", graph_context.rel.schema.to_node), Some(ColumnAlias("to_id".to_string())))
-        //         ]
-        //     } else { vec![] };
-    
-        //     rel_projections = self.build_projections(rel_proj_input);
-
-        //     rel_insubquery = self.build_insubquery("from_id".to_string(),
-        //     connected_node_cte_name,
-        //     connected_node_id_column);
-
-        // } else {
-        //     let rel_proj_input: Vec<(String, Option<ColumnAlias>)> = if !star_found {
-        //         vec![
-        //             (format!("from_{}", graph_context.rel.schema.from_node), Some(ColumnAlias("from_id".to_string()))),
-        //             (format!("to_{}", graph_context.rel.schema.to_node), Some(ColumnAlias("to_id".to_string())))
-        //         ]
-        //     } else { vec![] };
-    
-        //     rel_projections = self.build_projections(rel_proj_input);
-
-        //     rel_insubquery = self.build_insubquery("to_id".to_string(),
-        //     connected_node_cte_name,
-        //     connected_node_id_column);
-
-        // }
-
-        // let rel_ctx_to_update = CtxToUpdate {
-        //     alias: graph_context.rel.alias.to_string(),
-        //     label: graph_context.rel.label.clone(),
-        //     projections: rel_projections,
-        //     insubquery: Some(rel_insubquery),
-        //     override_projections: override_projections,
-        //     is_rel: true
-        // };
-        
-        // (rel_cte_name, rel_ctx_to_update)
         
     }
     
@@ -754,13 +669,22 @@ impl GraphTRaversalPlanning {
 
 
         } else{
-            let index_direction  = if graph_context.left.label == graph_context.right.label {
-                graph_rel.direction.clone()
-            }  else if graph_context.rel.schema.from_node == graph_context.right.schema.table_name {
+
+            let index_direction  = if graph_rel.direction == Direction::Either && graph_context.rel.schema.from_node == graph_context.right.schema.table_name {
                 Direction::Outgoing
-            } else { 
+            } else if graph_rel.direction == Direction::Either && graph_context.rel.schema.to_node == graph_context.right.schema.table_name {
                 Direction::Incoming
+            } else {
+                graph_rel.direction.clone()
             };
+            
+            // let index_direction  = if graph_context.left.label == graph_context.right.label {
+            //     graph_rel.direction.clone()
+            // }  else if graph_context.rel.schema.from_node == graph_context.right.schema.table_name {
+            //     Direction::Outgoing
+            // } else { 
+            //     Direction::Incoming
+            // };
             let new_rel_label = format!("{}_{}", graph_context.rel.label, index_direction);
 
             let rel_cte_name = format!("{}_{}", new_rel_label, graph_context.rel.alias);

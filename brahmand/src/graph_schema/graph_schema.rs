@@ -98,4 +98,8 @@ impl GraphSchema {
         self.nodes.get(node_label)
     }
 
+    pub fn get_relationships_schema_opt(&self, rel_label: &str) -> Option<&RelationshipSchema> {
+        self.relationships.get(rel_label)
+    }
+
 }

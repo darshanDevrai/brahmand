@@ -257,7 +257,7 @@ impl AnchorNodeSelection {
                             is_rel_anchor: prev_graph_rel.is_rel_anchor 
                         })), 
                         alias: graph_rel.alias.clone(), 
-                        direction: graph_rel.direction.clone().reverse(), 
+                        direction: graph_rel.direction.clone(), //.reverse(), 
                         // We don't need to rotate the left_conn and right_conn as we have done it at the anchor node.
                         // Here we are respecting the connection pattern
                         left_connection: graph_rel.left_connection.clone(), 

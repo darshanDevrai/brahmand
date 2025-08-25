@@ -13,7 +13,8 @@ pub enum Pass {
     // GroupByBuilding,
     ProjectionTagging,
     SchemaInference,
-    PlanSanitization
+    PlanSanitization,
+    QueryValidation
 }
 
 impl Display for Pass {
@@ -27,6 +28,7 @@ impl Display for Pass {
             Pass::ProjectionTagging => write!(f, "ProjectionTagging"),
             Pass::SchemaInference => write!(f, "SchemaInference"),
             Pass::PlanSanitization => write!(f, "PlanSanitization"),
+            Pass::QueryValidation => write!(f, "QueryValidation"),
         }
     }
 }
@@ -57,7 +59,11 @@ pub enum AnalyzerError {
         pass: Pass,
         #[source]
         source: GraphSchemaError,
-    }
+    },
+
+    #[error("Invalid relation query - {rel}")]
+    InvalidRelationInQuery {rel: String},
+
 
 
 }
