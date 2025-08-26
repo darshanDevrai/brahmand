@@ -1,6 +1,6 @@
 use std::{collections::HashSet, sync::Arc};
 
-use crate::{ graph_schema::graph_schema::GraphSchema, query_planner::{analyzer::{analyzer_pass::{AnalyzerPass, AnalyzerResult}, errors::{AnalyzerError, Pass}}, logical_expr::logical_expr::{Column, Direction, LogicalExpr, Operator, OperatorApplication, PropertyAccess, TableAlias}, logical_plan::logical_plan::{GraphJoins, GraphRel, Join, JoinType, LogicalPlan}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed}};
+use crate::{ graph_catalog::graph_schema::GraphSchema, query_planner::{analyzer::{analyzer_pass::{AnalyzerPass, AnalyzerResult}, errors::{AnalyzerError, Pass}}, logical_expr::logical_expr::{Column, Direction, LogicalExpr, Operator, OperatorApplication, PropertyAccess, TableAlias}, logical_plan::logical_plan::{GraphJoins, GraphRel, Join, JoinType, LogicalPlan}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed}};
 
 
 

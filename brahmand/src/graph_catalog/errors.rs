@@ -9,5 +9,7 @@ pub enum GraphSchemaError {
     NoRelationSchemaFound{rel_label: String},
     #[error("No node schema found for `{node_label}`")]
     NoNodeSchemaFound{node_label: String},
+    #[error("No relationship index schema found for `{rel_label}`.")]
+    NoRelationIndexSchemaFound{rel_label: String},
 
 }

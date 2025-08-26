@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{graph_schema::graph_schema::GraphSchema, query_planner::{analyzer::{analyzer_pass::{AnalyzerPass, AnalyzerResult}, errors::{AnalyzerError, Pass}}, logical_expr::logical_expr::Direction, logical_plan::logical_plan::{GraphRel, LogicalPlan}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed}};
+use crate::{graph_catalog::graph_schema::GraphSchema, query_planner::{analyzer::{analyzer_pass::{AnalyzerPass, AnalyzerResult}, errors::{AnalyzerError, Pass}}, logical_expr::logical_expr::Direction, logical_plan::logical_plan::{GraphRel, LogicalPlan}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed}};
 
 
 
@@ -49,9 +49,7 @@ impl AnalyzerPass for QueryValidation {
                         // check for both adj indexes. If any one is not present then use edgelist
                         let incoming_index = format!("{}_{}", rel_lable, Direction::Incoming);
                         let outgoing_index = format!("{}_{}", rel_lable, Direction::Outgoing);
-                        // println!("incoming_index {incoming_index}, outgoing_index {outgoing_index}");
-                        // TODO change it into index schema later on
-                        if graph_schema.get_relationships_schema_opt(&incoming_index).is_none() || graph_schema.get_relationships_schema_opt(&outgoing_index).is_none() {
+                        if graph_schema.get_relationship_index_schema_opt(&incoming_index).is_none() || graph_schema.get_relationship_index_schema_opt(&outgoing_index).is_none() {
                             rel_ctx.set_use_edge_list(true);
                         }
                     } 

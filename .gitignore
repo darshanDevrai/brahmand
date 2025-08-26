@@ -1,6 +1,6 @@
 /target
 /test_data
-
+/clickhouse_data
 
 .env
 

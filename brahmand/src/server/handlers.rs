@@ -12,12 +12,12 @@ use tokio::io::AsyncBufReadExt;
 use uuid::Uuid;
 
 use crate::{
-    clickhouse_query_generator, graph_schema::graph_schema::GraphSchemaElement, open_cypher_parser::{self}, query_planner::{self, types::QueryType}, render_plan::plan_builder::RenderPlanBuilder,
+    clickhouse_query_generator, graph_catalog::graph_schema::GraphSchemaElement, open_cypher_parser::{self}, query_planner::{self, types::QueryType}, render_plan::plan_builder::RenderPlanBuilder,
 };
 
 
 use super::{
-    AppState, graph_meta,
+    AppState, graph_catalog,
     models::{OutputFormat, QueryRequest},
 };
 
@@ -30,7 +30,7 @@ pub async fn query_handler(
 
     let (ch_sql_queries, maybe_schema_elem, is_read) = {
 
-        let graph_schema = graph_meta::get_graph_schema().await;
+        let graph_schema = graph_catalog::get_graph_schema().await;
 
         let cypher_ast = open_cypher_parser::parse_query(&payload.query)
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Brahmand Error: {}", e)))?;
@@ -289,16 +289,16 @@ async fn execute_temp_table_queries(
 pub async fn ddl_handler(
     clickhouse_client: Client,
     ch_sql_queries: Vec<String>,
-    graph_schema_element_opt: Option<GraphSchemaElement>,
+    graph_schema_element_opt: Option<Vec<GraphSchemaElement>>,
 ) -> Result<Response, (StatusCode, String)> {
     // // parse cypher query
     // let cypher_ast = open_cypher_parser::parse_query(&payload.query).map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     // let (query_type,ch_sql_queries) = query_engine::evaluate_ddl_query(cypher_ast).map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    let graph_schema_element = graph_schema_element_opt.unwrap();
+    let graph_schema_element: Vec<GraphSchemaElement> = graph_schema_element_opt.unwrap();
 
-    graph_meta::validate_schema(&graph_schema_element)
+    graph_catalog::validate_schema(&graph_schema_element)
         .await
         .map_err(|e| {
             (
@@ -323,7 +323,7 @@ pub async fn ddl_handler(
 
     // Now that DDL is applied successfully, add graph schema element into the schema and update the graph meta table here
 
-    graph_meta::add_to_schema(clickhouse_client.clone(), graph_schema_element)
+    graph_catalog::add_to_schema(clickhouse_client.clone(), graph_schema_element)
         .await
         .map_err(|e| {
             (
@@ -332,7 +332,7 @@ pub async fn ddl_handler(
             )
         })?;
 
-    graph_meta::refresh_global_schema(clickhouse_client)
+    graph_catalog::refresh_global_schema(clickhouse_client)
         .await
         .map_err(|e| {
             (

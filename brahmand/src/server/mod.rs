@@ -7,10 +7,10 @@ use handlers::query_handler;
 use dotenv::dotenv;
 use tokio::sync::{OnceCell, RwLock};
 
-use crate::graph_schema::graph_schema::GraphSchema;
+use crate::graph_catalog::graph_schema::GraphSchema;
 
 mod clickhouse_client;
-mod graph_meta;
+mod graph_catalog;
 mod handlers;
 mod models;
 
@@ -30,13 +30,13 @@ pub async fn run() {
         clickhouse_client: client.clone(),
     };
 
-    graph_meta::initialize_global_schema(client.clone()).await;
+    graph_catalog::initialize_global_schema(client.clone()).await;
 
     println!("GLOBAL_GRAPH_SCHEMA {:?}", GLOBAL_GRAPH_SCHEMA.get());
 
     // Spawn the background task to monitor schema updates.
     tokio::spawn(async move {
-        if let Err(e) = graph_meta::monitor_schema_updates(client).await {
+        if let Err(e) = graph_catalog::monitor_schema_updates(client).await {
             eprintln!("Error in schema monitor: {}", e);
         }
     });

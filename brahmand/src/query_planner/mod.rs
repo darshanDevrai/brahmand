@@ -5,7 +5,7 @@ use std::sync::Arc;
 use errors::QueryPlannerError;
 use types::QueryType;
 
-use crate::{graph_schema::graph_schema::GraphSchema, open_cypher_parser::ast::OpenCypherQueryAst, query_planner::{analyzer::errors::AnalyzerError, logical_plan::logical_plan::LogicalPlan}};
+use crate::{graph_catalog::graph_schema::GraphSchema, open_cypher_parser::ast::OpenCypherQueryAst, query_planner::{analyzer::errors::AnalyzerError, logical_plan::logical_plan::LogicalPlan}};
 
 
 pub mod logical_expr;

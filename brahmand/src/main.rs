@@ -2,7 +2,7 @@ mod open_cypher_parser;
 // mod query_engine;
 mod query_planner;
 mod server;
-mod graph_schema;
+mod graph_catalog;
 pub mod render_plan;
 pub mod clickhouse_query_generator;
 

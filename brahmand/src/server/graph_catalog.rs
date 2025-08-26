@@ -4,18 +4,18 @@ use clickhouse::Client;
 use tokio::{sync::RwLock, time::interval};
 
 
-use crate::graph_schema::graph_schema::{GraphSchema, GraphSchemaElement};
+use crate::graph_catalog::graph_schema::{GraphSchema, GraphSchemaElement};
 
-use super::{GLOBAL_GRAPH_SCHEMA, models::GraphMeta};
+use super::{GLOBAL_GRAPH_SCHEMA, models::GraphCatalog};
 
 pub async fn initialize_global_schema(clickhouse_client: Client) {
-    let schema = get_graph_meta(clickhouse_client).await.unwrap();
+    let schema = get_graph_catalog(clickhouse_client).await.unwrap();
     // Set the global schema wrapped in an RwLock.
     GLOBAL_GRAPH_SCHEMA.set(RwLock::new(schema)).ok();
 }
 
 pub async fn refresh_global_schema(clickhouse_client: Client) -> Result<(), String> {
-    let new_schema = get_graph_meta(clickhouse_client).await?;
+    let new_schema = get_graph_catalog(clickhouse_client).await?;
     // Acquire a write lock asynchronously.
     let global_schema_lock = GLOBAL_GRAPH_SCHEMA
         .get()
@@ -35,16 +35,16 @@ pub async fn get_graph_schema() -> GraphSchema {
     schema_guard.clone()
 }
 
-pub async fn get_graph_meta(clickhouse_client: Client) -> Result<GraphSchema, String> {
-    let graph_meta_query = "SELECT id, schema_json FROM graph_meta FINAL";
-    let graph_meta_result = clickhouse_client
-        .query(graph_meta_query)
-        .fetch_one::<GraphMeta>()
+pub async fn get_graph_catalog(clickhouse_client: Client) -> Result<GraphSchema, String> {
+    let graph_catalog_query = "SELECT id, schema_json FROM graph_catalog FINAL";
+    let graph_catalog_result = clickhouse_client
+        .query(graph_catalog_query)
+        .fetch_one::<GraphCatalog>()
         .await;
 
-    match graph_meta_result {
-        Ok(graph_meta) => {
-            let graph_schema: GraphSchema = serde_json::from_str(&graph_meta.schema_json)
+    match graph_catalog_result {
+        Ok(graph_catalog) => {
+            let graph_schema: GraphSchema = serde_json::from_str(&graph_catalog.schema_json)
                 .map_err(|e| format!("Schema parsing error: {}", e))?;
 
             Ok(graph_schema)
@@ -56,9 +56,9 @@ pub async fn get_graph_meta(clickhouse_client: Client) -> Result<GraphSchema, St
             // println!("err_msg -> {:?}", err_msg);
 
             if err_msg.contains("UNKNOWN_TABLE") {
-                println!("Creating the graph_meta table");
-                let create_graph_meta_query = "
-                CREATE TABLE graph_meta (
+                println!("Creating the graph_catalog table");
+                let create_graph_catalog_query = "
+                CREATE TABLE graph_catalog (
                     id UInt64,
                     schema_json String 
                 ) ENGINE = ReplacingMergeTree()
@@ -67,20 +67,20 @@ pub async fn get_graph_meta(clickhouse_client: Client) -> Result<GraphSchema, St
                 let _ = clickhouse_client
                     .clone()
                     .with_option("wait_end_of_query", "1")
-                    .query(create_graph_meta_query)
+                    .query(create_graph_catalog_query)
                     .execute()
                     .await
                     .map_err(|e| format!("Clickhouse Error: {}", e));
 
-                let graph_meta = GraphMeta {
+                let graph_catalog = GraphCatalog {
                     id: 1,
-                    schema_json: r#"{"version": 1,"nodes": {},"relationships": {}}"#.to_string(),
+                    schema_json: r#"{"version": 1,"nodes": {},"relationships": {}, "relationships_indexes": {}}"#.to_string(),
                 };
                 let mut insert = clickhouse_client
-                    .insert("graph_meta")
+                    .insert("graph_catalog")
                     .map_err(|e| format!("Clickhouse Error: {}", e))?;
                 insert
-                    .write(&graph_meta)
+                    .write(&graph_catalog)
                     .await
                     .map_err(|e| format!("Clickhouse Error: {}", e))?;
                 insert
@@ -88,7 +88,7 @@ pub async fn get_graph_meta(clickhouse_client: Client) -> Result<GraphSchema, St
                     .await
                     .map_err(|e| format!("Clickhouse Error: {}", e))?;
 
-                let graph_schema: GraphSchema = serde_json::from_str(&graph_meta.schema_json)
+                let graph_schema: GraphSchema = serde_json::from_str(&graph_catalog.schema_json)
                     .map_err(|e| format!("Schema parsing error: {}", e))?;
 
                 Ok(graph_schema)
@@ -99,62 +99,81 @@ pub async fn get_graph_meta(clickhouse_client: Client) -> Result<GraphSchema, St
     }
 }
 
-pub async fn validate_schema(graph_schema_element: &GraphSchemaElement) -> Result<(), String> {
-    match graph_schema_element {
-        GraphSchemaElement::Node(_) => Ok(()),
-        GraphSchemaElement::Rel(relationship_schema) => {
-            // here check if both from_node and to_node tables are present or not in the schema
+pub async fn validate_schema(graph_schema_element: &Vec<GraphSchemaElement>) -> Result<(), String> {
 
-            let graph_schema_lock = GLOBAL_GRAPH_SCHEMA
-                .get()
-                .expect("Schema not initialized")
-                .read()
-                .await;
+    for element in graph_schema_element {
+        match element {
+            GraphSchemaElement::Rel(relationship_schema) => {
+                // here check if both from_node and to_node tables are present or not in the schema
 
-            if !graph_schema_lock
-                .get_nodes_schemas()
-                .contains_key(&relationship_schema.from_node)
-                || !graph_schema_lock
+                let graph_schema_lock = GLOBAL_GRAPH_SCHEMA
+                    .get()
+                    .expect("Schema not initialized")
+                    .read()
+                    .await;
+
+                if !graph_schema_lock
                     .get_nodes_schemas()
-                    .contains_key(&relationship_schema.to_node)
-            {
-                return Err("From and To node tables must be present before creating a relationship between them".to_string());
-            }
+                    .contains_key(&relationship_schema.from_node)
+                    || !graph_schema_lock
+                        .get_nodes_schemas()
+                        .contains_key(&relationship_schema.to_node)
+                {
+                    return Err("From and To node tables must be present before creating a relationship between them".to_string());
+                }
 
-            Ok(())
+            },
+            _ => (),
+            // GraphSchemaElement::Node(_) => Ok(()),
         }
     }
+
+    Ok(())
+
+    
 }
 
 pub async fn add_to_schema(
     clickhouse_client: Client,
-    graph_schema_element: GraphSchemaElement,
+    graph_schema_elements: Vec<GraphSchemaElement>,
 ) -> Result<(), String> {
     let mut graph_schema = GLOBAL_GRAPH_SCHEMA.get().unwrap().write().await;
-    match graph_schema_element {
-        GraphSchemaElement::Node(node_schema) => {
-            graph_schema.insert_node_schema(node_schema.table_name.to_string(), node_schema);
-            graph_schema.increment_version(); 
-        }
-        GraphSchemaElement::Rel(relationship_schema) => {
-            graph_schema.insert_rel_schema(
-                relationship_schema.table_name.to_string(),
-                relationship_schema,
-            );
-            graph_schema.increment_version();
+
+    for element in graph_schema_elements {
+        match element {
+            GraphSchemaElement::Node(node_schema) => {
+                graph_schema.insert_node_schema(node_schema.table_name.to_string(), node_schema);
+                graph_schema.increment_version(); 
+            }
+            GraphSchemaElement::Rel(relationship_schema) => {
+                graph_schema.insert_rel_schema(
+                    relationship_schema.table_name.to_string(),
+                    relationship_schema,
+                );
+                graph_schema.increment_version();
+            },
+            GraphSchemaElement::RelIndex(relationship_index_schema) => {
+                graph_schema.insert_rel_index_schema(
+                    relationship_index_schema.table_name.to_string(),
+                    relationship_index_schema,
+                );
+            }
+
         }
     }
+
+    
 
     let schema_json = serde_json::to_string(&*graph_schema)
         .map_err(|e| format!("Schema serialization error: {}", e))?;
 
-    let graph_meta = GraphMeta { id: 1, schema_json };
+    let graph_catalog = GraphCatalog { id: 1, schema_json };
 
     let mut insert = clickhouse_client
-        .insert("graph_meta")
+        .insert("graph_catalog")
         .map_err(|e| format!("Clickhouse Error: {}", e))?;
     insert
-        .write(&graph_meta)
+        .write(&graph_catalog)
         .await
         .map_err(|e| format!("Clickhouse Error: {}", e))?;
     insert
@@ -185,7 +204,7 @@ pub async fn monitor_schema_updates(ch_client: Client) -> Result<(), String> {
         let mem_version = in_mem_schema_guard.get_version();
 
         // Fetch the schema from ClickHouse.
-        let remote_schema = match get_graph_meta(ch_client.clone()).await {
+        let remote_schema = match get_graph_catalog(ch_client.clone()).await {
             Ok(schema) => schema,
             Err(err) => {
                 eprintln!("Error fetching remote schema: {}", err);

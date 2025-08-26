@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use thiserror::Error;
 
-use crate::{graph_schema::errors::GraphSchemaError, query_planner::plan_ctx::errors::PlanCtxError};
+use crate::{graph_catalog::errors::GraphSchemaError, query_planner::plan_ctx::errors::PlanCtxError};
 
 #[derive(Debug, Clone, Error, PartialEq)]
 pub enum Pass {

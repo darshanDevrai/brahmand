@@ -1,6 +1,6 @@
 use errors::ClickhouseQueryGeneratorError;
 
-use crate::{graph_schema::graph_schema::{GraphSchema, GraphSchemaElement}, open_cypher_parser::ast::OpenCypherQueryAst, render_plan::{render_plan::RenderPlan, ToSql}};
+use crate::{graph_catalog::graph_schema::{GraphSchema, GraphSchemaElement}, open_cypher_parser::ast::OpenCypherQueryAst, render_plan::{render_plan::RenderPlan, ToSql}};
 
 
 mod common;
@@ -30,6 +30,6 @@ pub fn generate_sql(plan: RenderPlan) -> String {
 pub fn generate_ddl_query(
     query_ast: OpenCypherQueryAst,
     current_graph_schema: &GraphSchema,
-) -> Result<(Vec<String>, GraphSchemaElement), ClickhouseQueryGeneratorError> {
+) -> Result<(Vec<String>, Vec<GraphSchemaElement>), ClickhouseQueryGeneratorError> {
     ddl_query::generate_query(query_ast, current_graph_schema)
 }

@@ -40,7 +40,7 @@ impl From<OutputFormat> for String {
 }
 
 #[derive(Debug, Row, Serialize, Deserialize)]
-pub struct GraphMeta {
+pub struct GraphCatalog {
     pub id: u64,
     pub schema_json: String,
 }
