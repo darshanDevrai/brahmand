@@ -79,11 +79,7 @@ pub struct NodeIdSchema {
     pub dtype: String,
 }
 
-#[derive(Debug, Clone)]
-pub struct EntityProperties {
-    pub primary_keys: String,
-    pub node_id: NodeIdSchema, // other props
-}
+
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct GraphSchema {
