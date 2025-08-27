@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use crate::{ graph_catalog::graph_schema::{GraphSchema, NodeSchema, RelationshipSchema}, query_planner::{analyzer::{analyzer_pass::{AnalyzerPass, AnalyzerResult}, errors::{AnalyzerError, Pass}}, logical_expr::logical_expr::{Column, ColumnAlias, Direction, InSubquery, LogicalExpr, Operator, OperatorApplication, PropertyAccess}, logical_plan::{self, logical_plan::{Cte, Filter, GraphRel, LogicalPlan, Projection, ProjectionItem, Scan, Union, UnionType}}, plan_ctx::plan_ctx::{PlanCtx, TableCtx}, transformed::Transformed}};
+use crate::{ graph_catalog::graph_schema::{GraphSchema, NodeSchema, RelationshipSchema}, query_planner::{analyzer::{analyzer_pass::{AnalyzerPass, AnalyzerResult}, errors::{AnalyzerError, Pass}, graph_context::{self, GraphContext}}, logical_expr::logical_expr::{Column, ColumnAlias, Direction, InSubquery, LogicalExpr, Operator, OperatorApplication, PropertyAccess}, logical_plan::{self, logical_plan::{Cte, Filter, GraphRel, LogicalPlan, Projection, ProjectionItem, Scan, Union, UnionType}}, plan_ctx::plan_ctx::{PlanCtx, TableCtx}, transformed::Transformed}};
 
 
 
@@ -151,32 +151,6 @@ pub struct CtxToUpdate {
     is_rel: bool
 }
 
-#[derive(Debug, Clone)]
-pub struct GraphContext<'a> {
-    left: GraphNodeContext<'a>,
-    rel: GraphRelContext<'a>,
-    right: GraphNodeContext<'a>
-}
-
-#[derive(Debug, Clone)]
-pub struct GraphNodeContext<'a> {
-    alias: &'a String,
-    table_ctx: &'a TableCtx,
-    label: String,
-    schema: &'a NodeSchema,
-    id_column: String,
-    cte_name: String
-}
-
-#[derive(Debug, Clone)]
-pub struct GraphRelContext<'a> {
-    alias: &'a String,
-    table_ctx: &'a TableCtx,
-    label: String,
-    schema: &'a RelationshipSchema,
-    // id_column: String,
-    // cte_name: String
-}
 
 
 impl GraphTRaversalPlanning {
@@ -184,45 +158,11 @@ impl GraphTRaversalPlanning {
         GraphTRaversalPlanning
     }
 
-    fn get_graph_context<'a>(&'a self,  graph_rel: &'a GraphRel, plan_ctx: &'a mut PlanCtx, graph_schema: &'a GraphSchema) -> AnalyzerResult<GraphContext<'a>> {
-        // get required information 
-        let left_alias = &graph_rel.left_connection;
-        let rel_alias = &graph_rel.alias;
-        let right_alias = &graph_rel.right_connection;
-
-
-        let left_ctx = plan_ctx.get_node_table_ctx(left_alias).map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphTraversalPlanning, source: e})?;
-        let rel_ctx = plan_ctx.get_rel_table_ctx(rel_alias).map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphTraversalPlanning, source: e})?;
-        let right_ctx = plan_ctx.get_node_table_ctx(right_alias).map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphTraversalPlanning, source: e})?;
-
-        let left_label = left_ctx.get_label_str().map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphTraversalPlanning, source: e})?;
-        let rel_label = rel_ctx.get_label_str().map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphTraversalPlanning, source: e})?;
-        let right_label = right_ctx.get_label_str().map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphTraversalPlanning, source: e})?;
-
-        let left_schema = graph_schema.get_node_schema(&left_label).map_err(|e| AnalyzerError::GraphSchema { pass: Pass::GraphTraversalPlanning, source: e})?;
-        let rel_schema = graph_schema.get_rel_schema(&rel_label).map_err(|e| AnalyzerError::GraphSchema { pass: Pass::GraphTraversalPlanning, source: e})?;
-        let right_schema = graph_schema.get_node_schema(&right_label).map_err(|e| AnalyzerError::GraphSchema { pass: Pass::GraphTraversalPlanning, source: e})?;
-
-        let left_node_id_column = left_schema.node_id.column.clone();
-        let right_node_id_column = right_schema.node_id.column.clone();
-
-        let left_cte_name = format!("{}_{}",left_label, left_alias);
-        let right_cte_name = format!("{}_{}", right_label, right_alias);
-
-
-        let graph_context = GraphContext {
-            left: GraphNodeContext { alias: left_alias, table_ctx: left_ctx, label: left_label, schema: left_schema, id_column: left_node_id_column, cte_name: left_cte_name },
-            rel: GraphRelContext { alias: rel_alias, table_ctx: rel_ctx, label: rel_label, schema: rel_schema},
-            right: GraphNodeContext{ alias: right_alias, table_ctx: right_ctx, label: right_label, schema: right_schema, id_column: right_node_id_column, cte_name: right_cte_name },
-        };
-
-        Ok(graph_context)
-
-    }
+    
 
     fn infer_traversal(&self, graph_rel: &GraphRel, plan_ctx: &mut PlanCtx, graph_schema: &GraphSchema, is_anchor_traversal: bool) -> AnalyzerResult<(GraphRel, Vec<CtxToUpdate>)> {
         
-        let graph_context = self.get_graph_context(graph_rel, plan_ctx, graph_schema)?;
+        let graph_context = graph_context::get_graph_context(graph_rel, plan_ctx, graph_schema, Pass::GraphTraversalPlanning)?;
 
         // left is traversed irrespective of anchor node or intermediate node
         let star_found = graph_context.left.table_ctx.get_projections().iter().any(|item| item.expression == LogicalExpr::Star);
@@ -276,40 +216,28 @@ impl GraphTRaversalPlanning {
 
         let right_insubquery: LogicalExpr;
         let left_insubquery: LogicalExpr;
-        // when using edge list, we need to check which node joins to "from_id" and which node joins to "to_id"
-        if graph_context.rel.schema.from_node == graph_context.right.schema.table_name {
 
-            let (r_cte_name, r_plan, mut r_ctxs_to_update) = self.get_rel_ctx_for_edge_list(graph_rel, &graph_context,graph_context.right.cte_name.clone(), graph_context.right.id_column.clone(), graph_rel.is_rel_anchor);
-            rel_cte_name = r_cte_name;
-            rel_ctxs_to_update = r_ctxs_to_update;
-            rel_plan = r_plan;
+        let (r_cte_name, r_plan, mut r_ctxs_to_update) = self.get_rel_ctx_for_edge_list(graph_rel, &graph_context, graph_context.right.cte_name.clone(), graph_context.right.id_column.clone(), graph_rel.is_rel_anchor);
+        rel_cte_name = r_cte_name;
+        rel_ctxs_to_update = r_ctxs_to_update;
+        rel_plan = r_plan;
 
-            right_insubquery = self.build_insubquery(graph_context.right.id_column.clone(),
-                rel_cte_name.clone(),
-                "from_id".to_string());
+        // when using edge list, we need to check which node joins to "from_id" and which node joins to "to_id" of the relationship.
+        // Based on that we decide, how the left and right nodes are connected with relationship in subqueries.
+        let (right_sub_plan_column, left_sub_plan_column) = if graph_context.rel.schema.from_node == graph_context.right.schema.table_name {
+            ("from_id".to_string(), "to_id".to_string())
+        } else {
+            ("to_id".to_string(), "from_id".to_string())
+        };
 
-            left_insubquery = self.build_insubquery(graph_context.left.id_column,
-                rel_cte_name.clone(),
-                "to_id".to_string());
+        right_insubquery = self.build_insubquery(graph_context.right.id_column.clone(),
+            rel_cte_name.clone(),
+            right_sub_plan_column);
+
+        left_insubquery = self.build_insubquery(graph_context.left.id_column,
+            rel_cte_name.clone(),
+            left_sub_plan_column);
             
-        }else{
-            // rel_insubquery = self.build_insubquery("to_id".to_string(),
-            // graph_context.right.cte_name.clone(),
-            // graph_context.right.id_column.clone());
-
-            let (r_cte_name, r_plan, mut r_ctxs_to_update) = self.get_rel_ctx_for_edge_list(graph_rel, &graph_context,graph_context.left.cte_name.clone(), graph_context.left.id_column.clone(), graph_rel.is_rel_anchor);
-            rel_cte_name = r_cte_name;
-            rel_ctxs_to_update = r_ctxs_to_update;
-            rel_plan = r_plan;
-
-            right_insubquery = self.build_insubquery(graph_context.right.id_column,
-                rel_cte_name.clone(),
-                "to_id".to_string());
-
-            left_insubquery = self.build_insubquery(graph_context.left.id_column,
-                rel_cte_name.clone(),
-                "from_id".to_string());
-        }
 
         if graph_rel.is_rel_anchor {
             let right_ctx_to_update = CtxToUpdate {
@@ -324,13 +252,6 @@ impl GraphTRaversalPlanning {
 
             rel_ctxs_to_update.first_mut().unwrap().insubquery = None;
 
-            // let rel_ctx_to_update = CtxToUpdate {
-            //     alias: graph_context.rel.alias.to_string(),
-            //     label: graph_context.rel.label,
-            //     projections: rel_projections,
-            //     insubquery: None,
-            //     override_projections: false
-            // };
             ctxs_to_update.append(&mut rel_ctxs_to_update);
 
             let left_ctx_to_update = CtxToUpdate {
@@ -345,8 +266,6 @@ impl GraphTRaversalPlanning {
 
             let new_graph_rel = GraphRel { 
                 left: Arc::new(LogicalPlan::Cte(Cte { input: graph_rel.left.clone(), name: graph_context.left.cte_name })),
-                // center: Arc::new(LogicalPlan::Cte(Cte { input: graph_rel.center.clone(), name: graph_context.right.cte_name })),
-                // right: Arc::new(LogicalPlan::Cte(Cte { input: graph_rel.right.clone(), name: rel_cte_name  })), 
                 center: Arc::new(LogicalPlan::Cte(Cte { input: graph_rel.right.clone(), name: graph_context.right.cte_name })),
                 right: Arc::new(LogicalPlan::Cte(Cte { input: rel_plan.clone(), name: rel_cte_name  })), 
                 ..graph_rel.clone()
@@ -356,13 +275,6 @@ impl GraphTRaversalPlanning {
 
         }else{
 
-            // let rel_ctx_to_update = CtxToUpdate {
-            //     alias: graph_context.rel.alias.to_string(),
-            //     label: graph_context.rel.label,
-            //     projections: rel_projections,
-            //     insubquery: Some(rel_insubquery),
-            //     override_projections: false
-            // };
             ctxs_to_update.append(&mut rel_ctxs_to_update);
 
             let left_ctx_to_update = CtxToUpdate {
@@ -575,12 +487,20 @@ impl GraphTRaversalPlanning {
     
             let rel_projections = self.build_projections(rel_proj_input);
 
-
-            let sub_in_expr_str = if graph_rel.direction == Direction::Outgoing {
+            // when using edge list, we need to check which node joins to "from_id" and which node joins to "to_id" of the relationship.
+            // Based on that we decide, how the relationship is connected with right node as we traverse in graph traversal planning from right to left i.e. bottom to top.
+            // Relationship direction integrity is already checked during query validation. If there is wrong direction then plan won't come to this stage. So we don't have to check direction here.
+            let sub_in_expr_str = if graph_context.rel.schema.from_node == graph_context.right.schema.table_name {
                 "from_id".to_string()
             } else {
                 "to_id".to_string()
             };
+
+            // let sub_in_expr_str = if graph_rel.direction == Direction::Outgoing {
+            //     "from_id".to_string()
+            // } else {
+            //     "to_id".to_string()
+            // };
 
             let rel_insubquery = self.build_insubquery(sub_in_expr_str,
             connected_node_cte_name,

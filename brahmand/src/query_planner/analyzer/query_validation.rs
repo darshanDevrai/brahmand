@@ -21,6 +21,9 @@ impl AnalyzerPass for QueryValidation {
                 graph_node.rebuild_or_clone(child_tf, logical_plan.clone())
             },
             LogicalPlan::GraphRel(graph_rel) => {
+
+                self.analyze_with_graph_schema(graph_rel.right.clone(), plan_ctx, graph_schema)?;
+
                 let left_alias = &graph_rel.left_connection;
                 let right_alias = &graph_rel.right_connection;
 
@@ -42,7 +45,7 @@ impl AnalyzerPass for QueryValidation {
 
                 let rel_schema = graph_schema.get_rel_schema(&rel_lable).map_err(|e| AnalyzerError::GraphSchema { pass: Pass::QueryValidation, source: e})?;
 
-                if rel_schema.from_node == *from && rel_schema.to_node == *to {
+                if rel_schema.from_node == *from && rel_schema.to_node == *to || (graph_rel.direction == Direction::Either && [rel_schema.from_node.clone(), rel_schema.to_node.clone()].contains(&from) && [rel_schema.from_node.clone(), rel_schema.to_node.clone()].contains(&to)) {
                     // valid graph
                     // if not explicite edge list then check for indexes
                     if !rel_ctx.should_use_edge_list() {

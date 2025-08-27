@@ -54,7 +54,8 @@ impl PlanSanitization {
                     }
                     Transformed::No(graph_rel.left.clone())
                 };
-                let center_tf = self.sanitize_plan(graph_rel.center.clone(), plan_ctx, last_node_traversed)?;
+                // We want to sanitize relationships scans irrespective of last_node_traversed or not, so pass true here.
+                let center_tf = self.sanitize_plan(graph_rel.center.clone(), plan_ctx, true)?;
                 let right_tf = self.sanitize_plan(graph_rel.right.clone(), plan_ctx, last_node_traversed)?;
                 graph_rel.rebuild_or_clone(left_tf, center_tf, right_tf, logical_plan.clone())
             },

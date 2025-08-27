@@ -22,6 +22,7 @@ mod graph_join_inference;
 mod plan_sanitization;
 mod query_validation;
 pub mod errors;
+mod graph_context;
 
 
 pub fn initial_analyzing(plan: Arc<LogicalPlan>, plan_ctx: &mut PlanCtx, current_graph_schema: &GraphSchema) -> AnalyzerResult<Arc<LogicalPlan>> {
