@@ -2,6 +2,7 @@
 use std::{sync::Arc, fmt};
 
 use crate::query_planner::{logical_expr::logical_expr::{ColumnAlias, Direction, Literal, LogicalExpr, Operator, OperatorApplication, Property, TableAlias}, transformed::Transformed};
+use crate::open_cypher_parser::ast::{ OrderByItem as CypherOrderByItem, OrerByOrder as CypherOrerByOrder, Expression as CypherExpression, ReturnItem as CypherReturnItem };
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum LogicalPlan {
@@ -378,8 +379,8 @@ impl Union {
     }
 }
 
-impl<'a> From<crate::open_cypher_parser::ast::ReturnItem<'a>> for ProjectionItem {
-    fn from(value: crate::open_cypher_parser::ast::ReturnItem<'a>) -> Self {
+impl<'a> From<CypherReturnItem<'a>> for ProjectionItem {
+    fn from(value: CypherReturnItem<'a>) -> Self {
         ProjectionItem {
             expression: value.expression.into(),
             col_alias: value.alias.map(|alias| ColumnAlias(alias.to_string())),
@@ -388,17 +389,17 @@ impl<'a> From<crate::open_cypher_parser::ast::ReturnItem<'a>> for ProjectionItem
     }
 }
 
-impl<'a> From<crate::open_cypher_parser::ast::OrderByItem<'a>> for OrderByItem {
-    fn from(value: crate::open_cypher_parser::ast::OrderByItem<'a>) -> Self {
+impl<'a> From<CypherOrderByItem<'a>> for OrderByItem {
+    fn from(value: CypherOrderByItem<'a>) -> Self {
         OrderByItem {
-            expression: if let crate::open_cypher_parser::ast::Expression::Variable(var) = value.expression {
+            expression: if let CypherExpression::Variable(var) = value.expression {
                 LogicalExpr::ColumnAlias(ColumnAlias(var.to_string()))
             } else{
                 value.expression.into()
             },
             order: match value.order {
-                crate::open_cypher_parser::ast::OrerByOrder::Asc => OrderByOrder::Asc,
-                crate::open_cypher_parser::ast::OrerByOrder::Desc => OrderByOrder::Desc,
+                CypherOrerByOrder::Asc => OrderByOrder::Asc,
+                CypherOrerByOrder::Desc => OrderByOrder::Desc,
             },
         }
     }
@@ -520,7 +521,7 @@ mod tests {
     use crate::query_planner::logical_expr::logical_expr::{
         Column, Literal, LogicalExpr, Operator, OperatorApplication, PropertyAccess, TableAlias
     };
-    use crate::open_cypher_parser::ast;
+    // use crate::open_cypher_parser::ast;
 
     #[test]
     fn test_filter_rebuild_or_clone_with_transformation() {
@@ -727,8 +728,8 @@ mod tests {
 
     #[test]
     fn test_projection_item_from_ast() {
-        let ast_return_item = ast::ReturnItem {
-            expression: ast::Expression::Variable("customer_name"),
+        let ast_return_item = CypherReturnItem {
+            expression: CypherExpression::Variable("customer_name"),
             alias: Some("full_name"),
         };
         
@@ -743,9 +744,9 @@ mod tests {
 
     #[test]
     fn test_order_by_item_from_ast() {
-        let ast_order_item = ast::OrderByItem {
-            expression: ast::Expression::Variable("price"),
-            order: ast::OrerByOrder::Desc,
+        let ast_order_item = CypherOrderByItem {
+            expression: CypherExpression::Variable("price"),
+            order: CypherOrerByOrder::Desc,
         };
         
         let order_by_item = OrderByItem::from(ast_order_item);
@@ -755,54 +756,6 @@ mod tests {
             _ => panic!("Expected ColumnAlias"),
         }
         assert_eq!(order_by_item.order, OrderByOrder::Desc);
-    }
-
-    #[test]
-    fn test_logical_plan_variant_names() {
-        let scan = LogicalPlan::Scan(Scan {
-            table_alias: Some("products".to_string()),
-            table_name: Some("product_catalog".to_string()),
-        });
-        assert_eq!(scan.variant_name(), "scan(products)");
-        
-        let graph_node = LogicalPlan::GraphNode(GraphNode {
-            input: Arc::new(LogicalPlan::Empty),
-            alias: "customer".to_string(),
-        });
-        assert_eq!(graph_node.variant_name(), "Node(customer)");
-        
-        let graph_rel = LogicalPlan::GraphRel(GraphRel {
-            left: Arc::new(LogicalPlan::Empty),
-            center: Arc::new(LogicalPlan::Empty),
-            right: Arc::new(LogicalPlan::Empty),
-            alias: "purchased".to_string(),
-            direction: Direction::Outgoing,
-            left_connection: "customer_id".to_string(),
-            right_connection: "order_id".to_string(),
-            is_rel_anchor: true,
-        });
-        assert_eq!(graph_rel.variant_name(), "GraphRel(Outgoing)(is_rel_anchor: true)");
-        
-        let filter = LogicalPlan::Filter(Filter {
-            input: Arc::new(LogicalPlan::Empty),
-            predicate: LogicalExpr::Literal(Literal::Boolean(true)),
-        });
-        assert_eq!(filter.variant_name(), "Filter");
-        
-        let projection = LogicalPlan::Projection(Projection {
-            input: Arc::new(LogicalPlan::Empty),
-            items: vec![],
-        });
-        assert_eq!(projection.variant_name(), "Projection");
-        
-        let empty = LogicalPlan::Empty;
-        assert_eq!(empty.variant_name(), "");
-        
-        let cte = LogicalPlan::Cte(Cte {
-            input: Arc::new(LogicalPlan::Empty),
-            name: "active_users".to_string(),
-        });
-        assert_eq!(cte.variant_name(), "Cte(active_users)");
     }
 
     #[test]

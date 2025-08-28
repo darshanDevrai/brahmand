@@ -1,13 +1,6 @@
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
-use crate::{ graph_catalog::graph_schema::{GraphSchema, NodeSchema, RelationshipSchema}, query_planner::{analyzer::{analyzer_pass::{AnalyzerPass, AnalyzerResult}, errors::{AnalyzerError, Pass}, graph_context::{self, GraphContext}}, logical_expr::logical_expr::{Column, ColumnAlias, Direction, InSubquery, LogicalExpr, Operator, OperatorApplication, PropertyAccess}, logical_plan::{self, logical_plan::{Cte, Filter, GraphRel, LogicalPlan, Projection, ProjectionItem, Scan, Union, UnionType}}, plan_ctx::plan_ctx::{PlanCtx, TableCtx}, transformed::Transformed}};
-
-
-
-
-
-
-
+use crate::{ graph_catalog::graph_schema::GraphSchema, query_planner::{analyzer::{analyzer_pass::{AnalyzerPass, AnalyzerResult}, errors::Pass, graph_context::{self, GraphContext}}, logical_expr::logical_expr::{Column, ColumnAlias, Direction, InSubquery, LogicalExpr, PropertyAccess}, logical_plan::{self, logical_plan::{Cte, GraphRel, LogicalPlan, Projection, ProjectionItem, Scan, Union, UnionType}}, plan_ctx::plan_ctx::{PlanCtx, TableCtx}, transformed::Transformed}};
 
 
 pub struct GraphTRaversalPlanning;
@@ -26,8 +19,8 @@ impl AnalyzerPass for GraphTRaversalPlanning {
             },
             LogicalPlan::GraphRel(graph_rel) => {
 
+                // If no graphRel at the right means we have reached at the bottom of the tree i.e. right is anchor.
                 if !matches!(graph_rel.right.as_ref(), LogicalPlan::GraphRel(_)) {
-                    // let (new_graph_rel, ctxs_to_update) = self.infer_anchor_traversal(graph_rel, plan_ctx, graph_schema)?;
                     let (new_graph_rel, ctxs_to_update) = self.infer_traversal(graph_rel, plan_ctx, graph_schema, true)?;
 
                     for mut ctx in ctxs_to_update.into_iter() {
@@ -65,7 +58,6 @@ impl AnalyzerPass for GraphTRaversalPlanning {
                         right: right_tf.get_plan(),
                         ..graph_rel.clone()
                     };
-                    // let (new_graph_rel, ctxs_to_update) = self.infer_intermediate_traversal(&updated_graph_rel, plan_ctx, graph_schema)?;
                     let (new_graph_rel, ctxs_to_update) = self.infer_traversal(&updated_graph_rel, plan_ctx, graph_schema, false)?;
 
                     for mut ctx in ctxs_to_update.into_iter() {
@@ -217,7 +209,7 @@ impl GraphTRaversalPlanning {
         let right_insubquery: LogicalExpr;
         let left_insubquery: LogicalExpr;
 
-        let (r_cte_name, r_plan, mut r_ctxs_to_update) = self.get_rel_ctx_for_edge_list(graph_rel, &graph_context, graph_context.right.cte_name.clone(), graph_context.right.id_column.clone(), graph_rel.is_rel_anchor);
+        let (r_cte_name, r_plan, r_ctxs_to_update) = self.get_rel_ctx_for_edge_list(graph_rel, &graph_context, graph_context.right.cte_name.clone(), graph_context.right.id_column.clone(), graph_rel.is_rel_anchor);
         rel_cte_name = r_cte_name;
         rel_ctxs_to_update = r_ctxs_to_update;
         rel_plan = r_plan;
@@ -322,29 +314,6 @@ impl GraphTRaversalPlanning {
 
         let mut ctxs_to_update: Vec<CtxToUpdate> = vec![];
 
-        // let new_rel_label = self.get_relationship_table_name(graph_context.right.label.clone(), graph_context.left.label.clone(), graph_context.rel.label, graph_rel.direction.clone(), graph_context.rel.schema)?;
-        // let rel_cte_name = format!("{}_{}", new_rel_label, graph_context.rel.alias);
-
-        // let rel_proj_input: Vec<(String, Option<ColumnAlias>)> = vec![
-        //     ("from_id".to_string(), None),
-        //     ("arrayJoin(bitmapToArray(to_id))".to_string(), Some(ColumnAlias("to_id".to_string())))
-        // ];
-        // let rel_projections = self.build_projections(rel_proj_input);
-        // let rel_insubquery = self.build_insubquery("from_id".to_string(),
-        //     graph_context.right.cte_name.clone(),
-        //     graph_context.right.id_column.clone());
-
-        
-        // let rel_ctx_to_update = CtxToUpdate {
-        //     alias: graph_context.rel.alias.to_string(),
-        //     label: new_rel_label,
-        //     projections: rel_projections,
-        //     insubquery: Some(rel_insubquery),
-        //     override_projections: false,
-        //     is_rel: true
-        // };
-        // ctxs_to_update.push(rel_ctx_to_update);
-
         let (rel_cte_name, rel_plan, mut rel_ctxs_to_update) = self.get_rel_ctx_for_bitmaps(&graph_rel, &graph_context, graph_context.right.cte_name.clone(), graph_context.right.id_column.clone());
         
         ctxs_to_update.append(&mut rel_ctxs_to_update);
@@ -398,18 +367,8 @@ impl GraphTRaversalPlanning {
     
     fn get_rel_ctx_for_edge_list(&self, graph_rel: &GraphRel, graph_context: &GraphContext, connected_node_cte_name: String, connected_node_id_column: String, is_rel_anchor: bool) -> (String, Arc<LogicalPlan>, Vec<CtxToUpdate>) {
 
-        
-        // let rel_cte_name = format!("{}_{}", graph_context.rel.label, graph_context.rel.alias);
 
         let star_found = graph_context.rel.table_ctx.get_projections().iter().any(|item| item.expression == LogicalExpr::Star);
-        
-        // let rel_insubquery:LogicalExpr;
-
-        // let rel_projections:Vec<ProjectionItem>;
-
-        // let mut override_projections = false;
-
-        
 
         // if direction == Direction::Either and both nodes are of same types then use UNION of both.
         // TODO - currently Either direction on anchor relation is not supported. FIX this
@@ -656,423 +615,4 @@ impl GraphTRaversalPlanning {
         }))
     } 
 
-    // We will get the correct table name for relation based start_node, end_node and relation schema stored in graph schema
-    // Post --CREATED_BY---> User
-    // CREATED_BY_outgoing = (Post, User)
-    // CREATED_BY_incoming = (User, Post)
-    // If from_node of schema == start_node -> outgoing with start_node = from_node and end_node = to_node
-    // If from_node of schema == end_node  -> incoming with start_node = from_node and end_node = to_node
-    fn get_relationship_table_name(
-        &self,
-        right_node_label: String,
-        left_node_label: String,
-        rel_label: String,
-        direction: Direction,
-        rel_schema: &RelationshipSchema,
-    ) -> AnalyzerResult<String> {
-
-        println!("direction {:?}", direction);
-
-        if right_node_label == left_node_label {
-            if direction == Direction::Incoming {
-                return Ok(format!("{}_incoming", rel_label));
-            } else {
-                return Ok(format!("{}_outgoing", rel_label));
-            }
-        }
-
-        if rel_schema.from_node == right_node_label {
-            return Ok(format!("{}_outgoing", rel_label));
-        }
-
-        if rel_schema.from_node == left_node_label {
-            return Ok(format!("{}_incoming", rel_label));
-        }
-
-        Err(AnalyzerError::NoRelationSchemaFound{ pass: Pass::GraphTraversalPlanning})
-    }
-
-
-    // fn infer_anchor_traversal(&self, graph_rel: &GraphRel, plan_ctx: &mut PlanCtx, graph_schema: &GraphSchema) -> AnalyzerResult<(GraphRel, Vec<CtxToUpdate>)> {
-    //     // get required information 
-    //     let left_alias = &graph_rel.left_connection;
-    //     let rel_alias = &graph_rel.alias;
-    //     let right_alias = &graph_rel.right_connection;
-
-
-    //     let left_ctx = plan_ctx.get_node_table_ctx(left_alias).map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphTraversalPlanning, source: e})?;
-    //     let rel_ctx = plan_ctx.get_rel_table_ctx(rel_alias).map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphTraversalPlanning, source: e})?;
-    //     let right_ctx = plan_ctx.get_node_table_ctx(right_alias).map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphTraversalPlanning, source: e})?;
-
-    //     let left_label = left_ctx.get_label_str().map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphTraversalPlanning, source: e})?;
-    //     let rel_label = rel_ctx.get_label_str().map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphTraversalPlanning, source: e})?;
-    //     let right_label = right_ctx.get_label_str().map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphTraversalPlanning, source: e})?;
-
-
-    //     let left_schema = graph_schema.get_node_schema(&left_label).map_err(|e| AnalyzerError::GraphSchema { pass: Pass::GraphTraversalPlanning, source: e})?;
-    //     let rel_schema = graph_schema.get_rel_schema(&rel_label).map_err(|e| AnalyzerError::GraphSchema { pass: Pass::GraphTraversalPlanning, source: e})?;
-    //     let right_schema = graph_schema.get_node_schema(&right_label).map_err(|e| AnalyzerError::GraphSchema { pass: Pass::GraphTraversalPlanning, source: e})?;
-
-    //     let left_node_id_column = left_schema.node_id.column.clone();
-    //     let right_node_id_column = right_schema.node_id.column.clone();
-
-    //     let mut ctxs_to_update: Vec<CtxToUpdate> = vec![];
-
-
-    //     let left_cte_name = format!("{}_{}",left_label, left_alias);
-    //     let right_cte_name = format!("{}_{}", right_label, right_alias);
-
-    //     let star_found = right_ctx.get_projections().iter().any(|item| item.expression == LogicalExpr::Star);
-    //     let node_id_found = right_ctx.get_projections().iter().any(|item| {
-    //         match &item.expression {
-    //             LogicalExpr::Column(Column(col)) => col == &right_node_id_column,
-    //             LogicalExpr::PropertyAccessExp(PropertyAccess { column, .. }) => column.0 == right_node_id_column,
-    //             _ => false,
-    //         }
-    //     });
-    //     let right_projections: Vec<ProjectionItem> = if !star_found && !node_id_found {
-    //         let proj_input: Vec<(String, Option<ColumnAlias>)> = vec![(right_node_id_column.clone(), None)];
-    //         self.build_projections(proj_input)
-    //     } else {
-    //         vec![]
-    //     };
-        
-
-    //     let star_found = left_ctx.get_projections().iter().any(|item| item.expression == LogicalExpr::Star);
-    //     let node_id_found = left_ctx.get_projections().iter().any(|item| {
-    //         match &item.expression {
-    //             LogicalExpr::Column(Column(col)) => col == &left_node_id_column,
-    //             LogicalExpr::PropertyAccessExp(PropertyAccess { column, .. }) => column.0 == left_node_id_column,
-    //             _ => false,
-    //         }
-    //     });
-    //     let left_projections: Vec<ProjectionItem> = if !star_found && !node_id_found {
-    //         let proj_input: Vec<(String, Option<ColumnAlias>)> = vec![(left_node_id_column.clone(), None)];
-    //         self.build_projections(proj_input)
-    //     } else {
-    //         vec![]
-    //     };
-
-    //     if rel_ctx.should_use_edge_list() {
-    //         let rel_cte_name = format!("{}_{}", rel_label, rel_alias);
-            
-    //         let star_found = rel_ctx.get_projections().iter().any(|item| item.expression == LogicalExpr::Star);
-    //         let rel_proj_input: Vec<(String, Option<ColumnAlias>)> = if !star_found {
-    //             vec![
-    //                 (format!("from_{}", rel_schema.from_node), Some(ColumnAlias("from_id".to_string()))),
-    //                 (format!("to_{}", rel_schema.to_node.clone()), Some(ColumnAlias("to_id".to_string())))
-    //             ]
-    //         } else { vec![] };
-
-    //         let rel_projections:Vec<ProjectionItem> = self.build_projections(rel_proj_input);
-    //         let rel_insubquery: LogicalExpr;
-    //         let right_insubquery: LogicalExpr;
-    //         let left_insubquery: LogicalExpr;
-    //         // when using edge list, we need to check which node joins to "from_id" and which node joins to "to_id"
-    //         if rel_schema.from_node == right_schema.table_name {
-    //             rel_insubquery = self.build_insubquery("from_id".to_string(),
-    //             right_cte_name.clone(),
-    //             right_node_id_column.clone());
-
-    //             right_insubquery = self.build_insubquery(right_node_id_column,
-    //                 rel_cte_name.clone(),
-    //                 "from_id".to_string());
-
-    //             left_insubquery = self.build_insubquery(left_node_id_column,
-    //                 rel_cte_name.clone(),
-    //                 "to_id".to_string());
-                
-    //         }else{
-    //             rel_insubquery = self.build_insubquery("to_id".to_string(),
-    //             right_cte_name.clone(),
-    //             right_node_id_column.clone());
-
-    //             right_insubquery = self.build_insubquery(right_node_id_column,
-    //                 rel_cte_name.clone(),
-    //                 "to_id".to_string());
-
-    //             left_insubquery = self.build_insubquery(left_node_id_column,
-    //                 rel_cte_name.clone(),
-    //                 "from_id".to_string());
-    //         }
-
-    //         if graph_rel.is_rel_anchor {
-    //             let right_ctx_to_update = CtxToUpdate {
-    //                 alias: right_alias.to_string(),
-    //                 label: right_label,
-    //                 projections: right_projections,
-    //                 insubquery: Some(right_insubquery),
-    //             };
-    //             ctxs_to_update.push(right_ctx_to_update);
-
-    //             let rel_ctx_to_update = CtxToUpdate {
-    //                 alias: rel_alias.to_string(),
-    //                 label: rel_label,
-    //                 projections: rel_projections,
-    //                 insubquery: None,
-    //             };
-    //             ctxs_to_update.push(rel_ctx_to_update);
-
-    //             let left_ctx_to_update = CtxToUpdate {
-    //                 alias: left_alias.to_string(),
-    //                 label: left_label,
-    //                 projections: left_projections,
-    //                 insubquery: Some(left_insubquery),
-    //             };
-    //             ctxs_to_update.push(left_ctx_to_update);
-
-    //             let new_graph_rel = GraphRel { 
-    //                 left: Arc::new(LogicalPlan::Cte(Cte { input: graph_rel.left.clone(), name: left_cte_name })),
-    //                 center: Arc::new(LogicalPlan::Cte(Cte { input: graph_rel.center.clone(), name: right_cte_name })),
-    //                 right: Arc::new(LogicalPlan::Cte(Cte { input: graph_rel.right.clone(), name: rel_cte_name  })), 
-    //                 ..graph_rel.clone()
-    //             };
-    //             return Ok((new_graph_rel, ctxs_to_update))
-
-    //         }else{
-    //             let right_ctx_to_update = CtxToUpdate {
-    //                 alias: right_alias.to_string(),
-    //                 label: right_label,
-    //                 projections: right_projections,
-    //                 insubquery: None,
-    //             };
-    //             ctxs_to_update.push(right_ctx_to_update);
-
-    //             let rel_ctx_to_update = CtxToUpdate {
-    //                 alias: rel_alias.to_string(),
-    //                 label: rel_label,
-    //                 projections: rel_projections,
-    //                 insubquery: Some(rel_insubquery),
-    //             };
-    //             ctxs_to_update.push(rel_ctx_to_update);
-
-    //             let left_ctx_to_update = CtxToUpdate {
-    //                 alias: left_alias.to_string(),
-    //                 label: left_label,
-    //                 projections: left_projections,
-    //                 insubquery: Some(left_insubquery),
-    //             };
-    //             ctxs_to_update.push(left_ctx_to_update);
-
-
-    //             let new_graph_rel = GraphRel { 
-    //                 left: Arc::new(LogicalPlan::Cte(Cte { input: graph_rel.left.clone(), name: left_cte_name })),
-    //                 center: Arc::new(LogicalPlan::Cte(Cte { input: graph_rel.center.clone(), name: rel_cte_name })),
-    //                 right: Arc::new(LogicalPlan::Cte(Cte { input: graph_rel.right.clone(), name: right_cte_name })), 
-    //                 ..graph_rel.clone()
-    //             };
-    
-    //             return Ok((new_graph_rel, ctxs_to_update))
-    //         }
-
-
-            
-    //     } else {
-           
-
-    //         let new_rel_label = self.get_relationship_table_name(right_label.clone(), left_label.clone(), rel_label, graph_rel.direction.clone(), rel_schema)?;
-    //         let rel_cte_name = format!("{}_{}", new_rel_label, rel_alias);
-
-    //         let right_ctx_to_update = CtxToUpdate {
-    //             alias: right_alias.to_string(),
-    //             label: right_label,
-    //             projections: right_projections,
-    //             insubquery: None,
-    //         };
-    //         ctxs_to_update.push(right_ctx_to_update);
-
-    //         let rel_proj_input: Vec<(String, Option<ColumnAlias>)> = vec![
-    //             ("from_id".to_string(), None),
-    //             ("arrayJoin(bitmapToArray(to_id))".to_string(), Some(ColumnAlias("to_id".to_string())))
-    //         ];
-    //         let rel_projections = self.build_projections(rel_proj_input);
-    //         let rel_insubquery = self.build_insubquery("from_id".to_string(),
-    //             right_cte_name.clone(),
-    //             right_node_id_column);
-    //         let rel_ctx_to_update = CtxToUpdate {
-    //             alias: rel_alias.to_string(),
-    //             label: new_rel_label,
-    //             projections: rel_projections,
-    //             insubquery: Some(rel_insubquery),
-    //         };
-    //         ctxs_to_update.push(rel_ctx_to_update);
-            
-
-    //         let left_insubquery = self.build_insubquery(left_node_id_column,
-    //             rel_cte_name.clone(),
-    //             "to_id".to_string());
-    //         let left_ctx_to_update = CtxToUpdate {
-    //             alias: left_alias.to_string(),
-    //             label: left_label,
-    //             projections: left_projections,
-    //             insubquery: Some(left_insubquery),
-    //         };
-    //         ctxs_to_update.push(left_ctx_to_update);
-
-    //         let new_graph_rel = GraphRel { 
-    //             left: Arc::new(LogicalPlan::Cte(Cte { input: graph_rel.left.clone(), name: left_cte_name })),
-    //             center: Arc::new(LogicalPlan::Cte(Cte { input: graph_rel.center.clone(), name: rel_cte_name })),
-    //             right: Arc::new(LogicalPlan::Cte(Cte { input: graph_rel.right.clone(), name: right_cte_name })), 
-    //             ..graph_rel.clone()
-    //         };
-
-    //         Ok((new_graph_rel, ctxs_to_update))
-    //     }
-
-    // }
-
-    // fn infer_intermediate_traversal(&self, graph_rel: &GraphRel, plan_ctx: &mut PlanCtx, graph_schema: &GraphSchema) -> AnalyzerResult<(GraphRel, Vec<CtxToUpdate>)> {
-    //     // get required information 
-    //     let left_alias = &graph_rel.left_connection;
-    //     let rel_alias = &graph_rel.alias;
-    //     let right_alias = &graph_rel.right_connection;
-
-
-    //     let left_ctx = plan_ctx.get_node_table_ctx(left_alias).map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphTraversalPlanning, source: e})?;
-    //     let rel_ctx = plan_ctx.get_rel_table_ctx(rel_alias).map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphTraversalPlanning, source: e})?;
-    //     let right_ctx = plan_ctx.get_node_table_ctx(right_alias).map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphTraversalPlanning, source: e})?;
-
-    //     let left_label = left_ctx.get_label_str().map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphTraversalPlanning, source: e})?;
-    //     let rel_label = rel_ctx.get_label_str().map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphTraversalPlanning, source: e})?;
-    //     let right_label = right_ctx.get_label_str().map_err(|e| AnalyzerError::PlanCtx { pass: Pass::GraphTraversalPlanning, source: e})?;
-
-
-    //     let left_schema = graph_schema.get_node_schema(&left_label).map_err(|e| AnalyzerError::GraphSchema { pass: Pass::GraphTraversalPlanning, source: e})?;
-    //     let rel_schema = graph_schema.get_rel_schema(&rel_label).map_err(|e| AnalyzerError::GraphSchema { pass: Pass::GraphTraversalPlanning, source: e})?;
-    //     let right_schema = graph_schema.get_node_schema(&right_label).map_err(|e| AnalyzerError::GraphSchema { pass: Pass::GraphTraversalPlanning, source: e})?;
-
-    //     let left_node_id_column = left_schema.node_id.column.clone();
-    //     let right_node_id_column = right_schema.node_id.column.clone();
-
-    //     let mut ctxs_to_update: Vec<CtxToUpdate> = vec![];
-
-
-    //     let left_cte_name = format!("{}_{}",left_label, left_alias);
-    //     let right_cte_name = format!("{}_{}", right_label, right_alias);
-
-
-    //     let star_found = left_ctx.get_projections().iter().any(|item| item.expression == LogicalExpr::Star);
-    //     let node_id_found = left_ctx.get_projections().iter().any(|item| {
-    //         match &item.expression {
-    //             LogicalExpr::Column(Column(col)) => col == &left_node_id_column,
-    //             LogicalExpr::PropertyAccessExp(PropertyAccess { column, .. }) => column.0 == left_node_id_column,
-    //             _ => false,
-    //         }
-    //     });
-    //     let left_projections: Vec<ProjectionItem> = if !star_found && !node_id_found {
-    //         let proj_input: Vec<(String, Option<ColumnAlias>)> = vec![(left_node_id_column.clone(), None)];
-    //         self.build_projections(proj_input)
-    //     } else {
-    //         vec![]
-    //     };
-
-
-    //     if rel_ctx.should_use_edge_list() {
-    //         let rel_cte_name = format!("{}_{}", rel_label, rel_alias);
-            
-    //         let star_found = rel_ctx.get_projections().iter().any(|item| item.expression == LogicalExpr::Star);
-    //         let rel_proj_input: Vec<(String, Option<ColumnAlias>)> = if !star_found {
-    //             vec![
-    //                 (format!("from_{}", rel_schema.from_node), Some(ColumnAlias("from_id".to_string()))),
-    //                 (format!("to_{}", rel_schema.to_node.clone()), Some(ColumnAlias("to_id".to_string())))
-    //             ]
-    //         } else { vec![] };
-
-    //         let rel_projections:Vec<ProjectionItem> = self.build_projections(rel_proj_input);
-    //         let rel_insubquery: LogicalExpr;
-    //         // let right_insubquery: LogicalExpr;
-    //         let left_insubquery: LogicalExpr;
-    //         // when using edge list, we need to check which node joins to "from_id" and which node joins to "to_id"
-    //         if rel_schema.from_node == right_schema.table_name {
-    //             rel_insubquery = self.build_insubquery("from_id".to_string(),
-    //             right_cte_name.clone(),
-    //             right_node_id_column.clone());
-
-    //             left_insubquery = self.build_insubquery(left_node_id_column,
-    //                 rel_cte_name.clone(),
-    //                 "to_id".to_string());
-                
-    //         }else{
-    //             rel_insubquery = self.build_insubquery("to_id".to_string(),
-    //             right_cte_name.clone(),
-    //             right_node_id_column.clone());
-
-    //             left_insubquery = self.build_insubquery(left_node_id_column,
-    //                 rel_cte_name.clone(),
-    //                 "from_id".to_string());
-    //         }
-
-    //         let rel_ctx_to_update = CtxToUpdate {
-    //             alias: rel_alias.to_string(),
-    //             label: rel_cte_name.to_string(),
-    //             projections: rel_projections,
-    //             insubquery: Some(rel_insubquery),
-    //         };
-    //         ctxs_to_update.push(rel_ctx_to_update);
-
-    //         let left_ctx_to_update = CtxToUpdate {
-    //             alias: left_alias.to_string(),
-    //             label: left_label,
-    //             projections: left_projections,
-    //             insubquery: Some(left_insubquery),
-    //         };
-    //         ctxs_to_update.push(left_ctx_to_update);
-
-
-    //         let new_graph_rel = GraphRel { 
-    //             left: Arc::new(LogicalPlan::Cte(Cte { input: graph_rel.left.clone(), name: left_cte_name })),
-    //             center: Arc::new(LogicalPlan::Cte(Cte { input: graph_rel.center.clone(), name: rel_cte_name })),
-    //             right: graph_rel.right.clone(), 
-    //             ..graph_rel.clone()
-    //         };
-
-    //         return Ok((new_graph_rel, ctxs_to_update))
-            
-    //     } else{
-
-    //         let new_rel_label = self.get_relationship_table_name(right_label.clone(), left_label.clone(), rel_label, graph_rel.direction.clone(), rel_schema)?;
-    //         let rel_cte_name = format!("{}_{}", new_rel_label, rel_alias);
-
-
-    //         let rel_proj_input: Vec<(String, Option<ColumnAlias>)> = vec![
-    //             ("from_id".to_string(), None),
-    //             ("arrayJoin(bitmapToArray(to_id))".to_string(), Some(ColumnAlias("to_id".to_string())))
-    //         ];
-    //         let rel_projections = self.build_projections(rel_proj_input);
-    //         let rel_insubquery = self.build_insubquery("from_id".to_string(),
-    //             right_cte_name.clone(),
-    //             right_node_id_column);
-    //         let rel_ctx_to_update = CtxToUpdate {
-    //             alias: rel_alias.to_string(),
-    //             label: new_rel_label,
-    //             projections: rel_projections,
-    //             insubquery: Some(rel_insubquery),
-    //         };
-    //         ctxs_to_update.push(rel_ctx_to_update);
-            
-
-    //         let left_insubquery = self.build_insubquery(left_node_id_column,
-    //             rel_cte_name.clone(),
-    //             "to_id".to_string());
-    //         let left_ctx_to_update = CtxToUpdate {
-    //             alias: left_alias.to_string(),
-    //             label: left_label,
-    //             projections: left_projections,
-    //             insubquery: Some(left_insubquery),
-    //         };
-    //         ctxs_to_update.push(left_ctx_to_update);
-
-    //         let new_graph_rel = GraphRel { 
-    //             left: Arc::new(LogicalPlan::Cte(Cte { input: graph_rel.left.clone(), name: left_cte_name })),
-    //             center: Arc::new(LogicalPlan::Cte(Cte { input: graph_rel.center.clone(), name: rel_cte_name })),
-    //             right: graph_rel.right.clone(), 
-    //             ..graph_rel.clone()
-    //         };
-            
-
-    //         Ok((new_graph_rel, ctxs_to_update))
-    //     }
-
-
-    // }
 }
