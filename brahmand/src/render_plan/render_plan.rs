@@ -2,8 +2,8 @@ use crate::render_plan::errors::RenderBuildError;
 use crate::render_plan::render_expr::{ColumnAlias, OperatorApplication, RenderExpr};
 
 use crate::query_planner::logical_plan::logical_plan::{
-    OrderByOrder as LogicalOrderByOrder, OrderByItem as LogicalOrderByItem, Join as LogicalJoin,
-    UnionType as LogicalUnionType, JoinType as LogicalJoinType
+    Join as LogicalJoin, JoinType as LogicalJoinType, OrderByItem as LogicalOrderByItem,
+    OrderByOrder as LogicalOrderByOrder, UnionType as LogicalUnionType,
 };
 
 use std::fmt;
@@ -34,7 +34,7 @@ pub struct SelectItem {
 #[derive(Debug, PartialEq, Clone)]
 pub struct FromTable {
     pub table_name: String,
-    pub table_alias: Option<String>
+    pub table_alias: Option<String>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -46,24 +46,23 @@ pub struct FilterItems(pub Option<RenderExpr>);
 #[derive(Debug, PartialEq, Clone)]
 pub struct GroupByExpressions(pub Vec<RenderExpr>);
 
-
 #[derive(Debug, PartialEq, Clone)]
 pub struct JoinItems(pub Vec<Join>);
 
-#[derive(Debug, PartialEq, Clone,)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Join {
     pub table_name: String,
     pub table_alias: String,
     pub joining_on: Vec<OperatorApplication>,
-    pub join_type: JoinType
+    pub join_type: JoinType,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum JoinType {
-    Join, 
+    Join,
     Inner,
     Left,
-    Right
+    Right,
 }
 
 impl TryFrom<LogicalJoinType> for JoinType {
@@ -80,7 +79,6 @@ impl TryFrom<LogicalJoinType> for JoinType {
     }
 }
 
-
 impl TryFrom<LogicalJoin> for Join {
     type Error = RenderBuildError;
 
@@ -88,13 +86,17 @@ impl TryFrom<LogicalJoin> for Join {
         let join = Join {
             table_alias: value.table_alias,
             table_name: value.table_name,
-            joining_on: value.joining_on.clone().into_iter().map(OperatorApplication::try_from).collect::<Result<Vec<OperatorApplication>, RenderBuildError>>()?,
-            join_type: value.join_type.clone().try_into()?
+            joining_on: value
+                .joining_on
+                .clone()
+                .into_iter()
+                .map(OperatorApplication::try_from)
+                .collect::<Result<Vec<OperatorApplication>, RenderBuildError>>()?,
+            join_type: value.join_type.clone().try_into()?,
         };
         Ok(join)
     }
 }
-
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct CteItems(pub Vec<Cte>);
@@ -102,10 +104,9 @@ pub struct CteItems(pub Vec<Cte>);
 #[derive(Debug, PartialEq, Clone)]
 pub struct Cte {
     pub cte_name: String,
-    pub cte_plan: RenderPlan
-    // pub select: SelectItems,
-    // pub from: FromTable,
-    // pub filters: FilterItems
+    pub cte_plan: RenderPlan, // pub select: SelectItems,
+                              // pub from: FromTable,
+                              // pub filters: FilterItems
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -150,14 +151,13 @@ pub struct OrderByItem {
     pub order: OrderByOrder,
 }
 
-
 impl TryFrom<LogicalOrderByItem> for OrderByItem {
     type Error = RenderBuildError;
 
     fn try_from(value: LogicalOrderByItem) -> Result<Self, Self::Error> {
         let order_by_item = OrderByItem {
             expression: value.expression.try_into()?,
-            order: value.order.try_into()?
+            order: value.order.try_into()?,
         };
         Ok(order_by_item)
     }
@@ -168,7 +168,6 @@ pub enum OrderByOrder {
     Asc,
     Desc,
 }
-
 
 impl TryFrom<LogicalUnionType> for UnionType {
     type Error = RenderBuildError;
@@ -194,7 +193,6 @@ impl TryFrom<LogicalOrderByOrder> for OrderByOrder {
     }
 }
 
-
 impl fmt::Display for RenderPlan {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "---- RenderPlan ----")?;
@@ -210,4 +208,3 @@ impl fmt::Display for RenderPlan {
         writeln!(f, "-------------------")
     }
 }
-

@@ -1,9 +1,10 @@
 use thiserror::Error;
 
-use crate::query_planner::{logical_plan::errors::LogicalPlanError, optimizer::errors::OptimizerError};
+use crate::query_planner::{
+    logical_plan::errors::LogicalPlanError, optimizer::errors::OptimizerError,
+};
 
 use super::analyzer::errors::AnalyzerError;
-
 
 #[derive(Debug, Error)]
 pub enum QueryPlannerError {
@@ -18,4 +19,3 @@ pub enum QueryPlannerError {
     #[error("Logical Plan Extractor")]
     LogicalPlanExtractor,
 }
-

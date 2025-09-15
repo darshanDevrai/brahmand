@@ -1,7 +1,6 @@
 use clickhouse::Row;
 use serde::{Deserialize, Serialize};
 
-
 #[derive(Debug, Deserialize)]
 pub struct QueryRequest {
     pub query: String,

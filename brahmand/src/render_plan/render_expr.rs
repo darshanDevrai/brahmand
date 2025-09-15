@@ -1,22 +1,17 @@
-use crate::render_plan::render_plan::RenderPlan;
 use super::plan_builder::RenderPlanBuilder;
+use crate::render_plan::render_plan::RenderPlan;
 
-use crate::query_planner::{logical_expr::logical_expr::LogicalExpr};
+use crate::query_planner::logical_expr::logical_expr::LogicalExpr;
 
 use crate::query_planner::logical_expr::logical_expr::{
-    Literal as LogicalLiteral, TableAlias as LogicalTableAlias, ColumnAlias as LogicalColumnAlias,
-    Column as LogicalColumn, OperatorApplication as LogicalOperatorApplication, Operator as LogicalOperator,
+    AggregateFnCall as LogicalAggregateFnCall, Column as LogicalColumn,
+    ColumnAlias as LogicalColumnAlias, InSubquery as LogicalInSubquery, Literal as LogicalLiteral,
+    Operator as LogicalOperator, OperatorApplication as LogicalOperatorApplication,
     PropertyAccess as LogicalPropertyAccess, ScalarFnCall as LogicalScalarFnCall,
-    AggregateFnCall as LogicalAggregateFnCall, InSubquery as LogicalInSubquery
+    TableAlias as LogicalTableAlias,
 };
 
 use super::errors::RenderBuildError;
-
-
-
-
-
-
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum RenderExpr {
@@ -42,12 +37,12 @@ pub enum RenderExpr {
 
     OperatorApplicationExp(OperatorApplication),
 
-    InSubquery(InSubquery) 
+    InSubquery(InSubquery),
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct InSubquery {
-    pub expr:   Box<RenderExpr>,
+    pub expr: Box<RenderExpr>,
     pub subplan: Box<RenderPlan>,
 }
 
@@ -68,7 +63,6 @@ pub struct ColumnAlias(pub String);
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Column(pub String);
-
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Operator {
@@ -94,8 +88,6 @@ pub enum Operator {
     IsNotNull,
 }
 
-
-
 #[derive(Debug, PartialEq, Clone)]
 pub struct OperatorApplication {
     pub operator: Operator,
@@ -120,10 +112,6 @@ pub struct AggregateFnCall {
     pub args: Vec<RenderExpr>,
 }
 
-
-
-
-
 impl TryFrom<LogicalExpr> for RenderExpr {
     type Error = RenderBuildError;
 
@@ -135,11 +123,18 @@ impl TryFrom<LogicalExpr> for RenderExpr {
             LogicalExpr::ColumnAlias(alias) => RenderExpr::ColumnAlias(alias.try_into()?),
             LogicalExpr::Column(col) => RenderExpr::Column(col.try_into()?),
             LogicalExpr::Parameter(s) => RenderExpr::Parameter(s),
-            LogicalExpr::List(exprs) => RenderExpr::List(exprs.into_iter().map(RenderExpr::try_from).collect::<Result<Vec<RenderExpr>, RenderBuildError>>()?),
+            LogicalExpr::List(exprs) => RenderExpr::List(
+                exprs
+                    .into_iter()
+                    .map(RenderExpr::try_from)
+                    .collect::<Result<Vec<RenderExpr>, RenderBuildError>>()?,
+            ),
             LogicalExpr::AggregateFnCall(agg) => RenderExpr::AggregateFnCall(agg.try_into()?),
             LogicalExpr::ScalarFnCall(fn_call) => RenderExpr::ScalarFnCall(fn_call.try_into()?),
             LogicalExpr::PropertyAccessExp(pa) => RenderExpr::PropertyAccessExp(pa.try_into()?),
-            LogicalExpr::OperatorApplicationExp(op) => RenderExpr::OperatorApplicationExp(op.try_into()?),
+            LogicalExpr::OperatorApplicationExp(op) => {
+                RenderExpr::OperatorApplicationExp(op.try_into()?)
+            }
             LogicalExpr::InSubquery(subq) => RenderExpr::InSubquery(subq.try_into()?),
             // PathPattern is not present in RenderExpr
             _ => unimplemented!("Conversion for this LogicalExpr variant is not implemented"),
@@ -161,7 +156,7 @@ impl TryFrom<LogicalInSubquery> for InSubquery {
     }
 }
 
-impl TryFrom<LogicalLiteral> for Literal{
+impl TryFrom<LogicalLiteral> for Literal {
     type Error = RenderBuildError;
 
     fn try_from(lit: LogicalLiteral) -> Result<Self, Self::Error> {
@@ -176,7 +171,6 @@ impl TryFrom<LogicalLiteral> for Literal{
     }
 }
 
-
 impl TryFrom<LogicalTableAlias> for TableAlias {
     type Error = RenderBuildError;
 
@@ -184,7 +178,6 @@ impl TryFrom<LogicalTableAlias> for TableAlias {
         Ok(TableAlias(alias.0))
     }
 }
-
 
 impl TryFrom<LogicalColumnAlias> for ColumnAlias {
     type Error = RenderBuildError;
@@ -194,8 +187,6 @@ impl TryFrom<LogicalColumnAlias> for ColumnAlias {
     }
 }
 
-
-
 impl TryFrom<LogicalColumn> for Column {
     type Error = RenderBuildError;
 
@@ -203,8 +194,6 @@ impl TryFrom<LogicalColumn> for Column {
         Ok(Column(col.0))
     }
 }
-
-
 
 impl TryFrom<LogicalPropertyAccess> for PropertyAccess {
     type Error = RenderBuildError;
@@ -218,15 +207,17 @@ impl TryFrom<LogicalPropertyAccess> for PropertyAccess {
     }
 }
 
-
-
 impl TryFrom<LogicalOperatorApplication> for OperatorApplication {
     type Error = RenderBuildError;
 
     fn try_from(op: LogicalOperatorApplication) -> Result<Self, Self::Error> {
         let op_app = OperatorApplication {
-            operator: op.operator.try_into()?, 
-            operands: op.operands.into_iter().map(RenderExpr::try_from).collect::<Result<Vec<RenderExpr>, RenderBuildError>>()?,
+            operator: op.operator.try_into()?,
+            operands: op
+                .operands
+                .into_iter()
+                .map(RenderExpr::try_from)
+                .collect::<Result<Vec<RenderExpr>, RenderBuildError>>()?,
         };
         Ok(op_app)
     }
@@ -262,14 +253,17 @@ impl TryFrom<LogicalOperator> for Operator {
     }
 }
 
-
 impl TryFrom<LogicalScalarFnCall> for ScalarFnCall {
     type Error = RenderBuildError;
 
     fn try_from(fc: LogicalScalarFnCall) -> Result<Self, Self::Error> {
         let scalar_fn = ScalarFnCall {
             name: fc.name,
-            args: fc.args.into_iter().map(RenderExpr::try_from).collect::<Result<Vec<RenderExpr>, RenderBuildError>>()?,
+            args: fc
+                .args
+                .into_iter()
+                .map(RenderExpr::try_from)
+                .collect::<Result<Vec<RenderExpr>, RenderBuildError>>()?,
         };
         Ok(scalar_fn)
     }
@@ -281,7 +275,11 @@ impl TryFrom<LogicalAggregateFnCall> for AggregateFnCall {
     fn try_from(agg: LogicalAggregateFnCall) -> Result<Self, Self::Error> {
         let agg_fn = AggregateFnCall {
             name: agg.name,
-            args: agg.args.into_iter().map(RenderExpr::try_from).collect::<Result<Vec<RenderExpr>, RenderBuildError>>()?,
+            args: agg
+                .args
+                .into_iter()
+                .map(RenderExpr::try_from)
+                .collect::<Result<Vec<RenderExpr>, RenderBuildError>>()?,
         };
         Ok(agg_fn)
     }

@@ -1,8 +1,8 @@
-use crate::{open_cypher_parser::{self, ast::Expression}, query_planner::logical_plan::logical_plan::LogicalPlan};
+use crate::{
+    open_cypher_parser::{self, ast::Expression},
+    query_planner::logical_plan::logical_plan::LogicalPlan,
+};
 use std::{fmt, sync::Arc};
-
-
-
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum LogicalExpr {
@@ -39,15 +39,14 @@ pub enum LogicalExpr {
     /// A path-pattern, for instance: (a)-[]->()<-[]-(b)
     PathPattern(PathPattern),
 
-    InSubquery(InSubquery) 
+    InSubquery(InSubquery),
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct InSubquery {
-    pub expr:   Box<LogicalExpr>,
+    pub expr: Box<LogicalExpr>,
     pub subplan: Arc<LogicalPlan>,
 }
-
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Direction {
@@ -57,16 +56,14 @@ pub enum Direction {
 }
 
 impl fmt::Display for Direction {
-    
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Direction::Incoming => f.write_str("incoming"),
-            Direction::Outgoing  => f.write_str("outgoing"),
+            Direction::Outgoing => f.write_str("outgoing"),
             Direction::Either => f.write_str("either"),
         }
     }
 }
-
 
 impl Direction {
     pub fn reverse(self) -> Self {
@@ -98,7 +95,6 @@ pub struct ColumnAlias(pub String);
 #[derive(Debug, PartialEq, Clone)]
 pub struct Column(pub String);
 
-
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Operator {
     Addition,
@@ -122,8 +118,6 @@ pub enum Operator {
     IsNull,
     IsNotNull,
 }
-
-
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct OperatorApplication {
@@ -189,7 +183,6 @@ pub struct RelationshipPattern {
     pub properties: Option<Vec<Property>>,
 }
 
-
 impl<'a> From<open_cypher_parser::ast::Literal<'a>> for Literal {
     fn from(value: open_cypher_parser::ast::Literal) -> Self {
         match value {
@@ -201,7 +194,6 @@ impl<'a> From<open_cypher_parser::ast::Literal<'a>> for Literal {
         }
     }
 }
-
 
 impl From<open_cypher_parser::ast::Operator> for Operator {
     fn from(value: open_cypher_parser::ast::Operator) -> Self {
@@ -230,12 +222,11 @@ impl From<open_cypher_parser::ast::Operator> for Operator {
     }
 }
 
-
 impl<'a> From<open_cypher_parser::ast::PropertyAccess<'a>> for PropertyAccess {
     fn from(value: open_cypher_parser::ast::PropertyAccess<'a>) -> Self {
         PropertyAccess {
             table_alias: TableAlias(value.base.to_string()),
-            column: Column(value.key.to_string())
+            column: Column(value.key.to_string()),
         }
     }
 }
@@ -254,7 +245,11 @@ impl<'a> From<open_cypher_parser::ast::OperatorApplication<'a>> for OperatorAppl
     fn from(value: open_cypher_parser::ast::OperatorApplication<'a>) -> Self {
         OperatorApplication {
             operator: Operator::from(value.operator),
-            operands: value.operands.into_iter().map(|expr| LogicalExpr::from(expr)).collect(),
+            operands: value
+                .operands
+                .into_iter()
+                .map(|expr| LogicalExpr::from(expr))
+                .collect(),
         }
     }
 }
@@ -280,8 +275,14 @@ impl<'a> From<open_cypher_parser::ast::FunctionCall<'a>> for LogicalExpr {
 impl<'a> From<open_cypher_parser::ast::PathPattern<'a>> for PathPattern {
     fn from(value: open_cypher_parser::ast::PathPattern<'a>) -> Self {
         match value {
-            open_cypher_parser::ast::PathPattern::Node(node) => PathPattern::Node(NodePattern::from(node)),
-            open_cypher_parser::ast::PathPattern::ConnectedPattern(vec_conn) => PathPattern::ConnectedPattern(vec_conn.into_iter().map(ConnectedPattern::from).collect()),
+            open_cypher_parser::ast::PathPattern::Node(node) => {
+                PathPattern::Node(NodePattern::from(node))
+            }
+            open_cypher_parser::ast::PathPattern::ConnectedPattern(vec_conn) => {
+                PathPattern::ConnectedPattern(
+                    vec_conn.into_iter().map(ConnectedPattern::from).collect(),
+                )
+            }
         }
     }
 }
@@ -291,7 +292,9 @@ impl<'a> From<open_cypher_parser::ast::NodePattern<'a>> for NodePattern {
         NodePattern {
             name: value.name.map(|s| s.to_string()),
             label: value.label.map(|s| s.to_string()),
-            properties: value.properties.map(|props| props.into_iter().map(Property::from).collect()),
+            properties: value
+                .properties
+                .map(|props| props.into_iter().map(Property::from).collect()),
         }
     }
 }
@@ -299,7 +302,9 @@ impl<'a> From<open_cypher_parser::ast::NodePattern<'a>> for NodePattern {
 impl<'a> From<open_cypher_parser::ast::Property<'a>> for Property {
     fn from(value: open_cypher_parser::ast::Property<'a>) -> Self {
         match value {
-            open_cypher_parser::ast::Property::PropertyKV(kv) => Property::PropertyKV(PropertyKVPair::from(kv)),
+            open_cypher_parser::ast::Property::PropertyKV(kv) => {
+                Property::PropertyKV(PropertyKVPair::from(kv))
+            }
             open_cypher_parser::ast::Property::Param(s) => Property::Param(s.to_string()),
         }
     }
@@ -320,9 +325,13 @@ impl<'a> From<open_cypher_parser::ast::PropertyKVPair<'a>> for PropertyKVPair {
 impl<'a> From<open_cypher_parser::ast::ConnectedPattern<'a>> for ConnectedPattern {
     fn from(value: open_cypher_parser::ast::ConnectedPattern<'a>) -> Self {
         ConnectedPattern {
-            start_node: std::rc::Rc::new(std::cell::RefCell::new(NodePattern::from(value.start_node.borrow().clone()))),
+            start_node: std::rc::Rc::new(std::cell::RefCell::new(NodePattern::from(
+                value.start_node.borrow().clone(),
+            ))),
             relationship: RelationshipPattern::from(value.relationship),
-            end_node: std::rc::Rc::new(std::cell::RefCell::new(NodePattern::from(value.end_node.borrow().clone()))),
+            end_node: std::rc::Rc::new(std::cell::RefCell::new(NodePattern::from(
+                value.end_node.borrow().clone(),
+            ))),
         }
     }
 }
@@ -333,7 +342,9 @@ impl<'a> From<open_cypher_parser::ast::RelationshipPattern<'a>> for Relationship
             name: value.name.map(|s| s.to_string()),
             direction: Direction::from(value.direction),
             label: value.label.map(|s| s.to_string()),
-            properties: value.properties.map(|props| props.into_iter().map(Property::from).collect()),
+            properties: value
+                .properties
+                .map(|props| props.into_iter().map(Property::from).collect()),
         }
     }
 }
@@ -346,17 +357,23 @@ impl<'a> From<open_cypher_parser::ast::Expression<'a>> for LogicalExpr {
             Expression::Variable(s) => {
                 if s == "*" {
                     LogicalExpr::Star
-                }else{
-                    // TODO revisit this 
+                } else {
+                    // TODO revisit this
                     // LogicalExpr::Variable(s.to_string())
                     LogicalExpr::TableAlias(TableAlias(s.to_string()))
                 }
-            },
+            }
             Expression::Parameter(s) => LogicalExpr::Parameter(s.to_string()),
-            Expression::List(exprs) => LogicalExpr::List(exprs.into_iter().map(LogicalExpr::from).collect()),
+            Expression::List(exprs) => {
+                LogicalExpr::List(exprs.into_iter().map(LogicalExpr::from).collect())
+            }
             Expression::FunctionCallExp(fc) => LogicalExpr::from(fc),
-            Expression::PropertyAccessExp(pa) => LogicalExpr::PropertyAccessExp(PropertyAccess::from(pa)),
-            Expression::OperatorApplicationExp(oa) => LogicalExpr::OperatorApplicationExp(OperatorApplication::from(oa)),
+            Expression::PropertyAccessExp(pa) => {
+                LogicalExpr::PropertyAccessExp(PropertyAccess::from(pa))
+            }
+            Expression::OperatorApplicationExp(oa) => {
+                LogicalExpr::OperatorApplicationExp(OperatorApplication::from(oa))
+            }
             Expression::PathPattern(pp) => LogicalExpr::PathPattern(PathPattern::from(pp)),
         }
     }
@@ -427,18 +444,12 @@ mod tests {
         assert_eq!(logical_null, Literal::Null);
     }
 
-
-
     #[test]
     fn test_direction_reverse() {
         assert_eq!(Direction::Outgoing.reverse(), Direction::Incoming);
         assert_eq!(Direction::Incoming.reverse(), Direction::Outgoing);
         assert_eq!(Direction::Either.reverse(), Direction::Either);
     }
-
-
-
-
 
     #[test]
     fn test_operator_application_from_ast() {
@@ -450,15 +461,15 @@ mod tests {
             ],
         };
         let logical_operator_app = OperatorApplication::from(ast_operator_app);
-        
+
         assert_eq!(logical_operator_app.operator, Operator::Equal);
         assert_eq!(logical_operator_app.operands.len(), 2);
-        
+
         match &logical_operator_app.operands[0] {
             LogicalExpr::TableAlias(alias) => assert_eq!(alias.0, "city"),
             _ => panic!("Expected TableAlias"),
         }
-        
+
         match &logical_operator_app.operands[1] {
             LogicalExpr::Literal(Literal::String(s)) => assert_eq!(s, "San Francisco"),
             _ => panic!("Expected String literal"),
@@ -472,7 +483,7 @@ mod tests {
             args: vec![ast::Expression::Variable("person")],
         };
         let logical_expr = LogicalExpr::from(ast_function_call);
-        
+
         match logical_expr {
             LogicalExpr::AggregateFnCall(agg_fn) => {
                 assert_eq!(agg_fn.name, "count");
@@ -481,7 +492,7 @@ mod tests {
                     LogicalExpr::TableAlias(alias) => assert_eq!(alias.0, "person"),
                     _ => panic!("Expected TableAlias"),
                 }
-            },
+            }
             _ => panic!("Expected AggregateFnCall"),
         }
     }
@@ -493,7 +504,7 @@ mod tests {
             args: vec![ast::Expression::Variable("username")],
         };
         let logical_expr = LogicalExpr::from(ast_function_call);
-        
+
         match logical_expr {
             LogicalExpr::ScalarFnCall(scalar_fn) => {
                 assert_eq!(scalar_fn.name, "length");
@@ -502,7 +513,7 @@ mod tests {
                     LogicalExpr::TableAlias(alias) => assert_eq!(alias.0, "username"),
                     _ => panic!("Expected TableAlias"),
                 }
-            },
+            }
             _ => panic!("Expected ScalarFnCall"),
         }
     }
@@ -512,27 +523,25 @@ mod tests {
         let ast_node_pattern = ast::NodePattern {
             name: Some("employee"),
             label: Some("Person"),
-            properties: Some(vec![
-                ast::Property::PropertyKV(ast::PropertyKVPair {
-                    key: "department",
-                    value: ast::Expression::Literal(ast::Literal::String("Engineering")),
-                }),
-            ]),
+            properties: Some(vec![ast::Property::PropertyKV(ast::PropertyKVPair {
+                key: "department",
+                value: ast::Expression::Literal(ast::Literal::String("Engineering")),
+            })]),
         };
         let logical_node_pattern = NodePattern::from(ast_node_pattern);
-        
+
         assert_eq!(logical_node_pattern.name, Some("employee".to_string()));
         assert_eq!(logical_node_pattern.label, Some("Person".to_string()));
         assert!(logical_node_pattern.properties.is_some());
-        
+
         let properties = logical_node_pattern.properties.unwrap();
         assert_eq!(properties.len(), 1);
-        
+
         match &properties[0] {
             Property::PropertyKV(kv) => {
                 assert_eq!(kv.key, "department");
                 assert_eq!(kv.value, Literal::String("Engineering".to_string()));
-            },
+            }
             _ => panic!("Expected PropertyKV"),
         }
     }
@@ -543,28 +552,32 @@ mod tests {
             name: Some("follows"),
             direction: ast::Direction::Outgoing,
             label: Some("FOLLOWS"),
-            properties: Some(vec![
-                ast::Property::PropertyKV(ast::PropertyKVPair {
-                    key: "since",
-                    value: ast::Expression::Literal(ast::Literal::Integer(2020)),
-                }),
-            ]),
+            properties: Some(vec![ast::Property::PropertyKV(ast::PropertyKVPair {
+                key: "since",
+                value: ast::Expression::Literal(ast::Literal::Integer(2020)),
+            })]),
         };
         let logical_relationship_pattern = RelationshipPattern::from(ast_relationship_pattern);
-        
-        assert_eq!(logical_relationship_pattern.name, Some("follows".to_string()));
+
+        assert_eq!(
+            logical_relationship_pattern.name,
+            Some("follows".to_string())
+        );
         assert_eq!(logical_relationship_pattern.direction, Direction::Outgoing);
-        assert_eq!(logical_relationship_pattern.label, Some("FOLLOWS".to_string()));
+        assert_eq!(
+            logical_relationship_pattern.label,
+            Some("FOLLOWS".to_string())
+        );
         assert!(logical_relationship_pattern.properties.is_some());
-        
+
         let properties = logical_relationship_pattern.properties.unwrap();
         assert_eq!(properties.len(), 1);
-        
+
         match &properties[0] {
             Property::PropertyKV(kv) => {
                 assert_eq!(kv.key, "since");
                 assert_eq!(kv.value, Literal::Integer(2020));
-            },
+            }
             _ => panic!("Expected PropertyKV"),
         }
     }
@@ -587,21 +600,42 @@ mod tests {
             label: Some("WORKS_AT"),
             properties: None,
         };
-        
+
         let ast_connected_pattern = ast::ConnectedPattern {
             start_node: Rc::new(RefCell::new(start_node)),
             relationship,
             end_node: Rc::new(RefCell::new(end_node)),
         };
         let logical_connected_pattern = ConnectedPattern::from(ast_connected_pattern);
-        
-        assert_eq!(logical_connected_pattern.start_node.borrow().name, Some("user".to_string()));
-        assert_eq!(logical_connected_pattern.start_node.borrow().label, Some("User".to_string()));
-        assert_eq!(logical_connected_pattern.end_node.borrow().name, Some("company".to_string()));
-        assert_eq!(logical_connected_pattern.end_node.borrow().label, Some("Company".to_string()));
-        assert_eq!(logical_connected_pattern.relationship.name, Some("works_at".to_string()));
-        assert_eq!(logical_connected_pattern.relationship.label, Some("WORKS_AT".to_string()));
-        assert_eq!(logical_connected_pattern.relationship.direction, Direction::Outgoing);
+
+        assert_eq!(
+            logical_connected_pattern.start_node.borrow().name,
+            Some("user".to_string())
+        );
+        assert_eq!(
+            logical_connected_pattern.start_node.borrow().label,
+            Some("User".to_string())
+        );
+        assert_eq!(
+            logical_connected_pattern.end_node.borrow().name,
+            Some("company".to_string())
+        );
+        assert_eq!(
+            logical_connected_pattern.end_node.borrow().label,
+            Some("Company".to_string())
+        );
+        assert_eq!(
+            logical_connected_pattern.relationship.name,
+            Some("works_at".to_string())
+        );
+        assert_eq!(
+            logical_connected_pattern.relationship.label,
+            Some("WORKS_AT".to_string())
+        );
+        assert_eq!(
+            logical_connected_pattern.relationship.direction,
+            Direction::Outgoing
+        );
     }
 
     #[test]
@@ -613,12 +647,12 @@ mod tests {
         };
         let ast_path_pattern = ast::PathPattern::Node(ast_node);
         let logical_path_pattern = PathPattern::from(ast_path_pattern);
-        
+
         match logical_path_pattern {
             PathPattern::Node(node) => {
                 assert_eq!(node.name, Some("customer".to_string()));
                 assert_eq!(node.label, Some("Customer".to_string()));
-            },
+            }
             _ => panic!("Expected Node pattern"),
         }
     }
@@ -629,7 +663,7 @@ mod tests {
         let ast_star = ast::Expression::Variable("*");
         let logical_star = LogicalExpr::from(ast_star);
         assert_eq!(logical_star, LogicalExpr::Star);
-        
+
         // Test regular variable
         let ast_var = ast::Expression::Variable("product");
         let logical_var = LogicalExpr::from(ast_var);
@@ -639,8 +673,6 @@ mod tests {
         }
     }
 
-
-
     #[test]
     fn test_logical_expr_from_expression_list() {
         let ast_list = ast::Expression::List(vec![
@@ -649,11 +681,11 @@ mod tests {
             ast::Expression::Literal(ast::Literal::String("guest")),
         ]);
         let logical_list = LogicalExpr::from(ast_list);
-        
+
         match logical_list {
             LogicalExpr::List(items) => {
                 assert_eq!(items.len(), 3);
-                
+
                 match &items[0] {
                     LogicalExpr::Literal(Literal::String(s)) => assert_eq!(s, "admin"),
                     _ => panic!("Expected string literal"),
@@ -666,7 +698,7 @@ mod tests {
                     LogicalExpr::Literal(Literal::String(s)) => assert_eq!(s, "guest"),
                     _ => panic!("Expected string literal"),
                 }
-            },
+            }
             _ => panic!("Expected List"),
         }
     }
@@ -676,43 +708,46 @@ mod tests {
         // Test TableAlias display
         let table_alias = TableAlias("customer".to_string());
         assert_eq!(format!("{}", table_alias), "customer");
-        
+
         // Test ColumnAlias display
         let column_alias = ColumnAlias("full_name".to_string());
         assert_eq!(format!("{}", column_alias), "full_name");
-        
+
         // Test Column display
         let column = Column("email_address".to_string());
         assert_eq!(format!("{}", column), "email_address");
-        
+
         // Test Literal display implementations
         assert_eq!(format!("{}", Literal::Integer(12345)), "12345");
         assert_eq!(format!("{}", Literal::Float(99.99)), "99.99");
         assert_eq!(format!("{}", Literal::Boolean(true)), "true");
         assert_eq!(format!("{}", Literal::Boolean(false)), "false");
-        assert_eq!(format!("{}", Literal::String("Hello World".to_string())), "Hello World");
+        assert_eq!(
+            format!("{}", Literal::String("Hello World".to_string())),
+            "Hello World"
+        );
         assert_eq!(format!("{}", Literal::Null), "null");
     }
 
     #[test]
     fn test_aggregate_function_classification() {
         let agg_functions = ["count", "min", "max", "avg", "sum"];
-        
+
         for func_name in &agg_functions {
             let ast_function_call = ast::FunctionCall {
                 name: func_name.to_string(),
                 args: vec![ast::Expression::Variable("revenue")],
             };
             let logical_expr = LogicalExpr::from(ast_function_call);
-            
+
             match logical_expr {
                 LogicalExpr::AggregateFnCall(agg_fn) => {
                     assert_eq!(agg_fn.name, *func_name);
-                },
+                }
                 _ => panic!("Expected aggregate function for {}", func_name),
             }
         }
-        
+
         // Test non-aggregate function
         let ast_scalar_function = ast::FunctionCall {
             name: "substring".to_string(),
@@ -723,12 +758,12 @@ mod tests {
             ],
         };
         let logical_expr = LogicalExpr::from(ast_scalar_function);
-        
+
         match logical_expr {
             LogicalExpr::ScalarFnCall(scalar_fn) => {
                 assert_eq!(scalar_fn.name, "substring");
                 assert_eq!(scalar_fn.args.len(), 3);
-            },
+            }
             _ => panic!("Expected scalar function"),
         }
     }

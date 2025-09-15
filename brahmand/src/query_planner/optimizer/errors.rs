@@ -4,7 +4,6 @@ use thiserror::Error;
 
 use crate::query_planner::plan_ctx::errors::PlanCtxError;
 
-
 #[derive(Debug, Clone, Error, PartialEq)]
 pub enum Pass {
     AnchorNodeSelection,
@@ -21,8 +20,6 @@ impl Display for Pass {
         }
     }
 }
-
-
 
 #[derive(Debug, Clone, Error, PartialEq)]
 pub enum OptimizerError {

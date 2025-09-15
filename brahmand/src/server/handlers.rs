@@ -12,9 +12,12 @@ use tokio::io::AsyncBufReadExt;
 use uuid::Uuid;
 
 use crate::{
-    clickhouse_query_generator, graph_catalog::graph_schema::GraphSchemaElement, open_cypher_parser::{self}, query_planner::{self, types::QueryType}, render_plan::plan_builder::RenderPlanBuilder,
+    clickhouse_query_generator,
+    graph_catalog::graph_schema::GraphSchemaElement,
+    open_cypher_parser::{self},
+    query_planner::{self, types::QueryType},
+    render_plan::plan_builder::RenderPlanBuilder,
 };
-
 
 use super::{
     AppState, graph_catalog,
@@ -23,37 +26,60 @@ use super::{
 
 pub async fn query_handler(
     State(app_state): State<Arc<AppState>>,
-    Json(payload):   Json<QueryRequest>,
+    Json(payload): Json<QueryRequest>,
 ) -> Result<impl IntoResponse, impl IntoResponse> {
     let instant = Instant::now();
     let output_format = payload.format.unwrap_or(OutputFormat::JSONEachRow);
 
     let (ch_sql_queries, maybe_schema_elem, is_read) = {
-
         let graph_schema = graph_catalog::get_graph_schema().await;
 
-        let cypher_ast = open_cypher_parser::parse_query(&payload.query)
-            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Brahmand Error: {}", e)))?;
+        let cypher_ast = open_cypher_parser::parse_query(&payload.query).map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Brahmand Error: {}", e),
+            )
+        })?;
 
         let query_type = query_planner::get_query_type(&cypher_ast);
 
-        let is_read = if query_type == QueryType::Read {true} else {false};
+        let is_read = if query_type == QueryType::Read {
+            true
+        } else {
+            false
+        };
 
         if is_read {
             let logical_plan = query_planner::evaluate_read_query(cypher_ast, &graph_schema)
-                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Brahmand Error: {}", e)))?;
+                .map_err(|e| {
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        format!("Brahmand Error: {}", e),
+                    )
+                })?;
 
-            let render_plan = logical_plan.to_render_plan().map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Brahmand Error: {}", e)))?;
+            let render_plan = logical_plan.to_render_plan().map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Brahmand Error: {}", e),
+                )
+            })?;
             let ch_query = clickhouse_query_generator::generate_sql(render_plan);
             println!("\n ch_query \n {} \n", ch_query);
             (vec![ch_query], None, true)
         } else {
-            let (queries, schema_elem) = clickhouse_query_generator::generate_ddl_query(cypher_ast, &graph_schema)
-                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Brahmand Error: {}", e)))?;
+            let (queries, schema_elem) =
+                clickhouse_query_generator::generate_ddl_query(cypher_ast, &graph_schema).map_err(
+                    |e| {
+                        (
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            format!("Brahmand Error: {}", e),
+                        )
+                    },
+                )?;
             (queries, Some(schema_elem), false)
         }
-    }; 
-
+    };
 
     if is_read {
         execute_cte_queries(app_state, ch_sql_queries, output_format, instant).await

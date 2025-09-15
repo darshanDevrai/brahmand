@@ -1,4 +1,3 @@
-
 #[derive(Debug, PartialEq, Clone)]
 pub enum QueryType {
     Ddl,
@@ -6,5 +5,3 @@ pub enum QueryType {
     Update,
     Delete,
 }
-
-

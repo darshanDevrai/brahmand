@@ -1,9 +1,14 @@
-use crate::render_plan::{render_expr::{Column, ColumnAlias, InSubquery, Literal, Operator, PropertyAccess, RenderExpr, TableAlias}, render_plan::{Cte, CteItems, FilterItems, FromTableItem, GroupByExpressions, Join, JoinItems, JoinType, OrderByItems, OrderByOrder, RenderPlan, SelectItems, UnionItems, UnionType}, ToSql};
 use crate::render_plan::render_expr::OperatorApplication;
-
-
-
-
+use crate::render_plan::{
+    ToSql,
+    render_expr::{
+        Column, ColumnAlias, InSubquery, Literal, Operator, PropertyAccess, RenderExpr, TableAlias,
+    },
+    render_plan::{
+        Cte, CteItems, FilterItems, FromTableItem, GroupByExpressions, Join, JoinItems, JoinType,
+        OrderByItems, OrderByOrder, RenderPlan, SelectItems, UnionItems, UnionType,
+    },
+};
 
 impl ToSql for RenderPlan {
     fn to_sql(&self) -> String {
@@ -17,17 +22,16 @@ impl ToSql for RenderPlan {
         sql.push_str(&self.order_by.to_sql());
         sql.push_str(&self.union.to_sql());
 
-        
         if let Some(m) = self.limit.0 {
             let skip_str = if let Some(n) = self.skip.0 {
                 format!("{n},")
-            } else{
+            } else {
                 "".to_string()
             };
             let limit_str = format!("LIMIT {skip_str} {m}");
             sql.push_str(&limit_str)
         }
-        return sql
+        return sql;
     }
 }
 
@@ -59,7 +63,6 @@ impl ToSql for SelectItems {
 
 impl ToSql for FromTableItem {
     fn to_sql(&self) -> String {
-
         if let Some(from_table) = &self.0 {
             let mut sql: String = String::new();
             sql.push_str("FROM ");
@@ -78,13 +81,11 @@ impl ToSql for FromTableItem {
         }
 
         // let mut sql: String = String::new();
-        // if self.0.is_none() { 
+        // if self.0.is_none() {
         //     return sql;
         // }
         // sql.push_str("FROM ");
 
-
-    
         // sql.push_str(&self.table_name);
         // if let Some(alias) = &self.table_alias {
         //     if !alias.is_empty() {
@@ -110,7 +111,7 @@ impl ToSql for FilterItems {
 impl ToSql for GroupByExpressions {
     fn to_sql(&self) -> String {
         let mut sql: String = String::new();
-        if self.0.is_empty() { 
+        if self.0.is_empty() {
             return sql;
         }
         sql.push_str("GROUP BY ");
@@ -128,7 +129,7 @@ impl ToSql for GroupByExpressions {
 impl ToSql for OrderByItems {
     fn to_sql(&self) -> String {
         let mut sql: String = String::new();
-        if self.0.is_empty() { 
+        if self.0.is_empty() {
             return sql;
         }
         sql.push_str("ORDER BY ");
@@ -145,21 +146,19 @@ impl ToSql for OrderByItems {
     }
 }
 
-
-
 impl ToSql for CteItems {
     fn to_sql(&self) -> String {
         let mut sql: String = String::new();
         if self.0.is_empty() {
             return sql;
         }
-        
-        sql.push_str( "WITH ");
+
+        sql.push_str("WITH ");
 
         for (i, cte) in self.0.iter().enumerate() {
             sql.push_str(&cte.to_sql());
-            if i + 1 < self.0.len() { 
-                sql.push_str(", "); 
+            if i + 1 < self.0.len() {
+                sql.push_str(", ");
             }
             sql.push('\n');
         }
@@ -192,9 +191,12 @@ impl ToSql for Cte {
 
 impl ToSql for UnionItems {
     fn to_sql(&self) -> String {
-
         if let Some(union) = &self.0 {
-            let union_sql_strs:Vec<String> = union.input.iter().map(|union_item| union_item.to_sql()).collect();
+            let union_sql_strs: Vec<String> = union
+                .input
+                .iter()
+                .map(|union_item| union_item.to_sql())
+                .collect();
 
             let union_type_str = match union.union_type {
                 UnionType::Distinct => "UNION DISTINCT \n",
@@ -205,7 +207,6 @@ impl ToSql for UnionItems {
         } else {
             "".into()
         }
-        
     }
 }
 
@@ -221,7 +222,6 @@ impl ToSql for JoinItems {
 
 impl ToSql for Join {
     fn to_sql(&self) -> String {
-
         let join_type_tr = match self.join_type {
             JoinType::Join => "JOIN",
             JoinType::Inner => "INNER JOIN",
@@ -229,24 +229,22 @@ impl ToSql for Join {
             JoinType::Right => "RIGHT JOIN",
         };
 
-        let mut sql = format!("{} {} AS {}", join_type_tr, self.table_name, self.table_alias);
+        let mut sql = format!(
+            "{} {} AS {}",
+            join_type_tr, self.table_name, self.table_alias
+        );
 
-        let joining_on_str_vec:Vec<String> = self.joining_on.iter().map(|cond| cond.to_sql()).collect();
+        let joining_on_str_vec: Vec<String> =
+            self.joining_on.iter().map(|cond| cond.to_sql()).collect();
 
         let joining_on_str = joining_on_str_vec.join(" AND ");
 
         sql.push_str(&format!(" ON {joining_on_str}"));
-        
+
         sql.push('\n');
         sql
     }
 }
-
-
-
-
-
-
 
 impl RenderExpr {
     /// Render this expression (including any subqueries) to a SQL string.
@@ -254,74 +252,86 @@ impl RenderExpr {
         match self {
             RenderExpr::Literal(lit) => match lit {
                 Literal::Integer(i) => i.to_string(),
-                Literal::Float(f)   => f.to_string(),
-                Literal::Boolean(b) => if *b { "true".into() } else { "FfalseALSE".into() },
-                Literal::String(s)  => format!("'{}'", s), //format!("'{}'", s.replace('\'', "''")),
-                Literal::Null       => "NULL".into(),
+                Literal::Float(f) => f.to_string(),
+                Literal::Boolean(b) => {
+                    if *b {
+                        "true".into()
+                    } else {
+                        "FfalseALSE".into()
+                    }
+                }
+                Literal::String(s) => format!("'{}'", s), //format!("'{}'", s.replace('\'', "''")),
+                Literal::Null => "NULL".into(),
             },
             RenderExpr::Parameter(name) => name.clone(),
             RenderExpr::Star => "*".into(),
-            RenderExpr::TableAlias(TableAlias(a))| RenderExpr::ColumnAlias(ColumnAlias(a)) | RenderExpr::Column(Column(a)) => a.clone(),
+            RenderExpr::TableAlias(TableAlias(a))
+            | RenderExpr::ColumnAlias(ColumnAlias(a))
+            | RenderExpr::Column(Column(a)) => a.clone(),
             RenderExpr::List(items) => {
-                let inner = items.iter()
-                                 .map(|e| e.to_sql())
-                                 .collect::<Vec<_>>()
-                                 .join(", ");
+                let inner = items
+                    .iter()
+                    .map(|e| e.to_sql())
+                    .collect::<Vec<_>>()
+                    .join(", ");
                 format!("({})", inner)
             }
             RenderExpr::ScalarFnCall(fn_call) => {
-                let args = fn_call.args.iter()
-                                       .map(|e| e.to_sql())
-                                       .collect::<Vec<_>>()
-                                       .join(", ");
+                let args = fn_call
+                    .args
+                    .iter()
+                    .map(|e| e.to_sql())
+                    .collect::<Vec<_>>()
+                    .join(", ");
                 format!("{}({})", fn_call.name, args)
             }
             RenderExpr::AggregateFnCall(agg) => {
-                let args = agg.args.iter()
-                                   .map(|e| e.to_sql())
-                                   .collect::<Vec<_>>()
-                                   .join(", ");
+                let args = agg
+                    .args
+                    .iter()
+                    .map(|e| e.to_sql())
+                    .collect::<Vec<_>>()
+                    .join(", ");
                 format!("{}({})", agg.name, args)
             }
-            RenderExpr::PropertyAccessExp(PropertyAccess { table_alias, column }) => {
+            RenderExpr::PropertyAccessExp(PropertyAccess {
+                table_alias,
+                column,
+            }) => {
                 format!("{}.{}", table_alias.0, column.0)
             }
             RenderExpr::OperatorApplicationExp(op) => {
                 fn op_str(o: Operator) -> &'static str {
                     match o {
-                        Operator::Addition          => "+",
-                        Operator::Subtraction       => "-",
-                        Operator::Multiplication    => "*",
-                        Operator::Division          => "/",
-                        Operator::ModuloDivision    => "%",
-                        Operator::Exponentiation    => "^",
-                        Operator::Equal             => "=",
-                        Operator::NotEqual          => "<>",
-                        Operator::LessThan          => "<",
-                        Operator::GreaterThan       => ">",
-                        Operator::LessThanEqual     => "<=",
-                        Operator::GreaterThanEqual  => ">=",
-                        Operator::And               => "AND",
-                        Operator::Or                => "OR",
-                        Operator::In                => "IN",
-                        Operator::NotIn             => "NOT IN",
-                        Operator::Not               => "NOT",
-                        Operator::Distinct          => "DISTINCT",
-                        Operator::IsNull            => "IS NULL",
-                        Operator::IsNotNull         => "IS NOT NULL",
+                        Operator::Addition => "+",
+                        Operator::Subtraction => "-",
+                        Operator::Multiplication => "*",
+                        Operator::Division => "/",
+                        Operator::ModuloDivision => "%",
+                        Operator::Exponentiation => "^",
+                        Operator::Equal => "=",
+                        Operator::NotEqual => "<>",
+                        Operator::LessThan => "<",
+                        Operator::GreaterThan => ">",
+                        Operator::LessThanEqual => "<=",
+                        Operator::GreaterThanEqual => ">=",
+                        Operator::And => "AND",
+                        Operator::Or => "OR",
+                        Operator::In => "IN",
+                        Operator::NotIn => "NOT IN",
+                        Operator::Not => "NOT",
+                        Operator::Distinct => "DISTINCT",
+                        Operator::IsNull => "IS NULL",
+                        Operator::IsNotNull => "IS NOT NULL",
                     }
                 }
 
                 let sql_op = op_str(op.operator);
-                let rendered: Vec<String> = op
-                    .operands
-                    .iter()
-                    .map(|e| e.to_sql())
-                    .collect();
+                let rendered: Vec<String> = op.operands.iter().map(|e| e.to_sql()).collect();
 
                 match rendered.len() {
-                    0 => "".into(), // should not happen
-                    1 => format!("{} {}", sql_op, &rendered[0]),       // unary
+                    0 => "".into(),                              // should not happen
+                    1 => format!("{} {}", sql_op, &rendered[0]), // unary
                     2 => format!("{} {} {}", &rendered[0], sql_op, &rendered[1]),
                     _ => {
                         // n-ary: join with the operator
@@ -330,10 +340,10 @@ impl RenderExpr {
                 }
             }
             RenderExpr::InSubquery(InSubquery { expr, subplan }) => {
-                let left  = expr.to_sql();
-                let body  = subplan.to_sql();  
-                let body = body.split_whitespace().collect::<Vec<&str>>().join(" "); 
-                
+                let left = expr.to_sql();
+                let body = subplan.to_sql();
+                let body = body.split_whitespace().collect::<Vec<&str>>().join(" ");
+
                 format!("{} IN ({})", left, body)
             }
         }
@@ -345,26 +355,26 @@ impl ToSql for OperatorApplication {
         // Map your enum to SQL tokens
         fn op_str(o: Operator) -> &'static str {
             match o {
-                Operator::Addition          => "+",
-                Operator::Subtraction       => "-",
-                Operator::Multiplication    => "*",
-                Operator::Division          => "/",
-                Operator::ModuloDivision    => "%",
-                Operator::Exponentiation    => "^",
-                Operator::Equal             => "=",
-                Operator::NotEqual          => "<>",
-                Operator::LessThan          => "<",
-                Operator::GreaterThan       => ">",
-                Operator::LessThanEqual     => "<=",
-                Operator::GreaterThanEqual  => ">=",
-                Operator::And               => "AND",
-                Operator::Or                => "OR",
-                Operator::In                => "IN",
-                Operator::NotIn             => "NOT IN",
-                Operator::Not               => "NOT",
-                Operator::Distinct          => "DISTINCT",
-                Operator::IsNull            => "IS NULL",
-                Operator::IsNotNull         => "IS NOT NULL",
+                Operator::Addition => "+",
+                Operator::Subtraction => "-",
+                Operator::Multiplication => "*",
+                Operator::Division => "/",
+                Operator::ModuloDivision => "%",
+                Operator::Exponentiation => "^",
+                Operator::Equal => "=",
+                Operator::NotEqual => "<>",
+                Operator::LessThan => "<",
+                Operator::GreaterThan => ">",
+                Operator::LessThanEqual => "<=",
+                Operator::GreaterThanEqual => ">=",
+                Operator::And => "AND",
+                Operator::Or => "OR",
+                Operator::In => "IN",
+                Operator::NotIn => "NOT IN",
+                Operator::Not => "NOT",
+                Operator::Distinct => "DISTINCT",
+                Operator::IsNull => "IS NULL",
+                Operator::IsNotNull => "IS NOT NULL",
             }
         }
 
@@ -372,8 +382,8 @@ impl ToSql for OperatorApplication {
         let rendered: Vec<String> = self.operands.iter().map(|e| e.to_sql()).collect();
 
         match rendered.len() {
-            0 => "".into(), // should not happen
-            1 => format!("{} {}", sql_op, &rendered[0]),       // unary
+            0 => "".into(),                              // should not happen
+            1 => format!("{} {}", sql_op, &rendered[0]), // unary
             2 => format!("{} {} {}", &rendered[0], sql_op, &rendered[1]),
             _ => {
                 // n-ary: join with the operator

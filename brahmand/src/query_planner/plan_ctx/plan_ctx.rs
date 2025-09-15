@@ -1,7 +1,10 @@
 use std::{collections::HashMap, fmt};
 
-use crate::query_planner::{logical_expr::logical_expr::{LogicalExpr, Property}, logical_plan::logical_plan::ProjectionItem, plan_ctx::errors::PlanCtxError};
-
+use crate::query_planner::{
+    logical_expr::logical_expr::{LogicalExpr, Property},
+    logical_plan::logical_plan::ProjectionItem,
+    plan_ctx::errors::PlanCtxError,
+};
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct TableCtx {
@@ -16,7 +19,6 @@ pub struct TableCtx {
 }
 
 impl TableCtx {
-
     pub fn is_relation(&self) -> bool {
         self.is_rel
     }
@@ -33,28 +35,36 @@ impl TableCtx {
         self.explicit_alias
     }
 
-    pub fn build(alias: String,label: Option<String>, properties: Vec<Property>, is_rel: bool, explicit_alias: bool) -> Self {
-        TableCtx { 
+    pub fn build(
+        alias: String,
+        label: Option<String>,
+        properties: Vec<Property>,
+        is_rel: bool,
+        explicit_alias: bool,
+    ) -> Self {
+        TableCtx {
             alias: alias,
-            label: label, 
-            properties: properties, 
-            filter_predicates: vec![], 
-            projection_items: vec![], 
-            is_rel: is_rel, 
-            use_edge_list: false, 
-            explicit_alias: explicit_alias, 
-        }       
+            label: label,
+            properties: properties,
+            filter_predicates: vec![],
+            projection_items: vec![],
+            is_rel: is_rel,
+            use_edge_list: false,
+            explicit_alias: explicit_alias,
+        }
     }
 
     pub fn get_label_str(&self) -> Result<String, PlanCtxError> {
-        self.label.clone().ok_or(PlanCtxError::MissingLabel{alias: self.alias.clone()})
+        self.label.clone().ok_or(PlanCtxError::MissingLabel {
+            alias: self.alias.clone(),
+        })
     }
 
     pub fn get_label_opt(&self) -> Option<String> {
         self.label.clone()
     }
 
-    pub fn set_label(&mut self, label_otp: Option<String>){
+    pub fn set_label(&mut self, label_otp: Option<String>) {
         self.label = label_otp;
     }
 
@@ -110,13 +120,12 @@ impl TableCtx {
     }
 }
 
-#[derive(Debug, PartialEq, Clone,)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct PlanCtx {
-    alias_table_ctx_map: HashMap<String, TableCtx>
+    alias_table_ctx_map: HashMap<String, TableCtx>,
 }
 
 impl PlanCtx {
-
     pub fn insert_table_ctx(&mut self, alias: String, table_ctx: TableCtx) {
         self.alias_table_ctx_map.insert(alias, table_ctx);
     }
@@ -130,54 +139,87 @@ impl PlanCtx {
     }
 
     pub fn get_table_ctx(&self, alias: &str) -> Result<&TableCtx, PlanCtxError> {
-        self.alias_table_ctx_map.get(alias).ok_or(PlanCtxError::MissingTableCtx{alias: alias.to_string()})
-    } 
+        self.alias_table_ctx_map
+            .get(alias)
+            .ok_or(PlanCtxError::MissingTableCtx {
+                alias: alias.to_string(),
+            })
+    }
 
-    pub fn get_table_ctx_from_alias_opt(&self, alias: &Option<String>) -> Result<&TableCtx, PlanCtxError> {
-        let alias = alias.clone().ok_or(PlanCtxError::MissingTableCtx{alias: "".to_string()})?;
-        self.alias_table_ctx_map.get(&alias).ok_or(PlanCtxError::MissingTableCtx{alias: alias.clone()})
-    } 
+    pub fn get_table_ctx_from_alias_opt(
+        &self,
+        alias: &Option<String>,
+    ) -> Result<&TableCtx, PlanCtxError> {
+        let alias = alias.clone().ok_or(PlanCtxError::MissingTableCtx {
+            alias: "".to_string(),
+        })?;
+        self.alias_table_ctx_map
+            .get(&alias)
+            .ok_or(PlanCtxError::MissingTableCtx {
+                alias: alias.clone(),
+            })
+    }
 
     pub fn get_node_table_ctx(&self, node_alias: &str) -> Result<&TableCtx, PlanCtxError> {
-        self.alias_table_ctx_map.get(node_alias).ok_or(PlanCtxError::MissingNodeTableCtx{alias: node_alias.to_string()})
+        self.alias_table_ctx_map
+            .get(node_alias)
+            .ok_or(PlanCtxError::MissingNodeTableCtx {
+                alias: node_alias.to_string(),
+            })
     }
 
     pub fn get_rel_table_ctx(&self, rel_alias: &str) -> Result<&TableCtx, PlanCtxError> {
-        self.alias_table_ctx_map.get(rel_alias).ok_or(PlanCtxError::MissingRelTableCtx{alias: rel_alias.to_string()})
+        self.alias_table_ctx_map
+            .get(rel_alias)
+            .ok_or(PlanCtxError::MissingRelTableCtx {
+                alias: rel_alias.to_string(),
+            })
     }
 
     pub fn get_mut_table_ctx(&mut self, alias: &str) -> Result<&mut TableCtx, PlanCtxError> {
-        self.alias_table_ctx_map.get_mut(alias).ok_or(PlanCtxError::MissingTableCtx{alias: alias.to_string()})
-    } 
+        self.alias_table_ctx_map
+            .get_mut(alias)
+            .ok_or(PlanCtxError::MissingTableCtx {
+                alias: alias.to_string(),
+            })
+    }
 
-    pub fn get_mut_table_ctx_from_alias_opt(&mut self, alias: &Option<String>) -> Result<&mut TableCtx, PlanCtxError> {
-        let alias = alias.clone().ok_or(PlanCtxError::MissingTableCtx{alias: "".to_string()})?;
-        self.alias_table_ctx_map.get_mut(&alias).ok_or(PlanCtxError::MissingTableCtx{alias: alias.clone()})
-    } 
+    pub fn get_mut_table_ctx_from_alias_opt(
+        &mut self,
+        alias: &Option<String>,
+    ) -> Result<&mut TableCtx, PlanCtxError> {
+        let alias = alias.clone().ok_or(PlanCtxError::MissingTableCtx {
+            alias: "".to_string(),
+        })?;
+        self.alias_table_ctx_map
+            .get_mut(&alias)
+            .ok_or(PlanCtxError::MissingTableCtx {
+                alias: alias.clone(),
+            })
+    }
 
     pub fn get_mut_table_ctx_opt(&mut self, alias: &str) -> Option<&mut TableCtx> {
         self.alias_table_ctx_map.get_mut(alias)
-    } 
+    }
 
-    pub fn get_mut_table_ctx_opt_from_alias_opt(&mut self, alias: &Option<String>) -> Result<Option<&mut TableCtx>, PlanCtxError> {
-        let alias = alias.clone().ok_or(PlanCtxError::MissingTableCtx{alias: "".to_string()})?;
+    pub fn get_mut_table_ctx_opt_from_alias_opt(
+        &mut self,
+        alias: &Option<String>,
+    ) -> Result<Option<&mut TableCtx>, PlanCtxError> {
+        let alias = alias.clone().ok_or(PlanCtxError::MissingTableCtx {
+            alias: "".to_string(),
+        })?;
         Ok(self.alias_table_ctx_map.get_mut(&alias))
-    } 
-
-
+    }
 }
-
-
-
 
 impl PlanCtx {
     pub fn default() -> Self {
         PlanCtx {
-            alias_table_ctx_map: HashMap::new()
+            alias_table_ctx_map: HashMap::new(),
         }
     }
 }
-
 
 impl fmt::Display for PlanCtx {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -196,12 +238,23 @@ impl TableCtx {
         let pad = " ".repeat(indent);
         writeln!(f, "{}         label: {:?}", pad, self.label)?;
         writeln!(f, "{}         properties: {:?}", pad, self.properties)?;
-        writeln!(f, "{}         filter_predicates: {:?}", pad, self.filter_predicates)?;
-        writeln!(f, "{}         projection_items: {:?}", pad, self.projection_items)?;
+        writeln!(
+            f,
+            "{}         filter_predicates: {:?}",
+            pad, self.filter_predicates
+        )?;
+        writeln!(
+            f,
+            "{}         projection_items: {:?}",
+            pad, self.projection_items
+        )?;
         writeln!(f, "{}         is_rel: {:?}", pad, self.is_rel)?;
         writeln!(f, "{}         use_edge_list: {:?}", pad, self.use_edge_list)?;
-        writeln!(f, "{}         explicit_alias: {:?}", pad, self.explicit_alias)?;
+        writeln!(
+            f,
+            "{}         explicit_alias: {:?}",
+            pad, self.explicit_alias
+        )?;
         Ok(())
     }
 }
-

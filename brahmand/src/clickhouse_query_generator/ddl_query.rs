@@ -1,7 +1,12 @@
 use crate::{
-    graph_catalog::graph_schema::{ Direction, GraphSchema, GraphSchemaElement, IndexType, NodeIdSchema, NodeSchema, RelationshipIndexSchema, RelationshipSchema}, open_cypher_parser::ast::{
-        ColumnSchema, CreateNodeTableClause, CreateRelTableClause, Expression, Literal, OpenCypherQueryAst 
-    }
+    graph_catalog::graph_schema::{
+        Direction, GraphSchema, GraphSchemaElement, IndexType, NodeIdSchema, NodeSchema,
+        RelationshipIndexSchema, RelationshipSchema,
+    },
+    open_cypher_parser::ast::{
+        ColumnSchema, CreateNodeTableClause, CreateRelTableClause, Expression, Literal,
+        OpenCypherQueryAst,
+    },
 };
 
 use super::{common::get_literal_to_string, errors::ClickhouseQueryGeneratorError};
@@ -16,7 +21,9 @@ use super::{common::get_literal_to_string, errors::ClickhouseQueryGeneratorError
 // ENGINE = MergeTree()
 // PRIMARY KEY (user_id, timestamp)
 
-fn get_default_value(default_value_expr: &Expression) -> Result<String, ClickhouseQueryGeneratorError> {
+fn get_default_value(
+    default_value_expr: &Expression,
+) -> Result<String, ClickhouseQueryGeneratorError> {
     match default_value_expr {
         Expression::Literal(literal) => Ok(get_literal_to_string(literal)),
         _ => {
@@ -106,41 +113,42 @@ pub struct RelProperties {
 }
 
 fn get_rel_props(properties: Vec<Expression>, from: &str, to: &str) -> RelProperties {
-
     let mut primary_keys: Vec<&str> = vec![];
     let mut adj_index: bool = false;
 
     for prop in properties.iter() {
         if let Expression::FunctionCallExp(function_call) = prop {
-            
             if function_call.name.to_lowercase() == "primary key" {
                 let fn_args: Vec<&str> = function_call
-                .args
-                .iter()
-                .filter_map(|exp| {
-                    if let Expression::Variable(var) = exp {
-                        Some(*var)
-                    } else {
-                        None
-                    }
-                })
-                .collect();
+                    .args
+                    .iter()
+                    .filter_map(|exp| {
+                        if let Expression::Variable(var) = exp {
+                            Some(*var)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
                 primary_keys = fn_args;
-            } else if function_call.name.to_lowercase() == "adj index" && !function_call.args.is_empty() {
-                if let Expression::Literal(Literal::Boolean(val)) = function_call.args.first().unwrap() {
+            } else if function_call.name.to_lowercase() == "adj index"
+                && !function_call.args.is_empty()
+            {
+                if let Expression::Literal(Literal::Boolean(val)) =
+                    function_call.args.first().unwrap()
+                {
                     adj_index = *val;
                 }
             }
         }
     }
-    
+
     let default_pk = &format!("from_{from}, to_{to}");
     primary_keys.push(default_pk);
 
-
     let props = RelProperties {
         primary_keys: primary_keys.join(", "),
-        adj_index: adj_index
+        adj_index: adj_index,
     };
 
     props
@@ -152,16 +160,18 @@ fn generate_create_node_table_query(
     let columns_vec: Vec<String> = create_node_table_clause
         .table_schema
         .iter()
-        .map(|column_schema| -> Result<String, ClickhouseQueryGeneratorError> {
-            let column_name = column_schema.column_name;
-            let column_type = column_schema.column_dtype;
-            if let Some(default_value) = &column_schema.default_value {
-                let default_val = get_default_value(default_value)?;
-                Ok(format!("{column_name} {column_type} DEFAULT {default_val}"))
-            } else {
-                Ok(format!("{column_name} {column_type}"))
-            }
-        })
+        .map(
+            |column_schema| -> Result<String, ClickhouseQueryGeneratorError> {
+                let column_name = column_schema.column_name;
+                let column_type = column_schema.column_dtype;
+                if let Some(default_value) = &column_schema.default_value {
+                    let default_val = get_default_value(default_value)?;
+                    Ok(format!("{column_name} {column_type} DEFAULT {default_val}"))
+                } else {
+                    Ok(format!("{column_name} {column_type}"))
+                }
+            },
+        )
         .collect::<Result<Vec<String>, ClickhouseQueryGeneratorError>>()?;
 
     let columns = columns_vec.join(", ");
@@ -217,16 +227,18 @@ fn generate_create_rel_table_query(
     let columns_vec: Vec<String> = create_rel_table_clause
         .table_schema
         .iter()
-        .map(|column_schema| -> Result<String, ClickhouseQueryGeneratorError> {
-            let column_name = column_schema.column_name;
-            let column_type = column_schema.column_dtype;
-            if let Some(default_value) = &column_schema.default_value {
-                let default_val = get_default_value(default_value)?;
-                Ok(format!("{column_name} {column_type} DEFAULT {default_val}"))
-            } else {
-                Ok(format!("{column_name} {column_type}"))
-            }
-        })
+        .map(
+            |column_schema| -> Result<String, ClickhouseQueryGeneratorError> {
+                let column_name = column_schema.column_name;
+                let column_type = column_schema.column_dtype;
+                if let Some(default_value) = &column_schema.default_value {
+                    let default_val = get_default_value(default_value)?;
+                    Ok(format!("{column_name} {column_type} DEFAULT {default_val}"))
+                } else {
+                    Ok(format!("{column_name} {column_type}"))
+                }
+            },
+        )
         .collect::<Result<Vec<String>, ClickhouseQueryGeneratorError>>()?;
 
     let mut columns = "".to_string();
@@ -235,8 +247,7 @@ fn generate_create_rel_table_query(
         columns = format!(", {}", columns_vec.join(", "));
     }
 
-    let rel_props =
-        get_rel_props(create_rel_table_clause.table_properties, from_node, to_node);
+    let rel_props = get_rel_props(create_rel_table_clause.table_properties, from_node, to_node);
 
     let primary_keys = rel_props.primary_keys;
 
@@ -301,31 +312,30 @@ fn generate_create_rel_table_query(
         );
         create_table_strings.push(create_incoming_rel_mv_string);
 
-        
-
         let relationship_outgoing_index_schema = RelationshipIndexSchema {
             base_rel_table_name: rel_table_name.to_string(),
             table_name: format!("{}_{}", rel_table_name, Direction::Outgoing),
             direction: Direction::Outgoing,
-            index_type: IndexType::Bitmap
+            index_type: IndexType::Bitmap,
         };
 
-        graph_schema_elements.push(GraphSchemaElement::RelIndex(relationship_outgoing_index_schema));
+        graph_schema_elements.push(GraphSchemaElement::RelIndex(
+            relationship_outgoing_index_schema,
+        ));
 
         let relationship_incoming_index_schema = RelationshipIndexSchema {
             base_rel_table_name: rel_table_name.to_string(),
             table_name: format!("{}_{}", rel_table_name, Direction::Incoming),
             direction: Direction::Incoming,
-            index_type: IndexType::Bitmap
+            index_type: IndexType::Bitmap,
         };
 
-        graph_schema_elements.push(GraphSchemaElement::RelIndex(relationship_incoming_index_schema));
+        graph_schema_elements.push(GraphSchemaElement::RelIndex(
+            relationship_incoming_index_schema,
+        ));
     }
 
-    Ok((
-        create_table_strings,
-        graph_schema_elements,
-    ))
+    Ok((create_table_strings, graph_schema_elements))
 }
 
 pub fn generate_query(
@@ -395,7 +405,10 @@ mod tests {
             default_value: None,
         }];
         let err = get_node_props(props, &cols).unwrap_err();
-        assert!(matches!(err, ClickhouseQueryGeneratorError::MissingPrimaryKey));
+        assert!(matches!(
+            err,
+            ClickhouseQueryGeneratorError::MissingPrimaryKey
+        ));
     }
 
     // If node id missing
@@ -434,7 +447,10 @@ mod tests {
             },
         ];
         let err = get_node_props(props, &cols).unwrap_err();
-        assert!(matches!(err, ClickhouseQueryGeneratorError::MultipleNodeIds));
+        assert!(matches!(
+            err,
+            ClickhouseQueryGeneratorError::MultipleNodeIds
+        ));
     }
 
     // If node id column not found in schema
@@ -466,7 +482,10 @@ mod tests {
             default_value: None,
         }];
         let err = get_node_props(props, &cols).unwrap_err();
-        assert!(matches!(err, ClickhouseQueryGeneratorError::InvalidNodeIdDType));
+        assert!(matches!(
+            err,
+            ClickhouseQueryGeneratorError::InvalidNodeIdDType
+        ));
     }
 
     // If primary key does not include node id, ensure node id is appended
@@ -666,7 +685,10 @@ mod tests {
         };
 
         let err = generate_create_node_table_query(clause).unwrap_err();
-        assert!(matches!(err, ClickhouseQueryGeneratorError::MissingPrimaryKey));
+        assert!(matches!(
+            err,
+            ClickhouseQueryGeneratorError::MissingPrimaryKey
+        ));
     }
 
     #[test]
@@ -720,7 +742,10 @@ mod tests {
         };
 
         let err = generate_create_node_table_query(clause).unwrap_err();
-        assert!(matches!(err, ClickhouseQueryGeneratorError::InvalidNodeIdDType));
+        assert!(matches!(
+            err,
+            ClickhouseQueryGeneratorError::InvalidNodeIdDType
+        ));
     }
 
     // generate_create_rel_table_query
@@ -752,7 +777,7 @@ mod tests {
                 },
             },
         );
-        GraphSchema::build(1, nodes,  HashMap::new(), HashMap::new())
+        GraphSchema::build(1, nodes, HashMap::new(), HashMap::new())
     }
 
     // #[test]
@@ -841,7 +866,10 @@ mod tests {
             table_properties: vec![],
         };
         let err = generate_create_rel_table_query(clause, &make_schema()).unwrap_err();
-        assert!(matches!(err, ClickhouseQueryGeneratorError::UnknownFromTableInRel));
+        assert!(matches!(
+            err,
+            ClickhouseQueryGeneratorError::UnknownFromTableInRel
+        ));
     }
 
     #[test]
@@ -854,7 +882,10 @@ mod tests {
             table_properties: vec![],
         };
         let err = generate_create_rel_table_query(clause, &make_schema()).unwrap_err();
-        assert!(matches!(err, ClickhouseQueryGeneratorError::UnknownToTableInRel));
+        assert!(matches!(
+            err,
+            ClickhouseQueryGeneratorError::UnknownToTableInRel
+        ));
     }
 
     #[test]
@@ -877,6 +908,9 @@ mod tests {
         };
 
         let err = generate_query(ast, &make_schema()).unwrap_err();
-        assert!(matches!(err, ClickhouseQueryGeneratorError::UnsupportedDDLQuery));
+        assert!(matches!(
+            err,
+            ClickhouseQueryGeneratorError::UnsupportedDDLQuery
+        ));
     }
 }

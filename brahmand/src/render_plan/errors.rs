@@ -1,10 +1,4 @@
-
-
-
 use thiserror::Error;
-
-
-
 
 #[derive(Debug, Clone, Error, PartialEq)]
 pub enum RenderBuildError {
@@ -16,7 +10,4 @@ pub enum RenderBuildError {
 
     #[error("Malformed CTE name.")]
     MalformedCTEName,
-
-    
 }
-

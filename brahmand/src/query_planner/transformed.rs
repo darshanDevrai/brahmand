@@ -1,9 +1,7 @@
-
-
 #[derive(Debug, PartialEq, Clone)]
 pub enum Transformed<T> {
     Yes(T),
-    No(T)
+    No(T),
 }
 
 impl<T> Transformed<T> {

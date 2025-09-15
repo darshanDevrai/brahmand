@@ -1,40 +1,45 @@
+use std::{fmt, sync::Arc};
 
-use std::{sync::Arc, fmt};
-
-use crate::query_planner::{logical_expr::logical_expr::{ColumnAlias, Direction, Literal, LogicalExpr, Operator, OperatorApplication, Property, TableAlias}, transformed::Transformed};
-use crate::open_cypher_parser::ast::{ OrderByItem as CypherOrderByItem, OrerByOrder as CypherOrerByOrder, Expression as CypherExpression, ReturnItem as CypherReturnItem };
+use crate::open_cypher_parser::ast::{
+    Expression as CypherExpression, OrderByItem as CypherOrderByItem,
+    OrerByOrder as CypherOrerByOrder, ReturnItem as CypherReturnItem,
+};
+use crate::query_planner::{
+    logical_expr::logical_expr::{
+        ColumnAlias, Direction, Literal, LogicalExpr, Operator, OperatorApplication, Property,
+        TableAlias,
+    },
+    transformed::Transformed,
+};
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum LogicalPlan {
     Empty,
-    
-    Scan (Scan),
+
+    Scan(Scan),
 
     GraphNode(GraphNode),
 
     GraphRel(GraphRel),
 
-    Filter (Filter),
+    Filter(Filter),
 
-    Projection (Projection),
+    Projection(Projection),
 
-    GroupBy (GroupBy),
+    GroupBy(GroupBy),
 
-    OrderBy (OrderBy),
+    OrderBy(OrderBy),
 
-    Skip (Skip),
+    Skip(Skip),
 
-    Limit (Limit),
+    Limit(Limit),
 
     Cte(Cte),
 
     GraphJoins(GraphJoins),
 
-    Union(Union)
-
+    Union(Union),
 }
-
-
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Scan {
@@ -57,19 +62,19 @@ pub struct GraphRel {
     pub direction: Direction,
     pub left_connection: String,
     pub right_connection: String,
-    pub is_rel_anchor: bool
+    pub is_rel_anchor: bool,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Cte {
     pub input: Arc<LogicalPlan>,
-    pub name: String
+    pub name: String,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Union {
     pub inputs: Vec<Arc<LogicalPlan>>,
-    pub union_type: UnionType
+    pub union_type: UnionType,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -84,22 +89,21 @@ pub struct GraphJoins {
     pub joins: Vec<Join>,
 }
 
-#[derive(Debug, PartialEq, Clone,)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Join {
     pub table_name: String,
     pub table_alias: String,
     pub joining_on: Vec<OperatorApplication>,
-    pub join_type: JoinType
+    pub join_type: JoinType,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum JoinType {
-    Join, 
+    Join,
     Inner,
     Left,
-    Right
+    Right,
 }
-
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct ConnectedTraversal {
@@ -108,7 +112,7 @@ pub struct ConnectedTraversal {
     pub end_node: Arc<LogicalPlan>,
     pub rel_alias: String,
     pub rel_direction: Direction,
-    pub nested_node_alias: Option<String>
+    pub nested_node_alias: Option<String>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -166,7 +170,11 @@ pub enum OrderByOrder {
 }
 
 impl Filter {
-    pub fn rebuild_or_clone(&self, input_tf: Transformed<Arc<LogicalPlan>>, old_plan: Arc<LogicalPlan>) -> Transformed<Arc<LogicalPlan>> {
+    pub fn rebuild_or_clone(
+        &self,
+        input_tf: Transformed<Arc<LogicalPlan>>,
+        old_plan: Arc<LogicalPlan>,
+    ) -> Transformed<Arc<LogicalPlan>> {
         match input_tf {
             Transformed::Yes(new_input) => {
                 let new_node = LogicalPlan::Filter(Filter {
@@ -176,15 +184,17 @@ impl Filter {
                 });
                 Transformed::Yes(Arc::new(new_node))
             }
-            Transformed::No(_) => {
-                Transformed::No(old_plan.clone())
-            }
+            Transformed::No(_) => Transformed::No(old_plan.clone()),
         }
     }
 }
 
 impl Projection {
-    pub fn rebuild_or_clone(&self, input_tf: Transformed<Arc<LogicalPlan>>, old_plan: Arc<LogicalPlan>) -> Transformed<Arc<LogicalPlan>> {
+    pub fn rebuild_or_clone(
+        &self,
+        input_tf: Transformed<Arc<LogicalPlan>>,
+        old_plan: Arc<LogicalPlan>,
+    ) -> Transformed<Arc<LogicalPlan>> {
         match input_tf {
             Transformed::Yes(new_input) => {
                 let new_node = LogicalPlan::Projection(Projection {
@@ -193,15 +203,17 @@ impl Projection {
                 });
                 Transformed::Yes(Arc::new(new_node))
             }
-            Transformed::No(_) => {
-                Transformed::No(old_plan.clone())
-            }
+            Transformed::No(_) => Transformed::No(old_plan.clone()),
         }
     }
 }
 
 impl GroupBy {
-    pub fn rebuild_or_clone(&self, input_tf: Transformed<Arc<LogicalPlan>>, old_plan: Arc<LogicalPlan>) -> Transformed<Arc<LogicalPlan>> {
+    pub fn rebuild_or_clone(
+        &self,
+        input_tf: Transformed<Arc<LogicalPlan>>,
+        old_plan: Arc<LogicalPlan>,
+    ) -> Transformed<Arc<LogicalPlan>> {
         match input_tf {
             Transformed::Yes(new_input) => {
                 let new_node = LogicalPlan::GroupBy(GroupBy {
@@ -210,15 +222,17 @@ impl GroupBy {
                 });
                 Transformed::Yes(Arc::new(new_node))
             }
-            Transformed::No(_) => {
-                Transformed::No(old_plan.clone())
-            }
+            Transformed::No(_) => Transformed::No(old_plan.clone()),
         }
     }
 }
 
 impl OrderBy {
-    pub fn rebuild_or_clone(&self, input_tf: Transformed<Arc<LogicalPlan>>, old_plan: Arc<LogicalPlan>) -> Transformed<Arc<LogicalPlan>> {
+    pub fn rebuild_or_clone(
+        &self,
+        input_tf: Transformed<Arc<LogicalPlan>>,
+        old_plan: Arc<LogicalPlan>,
+    ) -> Transformed<Arc<LogicalPlan>> {
         match input_tf {
             Transformed::Yes(new_input) => {
                 let new_node = LogicalPlan::OrderBy(OrderBy {
@@ -227,15 +241,17 @@ impl OrderBy {
                 });
                 Transformed::Yes(Arc::new(new_node))
             }
-            Transformed::No(_) => {
-                Transformed::No(old_plan.clone())
-            }
+            Transformed::No(_) => Transformed::No(old_plan.clone()),
         }
     }
 }
 
 impl Skip {
-    pub fn rebuild_or_clone(&self, input_tf: Transformed<Arc<LogicalPlan>>, old_plan: Arc<LogicalPlan>) -> Transformed<Arc<LogicalPlan>> {
+    pub fn rebuild_or_clone(
+        &self,
+        input_tf: Transformed<Arc<LogicalPlan>>,
+        old_plan: Arc<LogicalPlan>,
+    ) -> Transformed<Arc<LogicalPlan>> {
         match input_tf {
             Transformed::Yes(new_input) => {
                 let new_node = LogicalPlan::Skip(Skip {
@@ -244,15 +260,17 @@ impl Skip {
                 });
                 Transformed::Yes(Arc::new(new_node))
             }
-            Transformed::No(_) => {
-                Transformed::No(old_plan.clone())
-            }
+            Transformed::No(_) => Transformed::No(old_plan.clone()),
         }
     }
 }
 
 impl Limit {
-    pub fn rebuild_or_clone(&self, input_tf: Transformed<Arc<LogicalPlan>>, old_plan: Arc<LogicalPlan>) -> Transformed<Arc<LogicalPlan>> {
+    pub fn rebuild_or_clone(
+        &self,
+        input_tf: Transformed<Arc<LogicalPlan>>,
+        old_plan: Arc<LogicalPlan>,
+    ) -> Transformed<Arc<LogicalPlan>> {
         match input_tf {
             Transformed::Yes(new_input) => {
                 let new_node = LogicalPlan::Limit(Limit {
@@ -261,66 +279,75 @@ impl Limit {
                 });
                 Transformed::Yes(Arc::new(new_node))
             }
-            Transformed::No(_) => {
-                Transformed::No(old_plan.clone())
-            }
+            Transformed::No(_) => Transformed::No(old_plan.clone()),
         }
     }
 }
 
 impl GraphNode {
     // pub fn rebuild_or_clone(&self, input_tf: Transformed<Arc<LogicalPlan>>, self_tf: Transformed<Arc<LogicalPlan>>, old_plan: Arc<LogicalPlan>) -> Transformed<Arc<LogicalPlan>> {
-    pub fn rebuild_or_clone(&self, input_tf: Transformed<Arc<LogicalPlan>>, old_plan: Arc<LogicalPlan>) -> Transformed<Arc<LogicalPlan>> {
+    pub fn rebuild_or_clone(
+        &self,
+        input_tf: Transformed<Arc<LogicalPlan>>,
+        old_plan: Arc<LogicalPlan>,
+    ) -> Transformed<Arc<LogicalPlan>> {
         match input_tf {
             Transformed::Yes(new_input) => {
-                let new_graph_node = LogicalPlan::GraphNode(GraphNode { 
-                    input: new_input.clone(), 
-                    // self_plan: self_tf.get_plan(), 
-                    alias: self.alias.clone(), 
+                let new_graph_node = LogicalPlan::GraphNode(GraphNode {
+                    input: new_input.clone(),
+                    // self_plan: self_tf.get_plan(),
+                    alias: self.alias.clone(),
                 });
                 Transformed::Yes(Arc::new(new_graph_node))
             }
-            Transformed::No(_) => {
-                Transformed::No(old_plan.clone())
-            }
+            Transformed::No(_) => Transformed::No(old_plan.clone()),
         }
     }
 }
 
 impl GraphRel {
-    pub fn rebuild_or_clone(&self, left_tf: Transformed<Arc<LogicalPlan>>, center_tf: Transformed<Arc<LogicalPlan>>, right_tf: Transformed<Arc<LogicalPlan>>,  old_plan: Arc<LogicalPlan>) -> Transformed<Arc<LogicalPlan>> {
+    pub fn rebuild_or_clone(
+        &self,
+        left_tf: Transformed<Arc<LogicalPlan>>,
+        center_tf: Transformed<Arc<LogicalPlan>>,
+        right_tf: Transformed<Arc<LogicalPlan>>,
+        old_plan: Arc<LogicalPlan>,
+    ) -> Transformed<Arc<LogicalPlan>> {
         let left_changed = left_tf.is_yes();
         let right_changed = right_tf.is_yes();
-        let center_changed =  center_tf.is_yes();
+        let center_changed = center_tf.is_yes();
 
         if left_changed | right_changed | center_changed {
-            let new_graph_rel = LogicalPlan::GraphRel(GraphRel { 
-                left: left_tf.get_plan(), 
-                center: center_tf.get_plan(), 
+            let new_graph_rel = LogicalPlan::GraphRel(GraphRel {
+                left: left_tf.get_plan(),
+                center: center_tf.get_plan(),
                 right: right_tf.get_plan(),
-                alias: self.alias.clone(), 
-                left_connection: self.left_connection.clone(), 
+                alias: self.alias.clone(),
+                left_connection: self.left_connection.clone(),
                 right_connection: self.right_connection.clone(),
                 direction: self.direction.clone(),
                 // is_anchor_graph_rel: self.is_anchor_graph_rel,
-                is_rel_anchor: self.is_rel_anchor
+                is_rel_anchor: self.is_rel_anchor,
             });
             Transformed::Yes(Arc::new(new_graph_rel))
-        }else{
+        } else {
             Transformed::No(old_plan.clone())
         }
     }
 }
 
-
 impl Cte {
-    pub fn rebuild_or_clone(&self, input_tf: Transformed<Arc<LogicalPlan>>, old_plan: Arc<LogicalPlan>) -> Transformed<Arc<LogicalPlan>> {
+    pub fn rebuild_or_clone(
+        &self,
+        input_tf: Transformed<Arc<LogicalPlan>>,
+        old_plan: Arc<LogicalPlan>,
+    ) -> Transformed<Arc<LogicalPlan>> {
         match input_tf {
             Transformed::Yes(new_input) => {
-                // if new input is empty then remove the CTE 
+                // if new input is empty then remove the CTE
                 if matches!(new_input.as_ref(), LogicalPlan::Empty) {
                     Transformed::Yes(new_input.clone())
-                }else{
+                } else {
                     let new_node = LogicalPlan::Cte(Cte {
                         input: new_input.clone(),
                         name: self.name.clone(),
@@ -328,37 +355,39 @@ impl Cte {
                     Transformed::Yes(Arc::new(new_node))
                 }
             }
-            Transformed::No(_) => {
-                Transformed::No(old_plan.clone())
-            }
+            Transformed::No(_) => Transformed::No(old_plan.clone()),
         }
     }
 }
 
 impl GraphJoins {
-    pub fn rebuild_or_clone(&self, input_tf: Transformed<Arc<LogicalPlan>>, old_plan: Arc<LogicalPlan>) -> Transformed<Arc<LogicalPlan>> {
+    pub fn rebuild_or_clone(
+        &self,
+        input_tf: Transformed<Arc<LogicalPlan>>,
+        old_plan: Arc<LogicalPlan>,
+    ) -> Transformed<Arc<LogicalPlan>> {
         match input_tf {
             Transformed::Yes(new_input) => {
-                let new_graph_joins = LogicalPlan::GraphJoins(GraphJoins { 
-                    input: new_input.clone(), 
-                    joins: self.joins.clone()
+                let new_graph_joins = LogicalPlan::GraphJoins(GraphJoins {
+                    input: new_input.clone(),
+                    joins: self.joins.clone(),
                 });
                 Transformed::Yes(Arc::new(new_graph_joins))
             }
-            Transformed::No(_) => {
-                Transformed::No(old_plan.clone())
-            }
+            Transformed::No(_) => Transformed::No(old_plan.clone()),
         }
     }
 }
 
 impl Union {
-
-    pub fn rebuild_or_clone(&self, inputs_tf: Vec<Transformed<Arc<LogicalPlan>>>, old_plan: Arc<LogicalPlan>) -> Transformed<Arc<LogicalPlan>> {
-
-        // iterate over inputs_tf vec and check if any one of them is transformed. 
-        // If yes then break the iteration and club all inputs irrespective of transformation status. 
-        // If no then return the old plan. 
+    pub fn rebuild_or_clone(
+        &self,
+        inputs_tf: Vec<Transformed<Arc<LogicalPlan>>>,
+        old_plan: Arc<LogicalPlan>,
+    ) -> Transformed<Arc<LogicalPlan>> {
+        // iterate over inputs_tf vec and check if any one of them is transformed.
+        // If yes then break the iteration and club all inputs irrespective of transformation status.
+        // If no then return the old plan.
         let mut is_transformed = false;
         for input_tf in &inputs_tf {
             if input_tf.is_yes() {
@@ -367,13 +396,14 @@ impl Union {
             }
         }
         if is_transformed {
-            let new_inputs: Vec<Arc<LogicalPlan>> = inputs_tf.into_iter().map(|tf| tf.get_plan()).collect();
-            let new_union = LogicalPlan::Union(Union { 
+            let new_inputs: Vec<Arc<LogicalPlan>> =
+                inputs_tf.into_iter().map(|tf| tf.get_plan()).collect();
+            let new_union = LogicalPlan::Union(Union {
                 inputs: new_inputs,
-                union_type: self.union_type.clone() 
+                union_type: self.union_type.clone(),
             });
             Transformed::Yes(Arc::new(new_union))
-        } else {    
+        } else {
             Transformed::No(old_plan.clone())
         }
     }
@@ -394,7 +424,7 @@ impl<'a> From<CypherOrderByItem<'a>> for OrderByItem {
         OrderByItem {
             expression: if let CypherExpression::Variable(var) = value.expression {
                 LogicalExpr::ColumnAlias(ColumnAlias(var.to_string()))
-            } else{
+            } else {
                 value.expression.into()
             },
             order: match value.order {
@@ -421,19 +451,25 @@ impl LogicalPlan {
                     operands: vec![
                         LogicalExpr::Literal(Literal::Integer(1)),
                         LogicalExpr::Literal(Literal::Integer(0)),
-                    ]
-                })
+                    ],
+                }),
             })),
             items: vec![ProjectionItem {
                 expression: LogicalExpr::Literal(Literal::Integer(1)),
-                col_alias: None
-            }]
+                col_alias: None,
+            }],
         })
     }
 }
 
 impl LogicalPlan {
-    fn fmt_with_tree(&self, f: &mut fmt::Formatter<'_>, prefix: &str, is_last: bool, is_root: bool) -> fmt::Result {
+    fn fmt_with_tree(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+        prefix: &str,
+        is_last: bool,
+        is_root: bool,
+    ) -> fmt::Result {
         let (branch, next_prefix) = if is_last {
             ("└── ", "    ")
         } else {
@@ -452,32 +488,32 @@ impl LogicalPlan {
                 children.push(&graph_node.input);
                 // children.push(&graph_node.self_plan);
             }
-            LogicalPlan::GraphRel(graph_rel) =>  {
+            LogicalPlan::GraphRel(graph_rel) => {
                 children.push(&graph_rel.left);
                 children.push(&graph_rel.center);
                 children.push(&graph_rel.right);
-            },
+            }
             LogicalPlan::Filter(filter) => {
-                        children.push(&filter.input);
-                    }
+                children.push(&filter.input);
+            }
             LogicalPlan::Projection(proj) => {
-                        children.push(&proj.input);
-                    }
+                children.push(&proj.input);
+            }
             LogicalPlan::GraphJoins(graph_join) => {
-                    children.push(&graph_join.input);
-                }
+                children.push(&graph_join.input);
+            }
             LogicalPlan::OrderBy(order_by) => {
-                        children.push(&order_by.input);
-                    }
+                children.push(&order_by.input);
+            }
             LogicalPlan::Skip(skip) => {
-                        children.push(&skip.input);
-                    }
+                children.push(&skip.input);
+            }
             LogicalPlan::Limit(limit) => {
-                        children.push(&limit.input);
-                    },
+                children.push(&limit.input);
+            }
             LogicalPlan::GroupBy(group_by) => {
-                        children.push(&group_by.input);
-                    }
+                children.push(&group_by.input);
+            }
             LogicalPlan::Cte(cte) => {
                 children.push(&cte.input);
             }
@@ -499,7 +535,10 @@ impl LogicalPlan {
     fn variant_name(&self) -> String {
         match self {
             LogicalPlan::GraphNode(graph_node) => format!("Node({})", graph_node.alias),
-            LogicalPlan::GraphRel(graph_rel) => format!("GraphRel({:?})(is_rel_anchor: {:?})", graph_rel.direction, graph_rel.is_rel_anchor),
+            LogicalPlan::GraphRel(graph_rel) => format!(
+                "GraphRel({:?})(is_rel_anchor: {:?})",
+                graph_rel.direction, graph_rel.is_rel_anchor
+            ),
             LogicalPlan::Scan(scan) => format!("scan({:?})", scan.table_alias),
             LogicalPlan::Empty => "".to_string(),
             LogicalPlan::Filter(_) => "Filter".to_string(),
@@ -519,7 +558,7 @@ impl LogicalPlan {
 mod tests {
     use super::*;
     use crate::query_planner::logical_expr::logical_expr::{
-        Column, Literal, LogicalExpr, Operator, OperatorApplication, PropertyAccess, TableAlias
+        Column, Literal, LogicalExpr, Operator, OperatorApplication, PropertyAccess, TableAlias,
     };
     // use crate::open_cypher_parser::ast;
 
@@ -530,26 +569,27 @@ mod tests {
             table_alias: Some("employees".to_string()),
             table_name: Some("employee_table".to_string()),
         }));
-        
+
         let filter = Filter {
             input: original_input.clone(),
             predicate: LogicalExpr::Literal(Literal::Boolean(true)),
         };
-        
+
         let old_plan = Arc::new(LogicalPlan::Filter(filter.clone()));
         let input_transformed = Transformed::Yes(new_input.clone());
-        
+
         let result = filter.rebuild_or_clone(input_transformed, old_plan.clone());
-        
+
         match result {
-            Transformed::Yes(new_plan) => {
-                match new_plan.as_ref() {
-                    LogicalPlan::Filter(new_filter) => {
-                        assert_eq!(new_filter.input, new_input);
-                        assert_eq!(new_filter.predicate, LogicalExpr::Literal(Literal::Boolean(true)));
-                    },
-                    _ => panic!("Expected Filter plan"),
+            Transformed::Yes(new_plan) => match new_plan.as_ref() {
+                LogicalPlan::Filter(new_filter) => {
+                    assert_eq!(new_filter.input, new_input);
+                    assert_eq!(
+                        new_filter.predicate,
+                        LogicalExpr::Literal(Literal::Boolean(true))
+                    );
                 }
+                _ => panic!("Expected Filter plan"),
             },
             _ => panic!("Expected transformation"),
         }
@@ -562,16 +602,16 @@ mod tests {
             input: input.clone(),
             predicate: LogicalExpr::Literal(Literal::Boolean(true)),
         };
-        
+
         let old_plan = Arc::new(LogicalPlan::Filter(filter.clone()));
         let input_not_transformed = Transformed::No(input.clone());
-        
+
         let result = filter.rebuild_or_clone(input_not_transformed, old_plan.clone());
-        
+
         match result {
             Transformed::No(plan) => {
                 assert_eq!(plan, old_plan);
-            },
+            }
             _ => panic!("Expected no transformation"),
         }
     }
@@ -583,36 +623,32 @@ mod tests {
             table_alias: Some("customers".to_string()),
             table_name: Some("customer_table".to_string()),
         }));
-        
-        let projection_items = vec![
-            ProjectionItem {
-                expression: LogicalExpr::PropertyAccessExp(PropertyAccess {
-                    table_alias: TableAlias("customer".to_string()),
-                    column: Column("name".to_string()),
-                }),
-                col_alias: None,
-            },
-        ];
-        
+
+        let projection_items = vec![ProjectionItem {
+            expression: LogicalExpr::PropertyAccessExp(PropertyAccess {
+                table_alias: TableAlias("customer".to_string()),
+                column: Column("name".to_string()),
+            }),
+            col_alias: None,
+        }];
+
         let projection = Projection {
             input: original_input.clone(),
             items: projection_items.clone(),
         };
-        
+
         let old_plan = Arc::new(LogicalPlan::Projection(projection.clone()));
         let input_transformed = Transformed::Yes(new_input.clone());
-        
+
         let result = projection.rebuild_or_clone(input_transformed, old_plan.clone());
-        
+
         match result {
-            Transformed::Yes(new_plan) => {
-                match new_plan.as_ref() {
-                    LogicalPlan::Projection(new_projection) => {
-                        assert_eq!(new_projection.input, new_input);
-                        assert_eq!(new_projection.items.len(), 1);
-                    },
-                    _ => panic!("Expected Projection plan"),
+            Transformed::Yes(new_plan) => match new_plan.as_ref() {
+                LogicalPlan::Projection(new_projection) => {
+                    assert_eq!(new_projection.input, new_input);
+                    assert_eq!(new_projection.items.len(), 1);
                 }
+                _ => panic!("Expected Projection plan"),
             },
             _ => panic!("Expected transformation"),
         }
@@ -625,26 +661,24 @@ mod tests {
             table_alias: Some("users".to_string()),
             table_name: Some("user_table".to_string()),
         }));
-        
+
         let graph_node = GraphNode {
             input: original_input.clone(),
             alias: "person".to_string(),
         };
-        
+
         let old_plan = Arc::new(LogicalPlan::GraphNode(graph_node.clone()));
         let input_transformed = Transformed::Yes(new_input.clone());
-        
+
         let result = graph_node.rebuild_or_clone(input_transformed, old_plan.clone());
-        
+
         match result {
-            Transformed::Yes(new_plan) => {
-                match new_plan.as_ref() {
-                    LogicalPlan::GraphNode(new_graph_node) => {
-                        assert_eq!(new_graph_node.input, new_input);
-                        assert_eq!(new_graph_node.alias, "person");
-                    },
-                    _ => panic!("Expected GraphNode plan"),
+            Transformed::Yes(new_plan) => match new_plan.as_ref() {
+                LogicalPlan::GraphNode(new_graph_node) => {
+                    assert_eq!(new_graph_node.input, new_input);
+                    assert_eq!(new_graph_node.alias, "person");
                 }
+                _ => panic!("Expected GraphNode plan"),
             },
             _ => panic!("Expected transformation"),
         }
@@ -659,7 +693,7 @@ mod tests {
             table_alias: Some("users".to_string()),
             table_name: Some("user_table".to_string()),
         }));
-        
+
         let graph_rel = GraphRel {
             left: left_plan.clone(),
             center: center_plan.clone(),
@@ -670,30 +704,28 @@ mod tests {
             right_connection: "company_id".to_string(),
             is_rel_anchor: false,
         };
-        
+
         let old_plan = Arc::new(LogicalPlan::GraphRel(graph_rel.clone()));
         let left_transformed = Transformed::Yes(new_left_plan.clone());
         let center_not_transformed = Transformed::No(center_plan.clone());
         let right_not_transformed = Transformed::No(right_plan.clone());
-        
+
         let result = graph_rel.rebuild_or_clone(
             left_transformed,
             center_not_transformed,
             right_not_transformed,
-            old_plan.clone()
+            old_plan.clone(),
         );
-        
+
         match result {
-            Transformed::Yes(new_plan) => {
-                match new_plan.as_ref() {
-                    LogicalPlan::GraphRel(new_graph_rel) => {
-                        assert_eq!(new_graph_rel.left, new_left_plan);
-                        assert_eq!(new_graph_rel.center, center_plan);
-                        assert_eq!(new_graph_rel.right, right_plan);
-                        assert_eq!(new_graph_rel.alias, "works_for");
-                    },
-                    _ => panic!("Expected GraphRel plan"),
+            Transformed::Yes(new_plan) => match new_plan.as_ref() {
+                LogicalPlan::GraphRel(new_graph_rel) => {
+                    assert_eq!(new_graph_rel.left, new_left_plan);
+                    assert_eq!(new_graph_rel.center, center_plan);
+                    assert_eq!(new_graph_rel.right, right_plan);
+                    assert_eq!(new_graph_rel.alias, "works_for");
                 }
+                _ => panic!("Expected GraphRel plan"),
             },
             _ => panic!("Expected transformation"),
         }
@@ -706,22 +738,22 @@ mod tests {
             table_name: Some("temp_table".to_string()),
         }));
         let empty_input = Arc::new(LogicalPlan::Empty);
-        
+
         let cte = Cte {
             input: original_input.clone(),
             name: "temp_results".to_string(),
         };
-        
+
         let old_plan = Arc::new(LogicalPlan::Cte(cte.clone()));
         let input_transformed = Transformed::Yes(empty_input.clone());
-        
+
         let result = cte.rebuild_or_clone(input_transformed, old_plan.clone());
-        
+
         match result {
             Transformed::Yes(new_plan) => {
                 // When input is empty, CTE should be removed and return the empty plan
                 assert_eq!(new_plan, empty_input);
-            },
+            }
             _ => panic!("Expected transformation"),
         }
     }
@@ -732,14 +764,17 @@ mod tests {
             expression: CypherExpression::Variable("customer_name"),
             alias: Some("full_name"),
         };
-        
+
         let projection_item = ProjectionItem::from(ast_return_item);
-        
+
         match projection_item.expression {
             LogicalExpr::TableAlias(alias) => assert_eq!(alias.0, "customer_name"),
             _ => panic!("Expected TableAlias"),
         }
-        assert_eq!(projection_item.col_alias, Some(ColumnAlias("full_name".to_string())));
+        assert_eq!(
+            projection_item.col_alias,
+            Some(ColumnAlias("full_name".to_string()))
+        );
     }
 
     #[test]
@@ -748,9 +783,9 @@ mod tests {
             expression: CypherExpression::Variable("price"),
             order: CypherOrerByOrder::Desc,
         };
-        
+
         let order_by_item = OrderByItem::from(ast_order_item);
-        
+
         match order_by_item.expression {
             LogicalExpr::ColumnAlias(alias) => assert_eq!(alias.0, "price"),
             _ => panic!("Expected ColumnAlias"),
@@ -765,12 +800,12 @@ mod tests {
             table_alias: Some("users".to_string()),
             table_name: Some("user_accounts".to_string()),
         });
-        
+
         let graph_node = LogicalPlan::GraphNode(GraphNode {
             input: Arc::new(scan),
             alias: "user".to_string(),
         });
-        
+
         let filter = LogicalPlan::Filter(Filter {
             input: Arc::new(graph_node),
             predicate: LogicalExpr::OperatorApplicationExp(OperatorApplication {
@@ -784,7 +819,7 @@ mod tests {
                 ],
             }),
         });
-        
+
         let projection = LogicalPlan::Projection(Projection {
             input: Arc::new(filter),
             items: vec![
@@ -804,36 +839,32 @@ mod tests {
                 },
             ],
         });
-        
+
         // Verify the structure
         match projection {
             LogicalPlan::Projection(proj) => {
                 assert_eq!(proj.items.len(), 2);
                 match proj.input.as_ref() {
-                    LogicalPlan::Filter(filter_node) => {
-                        match filter_node.input.as_ref() {
-                            LogicalPlan::GraphNode(graph_node) => {
-                                assert_eq!(graph_node.alias, "user");
-                                match graph_node.input.as_ref() {
-                                    LogicalPlan::Scan(scan_node) => {
-                                        assert_eq!(scan_node.table_alias, Some("users".to_string()));
-                                        assert_eq!(scan_node.table_name, Some("user_accounts".to_string()));
-                                    },
-                                    _ => panic!("Expected Scan at bottom"),
+                    LogicalPlan::Filter(filter_node) => match filter_node.input.as_ref() {
+                        LogicalPlan::GraphNode(graph_node) => {
+                            assert_eq!(graph_node.alias, "user");
+                            match graph_node.input.as_ref() {
+                                LogicalPlan::Scan(scan_node) => {
+                                    assert_eq!(scan_node.table_alias, Some("users".to_string()));
+                                    assert_eq!(
+                                        scan_node.table_name,
+                                        Some("user_accounts".to_string())
+                                    );
                                 }
-                            },
-                            _ => panic!("Expected GraphNode"),
+                                _ => panic!("Expected Scan at bottom"),
+                            }
                         }
+                        _ => panic!("Expected GraphNode"),
                     },
                     _ => panic!("Expected Filter"),
                 }
-            },
+            }
             _ => panic!("Expected Projection at top"),
         }
     }
-
-
 }
-
-
-

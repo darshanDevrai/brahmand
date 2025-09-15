@@ -1,15 +1,18 @@
+use crate::query_planner::logical_plan::logical_plan::LogicalPlan;
 
-use crate::query_planner::{logical_plan::logical_plan::LogicalPlan };
-
-
-use super::render_expr::{AggregateFnCall, ColumnAlias, Operator, OperatorApplication, RenderExpr, ScalarFnCall};
-use super::render_plan::{Cte, CteItems, FilterItems, FromTable, FromTableItem, GroupByExpressions, Join, JoinItems, LimitItem, OrderByItem, OrderByItems, RenderPlan, SelectItem, SelectItems, SkipItem, Union, UnionItems};
 use super::errors::RenderBuildError;
+use super::render_expr::{
+    AggregateFnCall, ColumnAlias, Operator, OperatorApplication, RenderExpr, ScalarFnCall,
+};
+use super::render_plan::{
+    Cte, CteItems, FilterItems, FromTable, FromTableItem, GroupByExpressions, Join, JoinItems,
+    LimitItem, OrderByItem, OrderByItems, RenderPlan, SelectItem, SelectItems, SkipItem, Union,
+    UnionItems,
+};
 
 pub type RenderPlanBuilderResult<T> = Result<T, super::errors::RenderBuildError>;
 
 pub(crate) trait RenderPlanBuilder {
-
     fn extract_last_node_cte(&self) -> RenderPlanBuilderResult<Option<Cte>>;
 
     fn extract_final_filters(&self) -> RenderPlanBuilderResult<Option<RenderExpr>>;
@@ -35,33 +38,26 @@ pub(crate) trait RenderPlanBuilder {
     fn extract_union(&self) -> RenderPlanBuilderResult<Option<Union>>;
 
     fn to_render_plan(&self) -> RenderPlanBuilderResult<RenderPlan>;
-
 }
 
-
 impl RenderPlanBuilder for LogicalPlan {
-
     fn extract_last_node_cte(&self) -> RenderPlanBuilderResult<Option<Cte>> {
-
         let last_node_cte = match &self {
             LogicalPlan::Empty => None,
             LogicalPlan::Scan(_) => None,
-            LogicalPlan::GraphNode(graph_node) => {
-                graph_node.input.extract_last_node_cte()?
-            },
+            LogicalPlan::GraphNode(graph_node) => graph_node.input.extract_last_node_cte()?,
             LogicalPlan::GraphRel(graph_rel) => {
-                // Last node is at the top of the tree. 
-                // process left node first. 
+                // Last node is at the top of the tree.
+                // process left node first.
                 let left_node_cte_opt = graph_rel.left.extract_last_node_cte()?;
 
                 // If last node is still not found then check at the right tree
                 if left_node_cte_opt.is_none() {
-
                     graph_rel.right.extract_last_node_cte()?
                 } else {
                     left_node_cte_opt
                 }
-            },
+            }
             LogicalPlan::Filter(filter) => filter.input.extract_last_node_cte()?,
             LogicalPlan::Projection(projection) => projection.input.extract_last_node_cte()?,
             LogicalPlan::GroupBy(group_by) => group_by.input.extract_last_node_cte()?,
@@ -73,15 +69,15 @@ impl RenderPlanBuilder for LogicalPlan {
                 // let filters = logical_cte.input.extract_filters()?;
                 // let select_items = logical_cte.input.extract_select_items()?;
                 // let from_table = logical_cte.input.extract_from()?;
-                let render_cte = Cte{ 
+                let render_cte = Cte {
                     cte_name: logical_cte.name.clone(),
-                    cte_plan: logical_cte.input.to_render_plan()?, 
+                    cte_plan: logical_cte.input.to_render_plan()?,
                     // select: SelectItems(select_items),
-                    // from: from_table, 
+                    // from: from_table,
                     // filters: FilterItems(filters)
                 };
                 Some(render_cte)
-            },
+            }
             LogicalPlan::Union(union) => {
                 for input_plan in union.inputs.iter() {
                     if let Some(cte) = input_plan.extract_last_node_cte()? {
@@ -89,35 +85,31 @@ impl RenderPlanBuilder for LogicalPlan {
                     }
                 }
                 None
-            },
+            }
         };
         Ok(last_node_cte)
     }
 
     fn extract_ctes(&self, last_node_alias: &str) -> RenderPlanBuilderResult<Vec<Cte>> {
-        
         match &self {
             LogicalPlan::Empty => Ok(vec![]),
             LogicalPlan::Scan(_) => Ok(vec![]),
-            LogicalPlan::GraphNode(graph_node) => {
-                graph_node.input.extract_ctes(last_node_alias)
-            },
+            LogicalPlan::GraphNode(graph_node) => graph_node.input.extract_ctes(last_node_alias),
             LogicalPlan::GraphRel(graph_rel) => {
-                
                 // first extract the bottom one
                 let mut right_cte = graph_rel.right.extract_ctes(last_node_alias)?;
                 // then process the center
                 let mut center_cte = graph_rel.center.extract_ctes(last_node_alias)?;
                 right_cte.append(&mut center_cte);
-                // then left 
+                // then left
                 let left_alias = &graph_rel.left_connection;
-                if left_alias != &last_node_alias{
+                if left_alias != &last_node_alias {
                     let mut left_cte = graph_rel.left.extract_ctes(last_node_alias)?;
                     right_cte.append(&mut left_cte);
                 }
-                
+
                 Ok(right_cte)
-            },
+            }
             LogicalPlan::Filter(filter) => filter.input.extract_ctes(last_node_alias),
             LogicalPlan::Projection(projection) => projection.input.extract_ctes(last_node_alias),
             LogicalPlan::GraphJoins(graph_joins) => graph_joins.input.extract_ctes(last_node_alias),
@@ -140,21 +132,21 @@ impl RenderPlanBuilder for LogicalPlan {
                 // let mut from_table = logical_cte.input.extract_from()?;
                 // from_table.table_alias = None;
                 // let filters = logical_cte.input.extract_filters()?;
-                Ok(vec![Cte{ 
+                Ok(vec![Cte {
                     cte_name: logical_cte.name.clone(),
                     cte_plan: logical_cte.input.to_render_plan()?,
                     // select: SelectItems(select_items),
-                    // from: from_table, 
-                    // filters: FilterItems(filters) 
+                    // from: from_table,
+                    // filters: FilterItems(filters)
                 }])
-            },
+            }
             LogicalPlan::Union(union) => {
                 let mut ctes = vec![];
                 for input_plan in union.inputs.iter() {
                     ctes.append(&mut input_plan.extract_ctes(last_node_alias)?);
                 }
                 Ok(ctes)
-            },
+            }
         }
     }
 
@@ -168,13 +160,20 @@ impl RenderPlanBuilder for LogicalPlan {
             LogicalPlan::Projection(projection) => {
                 let items = projection.items.iter().map(|item| {
                     let expr = item.expression.clone().try_into()?;
-                    let alias = item.col_alias.clone().map(ColumnAlias::try_from).transpose()?;
-                    Ok( SelectItem { expression: expr, col_alias: alias } )
+                    let alias = item
+                        .col_alias
+                        .clone()
+                        .map(ColumnAlias::try_from)
+                        .transpose()?;
+                    Ok(SelectItem {
+                        expression: expr,
+                        col_alias: alias,
+                    })
                 });
-            
+
                 let vec = items.collect::<Result<Vec<SelectItem>, RenderBuildError>>()?;
                 vec
-            },
+            }
             LogicalPlan::GraphJoins(graph_joins) => graph_joins.input.extract_select_items()?,
             LogicalPlan::GroupBy(group_by) => group_by.input.extract_select_items()?,
             LogicalPlan::OrderBy(order_by) => order_by.input.extract_select_items()?,
@@ -190,12 +189,13 @@ impl RenderPlanBuilder for LogicalPlan {
     fn extract_from(&self) -> RenderPlanBuilderResult<Option<FromTable>> {
         let from_table = match &self {
             LogicalPlan::Empty => None,
-            LogicalPlan::Scan(scan) => {
-                        Some(FromTable {
-                            table_name: scan.table_name.clone().ok_or(RenderBuildError::MissingFromTable)?,
-                            table_alias: scan.table_alias.clone(),
-                        })
-                    },
+            LogicalPlan::Scan(scan) => Some(FromTable {
+                table_name: scan
+                    .table_name
+                    .clone()
+                    .ok_or(RenderBuildError::MissingFromTable)?,
+                table_alias: scan.table_alias.clone(),
+            }),
             LogicalPlan::GraphNode(graph_node) => graph_node.input.extract_from()?,
             LogicalPlan::GraphRel(_) => None,
             LogicalPlan::Filter(filter) => filter.input.extract_from()?,
@@ -239,10 +239,10 @@ impl RenderPlanBuilder for LogicalPlan {
             LogicalPlan::GraphJoins(graph_joins) => graph_joins.input.extract_final_filters()?,
             LogicalPlan::Projection(projection) => projection.input.extract_final_filters()?,
             LogicalPlan::Filter(filter) => Some(filter.predicate.clone().try_into()?),
-            _ => None            
+            _ => None,
         };
         Ok(final_filters)
-    } 
+    }
 
     fn extract_joins(&self) -> RenderPlanBuilderResult<Vec<Join>> {
         let joins = match &self {
@@ -250,7 +250,12 @@ impl RenderPlanBuilder for LogicalPlan {
             LogicalPlan::Skip(skip) => skip.input.extract_joins()?,
             LogicalPlan::OrderBy(order_by) => order_by.input.extract_joins()?,
             LogicalPlan::GroupBy(group_by) => group_by.input.extract_joins()?,
-            LogicalPlan::GraphJoins(graph_joins) => graph_joins.joins.iter().cloned().map(Join::try_from).collect::<Result<Vec<Join>, RenderBuildError>>()?,
+            LogicalPlan::GraphJoins(graph_joins) => graph_joins
+                .joins
+                .iter()
+                .cloned()
+                .map(Join::try_from)
+                .collect::<Result<Vec<Join>, RenderBuildError>>()?,
             _ => vec![],
         };
         Ok(joins)
@@ -261,7 +266,12 @@ impl RenderPlanBuilder for LogicalPlan {
             LogicalPlan::Limit(limit) => limit.input.extract_group_by()?,
             LogicalPlan::Skip(skip) => skip.input.extract_group_by()?,
             LogicalPlan::OrderBy(order_by) => order_by.input.extract_group_by()?,
-            LogicalPlan::GroupBy(group_by) => group_by.expressions.iter().cloned().map(RenderExpr::try_from).collect::<Result<Vec<RenderExpr>, RenderBuildError>>()?,//.collect::<Vec<RenderExpr>>(),
+            LogicalPlan::GroupBy(group_by) => group_by
+                .expressions
+                .iter()
+                .cloned()
+                .map(RenderExpr::try_from)
+                .collect::<Result<Vec<RenderExpr>, RenderBuildError>>()?, //.collect::<Vec<RenderExpr>>(),
             _ => vec![],
         };
         Ok(group_by)
@@ -271,7 +281,12 @@ impl RenderPlanBuilder for LogicalPlan {
         let order_by = match &self {
             LogicalPlan::Limit(limit) => limit.input.extract_order_by()?,
             LogicalPlan::Skip(skip) => skip.input.extract_order_by()?,
-            LogicalPlan::OrderBy(order_by) => order_by.items.iter().cloned().map(OrderByItem::try_from).collect::<Result<Vec<OrderByItem>, RenderBuildError>>()?,
+            LogicalPlan::OrderBy(order_by) => order_by
+                .items
+                .iter()
+                .cloned()
+                .map(OrderByItem::try_from)
+                .collect::<Result<Vec<OrderByItem>, RenderBuildError>>()?,
             _ => vec![],
         };
         Ok(order_by)
@@ -281,45 +296,43 @@ impl RenderPlanBuilder for LogicalPlan {
         match &self {
             LogicalPlan::Limit(limit) => limit.input.extract_skip(),
             LogicalPlan::Skip(skip) => Some(skip.count),
-            _ => None
+            _ => None,
         }
     }
 
     fn extract_limit(&self) -> Option<i64> {
         match &self {
             LogicalPlan::Limit(limit) => Some(limit.count),
-            _ => None
+            _ => None,
         }
     }
 
     fn extract_union(&self) -> RenderPlanBuilderResult<Option<Union>> {
-
         let union_opt = match &self {
-            LogicalPlan::Union(union) => {
-                Some(Union {
-                    input: union.inputs.iter().map(|input| input.to_render_plan()).collect::<Result<Vec<RenderPlan>, RenderBuildError>>()?,
-                    union_type: union.union_type.clone().try_into()?
-                })
-                
-            },
+            LogicalPlan::Union(union) => Some(Union {
+                input: union
+                    .inputs
+                    .iter()
+                    .map(|input| input.to_render_plan())
+                    .collect::<Result<Vec<RenderPlan>, RenderBuildError>>()?,
+                union_type: union.union_type.clone().try_into()?,
+            }),
             _ => None,
         };
         Ok(union_opt)
     }
 
-
-
-    
-
     fn to_render_plan(&self) -> RenderPlanBuilderResult<RenderPlan> {
-
         let mut extracted_ctes: Vec<Cte> = vec![];
         let final_from: Option<FromTable>;
         let final_filters: Option<RenderExpr>;
 
         if let Some(last_node_cte) = self.extract_last_node_cte()? {
-
-            let last_node_alias = last_node_cte.cte_name.split('_').nth(1).ok_or(RenderBuildError::MalformedCTEName)?;
+            let last_node_alias = last_node_cte
+                .cte_name
+                .split('_')
+                .nth(1)
+                .ok_or(RenderBuildError::MalformedCTEName)?;
 
             extracted_ctes = self.extract_ctes(last_node_alias)?;
             final_from = last_node_cte.cte_plan.from.0;
@@ -328,33 +341,30 @@ impl RenderPlanBuilder for LogicalPlan {
 
             let final_filters_opt = self.extract_final_filters()?;
 
-            let final_combined_filters = if last_node_filters_opt.is_some() && final_filters_opt.is_some() {
-                Some(RenderExpr::OperatorApplicationExp(OperatorApplication { 
-                    operator: Operator::And, 
-                    operands: vec![final_filters_opt.unwrap(), last_node_filters_opt.unwrap()] 
-                }))
-            } else if final_filters_opt.is_some() {
-                final_filters_opt
-            } else if last_node_filters_opt.is_some() {
-                last_node_filters_opt
-            } else {
-                None
-            };
+            let final_combined_filters =
+                if last_node_filters_opt.is_some() && final_filters_opt.is_some() {
+                    Some(RenderExpr::OperatorApplicationExp(OperatorApplication {
+                        operator: Operator::And,
+                        operands: vec![final_filters_opt.unwrap(), last_node_filters_opt.unwrap()],
+                    }))
+                } else if final_filters_opt.is_some() {
+                    final_filters_opt
+                } else if last_node_filters_opt.is_some() {
+                    last_node_filters_opt
+                } else {
+                    None
+                };
 
             final_filters = final_combined_filters;
-
         } else {
             final_from = self.extract_from()?;
             final_filters = self.extract_filters()?;
         }
 
-        
         let final_select_items = self.extract_select_items()?;
-
 
         let mut extracted_joins = self.extract_joins()?;
         extracted_joins.sort_by_key(|join| join.joining_on.len());
-
 
         let extracted_group_by_exprs = self.extract_group_by()?;
 
@@ -365,7 +375,7 @@ impl RenderPlanBuilder for LogicalPlan {
         let extracted_skip_item = self.extract_skip();
 
         let extracted_union = self.extract_union()?;
- 
+
         Ok(RenderPlan {
             ctes: CteItems(extracted_ctes),
             select: SelectItems(final_select_items),
@@ -378,13 +388,8 @@ impl RenderPlanBuilder for LogicalPlan {
             limit: LimitItem(extracted_limit_item),
             union: UnionItems(extracted_union),
         })
-
-
     }
-    
 }
-
-
 
 fn clean_last_node_filters(filter_opt: Option<RenderExpr>) -> Option<RenderExpr> {
     if let Some(filter_expr) = filter_opt {
@@ -466,5 +471,4 @@ fn clean_last_node_filters(filter_opt: Option<RenderExpr>) -> Option<RenderExpr>
     } else {
         None
     }
-    
 }

@@ -1,88 +1,93 @@
 use std::{collections::HashSet, sync::Arc};
 
-use crate::query_planner::{analyzer::{analyzer_pass::{AnalyzerPass, AnalyzerResult}, errors::{AnalyzerError, Pass}}, logical_expr::logical_expr::{AggregateFnCall, LogicalExpr, Operator, OperatorApplication, PropertyAccess, ScalarFnCall}, logical_plan::logical_plan::{Filter, LogicalPlan, ProjectionItem}, plan_ctx::plan_ctx::PlanCtx, transformed::Transformed};
-
-
-
+use crate::query_planner::{
+    analyzer::{
+        analyzer_pass::{AnalyzerPass, AnalyzerResult},
+        errors::{AnalyzerError, Pass},
+    },
+    logical_expr::logical_expr::{
+        AggregateFnCall, LogicalExpr, Operator, OperatorApplication, PropertyAccess, ScalarFnCall,
+    },
+    logical_plan::logical_plan::{Filter, LogicalPlan, ProjectionItem},
+    plan_ctx::plan_ctx::PlanCtx,
+    transformed::Transformed,
+};
 
 pub struct FilterTagging;
 
 impl AnalyzerPass for FilterTagging {
-
-    
-
-
-    fn analyze(&self, logical_plan: Arc<LogicalPlan>, plan_ctx: &mut PlanCtx) -> AnalyzerResult<Transformed<Arc<LogicalPlan>>> {
-        
+    fn analyze(
+        &self,
+        logical_plan: Arc<LogicalPlan>,
+        plan_ctx: &mut PlanCtx,
+    ) -> AnalyzerResult<Transformed<Arc<LogicalPlan>>> {
         let transformed_plan = match logical_plan.as_ref() {
             LogicalPlan::GraphNode(graph_node) => {
                 let child_tf = self.analyze(graph_node.input.clone(), plan_ctx)?;
                 graph_node.rebuild_or_clone(child_tf, logical_plan.clone())
-            },
+            }
             LogicalPlan::GraphRel(graph_rel) => {
                 let left_tf = self.analyze(graph_rel.left.clone(), plan_ctx)?;
                 let center_tf = self.analyze(graph_rel.center.clone(), plan_ctx)?;
                 let right_tf = self.analyze(graph_rel.right.clone(), plan_ctx)?;
                 graph_rel.rebuild_or_clone(left_tf, center_tf, right_tf, logical_plan.clone())
-            },
-            LogicalPlan::Cte(cte   ) => {
-                let child_tf = self.analyze( cte.input.clone(), plan_ctx)?;
+            }
+            LogicalPlan::Cte(cte) => {
+                let child_tf = self.analyze(cte.input.clone(), plan_ctx)?;
                 cte.rebuild_or_clone(child_tf, logical_plan.clone())
-            },
+            }
             LogicalPlan::Empty => Transformed::No(logical_plan.clone()),
             LogicalPlan::Scan(_) => Transformed::No(logical_plan.clone()),
             LogicalPlan::GraphJoins(graph_joins) => {
                 let child_tf = self.analyze(graph_joins.input.clone(), plan_ctx)?;
                 graph_joins.rebuild_or_clone(child_tf, logical_plan.clone())
-            },
+            }
             LogicalPlan::Filter(filter) => {
-                        let child_tf = self.analyze(filter.input.clone(), plan_ctx)?;
-                        // call filter tagging and get new filter
-                        let final_filter_opt = self.extract_filters(filter.predicate.clone(), plan_ctx)?;
-                        // if final filter has some predicate left then create new filter else remove the filter node and return the child input
-                        if let Some(final_filter) = final_filter_opt {
-                            Transformed::Yes(Arc::new(LogicalPlan::Filter(Filter {
-                                input: child_tf.get_plan(),
-                                predicate: final_filter,
-                            })))
-                        } else {
-                            Transformed::Yes(child_tf.get_plan())
-                        }
-                    },
+                let child_tf = self.analyze(filter.input.clone(), plan_ctx)?;
+                // call filter tagging and get new filter
+                let final_filter_opt = self.extract_filters(filter.predicate.clone(), plan_ctx)?;
+                // if final filter has some predicate left then create new filter else remove the filter node and return the child input
+                if let Some(final_filter) = final_filter_opt {
+                    Transformed::Yes(Arc::new(LogicalPlan::Filter(Filter {
+                        input: child_tf.get_plan(),
+                        predicate: final_filter,
+                    })))
+                } else {
+                    Transformed::Yes(child_tf.get_plan())
+                }
+            }
             LogicalPlan::Projection(projection) => {
-                        let child_tf = self.analyze(projection.input.clone(), plan_ctx)?;
-                        projection.rebuild_or_clone(child_tf, logical_plan.clone())
-                    },
-            LogicalPlan::GroupBy(group_by   ) => {
-                        let child_tf = self.analyze(group_by.input.clone(), plan_ctx)?;
-                        group_by.rebuild_or_clone(child_tf, logical_plan.clone())
-                    },
+                let child_tf = self.analyze(projection.input.clone(), plan_ctx)?;
+                projection.rebuild_or_clone(child_tf, logical_plan.clone())
+            }
+            LogicalPlan::GroupBy(group_by) => {
+                let child_tf = self.analyze(group_by.input.clone(), plan_ctx)?;
+                group_by.rebuild_or_clone(child_tf, logical_plan.clone())
+            }
             LogicalPlan::OrderBy(order_by) => {
-                        let child_tf = self.analyze(order_by.input.clone(), plan_ctx)?;
-                        order_by.rebuild_or_clone(child_tf, logical_plan.clone())
-                    },
+                let child_tf = self.analyze(order_by.input.clone(), plan_ctx)?;
+                order_by.rebuild_or_clone(child_tf, logical_plan.clone())
+            }
             LogicalPlan::Skip(skip) => {
-                        let child_tf = self.analyze(skip.input.clone(), plan_ctx)?;
-                        skip.rebuild_or_clone(child_tf, logical_plan.clone())
-                    },
+                let child_tf = self.analyze(skip.input.clone(), plan_ctx)?;
+                skip.rebuild_or_clone(child_tf, logical_plan.clone())
+            }
             LogicalPlan::Limit(limit) => {
-                        let child_tf = self.analyze(limit.input.clone(), plan_ctx)?;
-                        limit.rebuild_or_clone(child_tf,logical_plan.clone())
-                    },  
+                let child_tf = self.analyze(limit.input.clone(), plan_ctx)?;
+                limit.rebuild_or_clone(child_tf, logical_plan.clone())
+            }
             LogicalPlan::Union(union) => {
-                        let mut inputs_tf: Vec<Transformed<Arc<LogicalPlan>>> = vec![];
-                        for input_plan in union.inputs.iter() {
-                            let child_tf = self.analyze(input_plan.clone(), plan_ctx)?; 
-                            inputs_tf.push(child_tf);
-                        }
-                        union.rebuild_or_clone(inputs_tf, logical_plan.clone())
-                    },
+                let mut inputs_tf: Vec<Transformed<Arc<LogicalPlan>>> = vec![];
+                for input_plan in union.inputs.iter() {
+                    let child_tf = self.analyze(input_plan.clone(), plan_ctx)?;
+                    inputs_tf.push(child_tf);
+                }
+                union.rebuild_or_clone(inputs_tf, logical_plan.clone())
+            }
         };
         Ok(transformed_plan)
-        
     }
 }
-
 
 impl FilterTagging {
     pub fn new() -> Self {
@@ -90,11 +95,16 @@ impl FilterTagging {
     }
 
     // If there is any filter on relationship then use edgelist of that relation.
-    pub fn extract_filters(&self, filter_predicate: LogicalExpr, plan_ctx: &mut PlanCtx) -> AnalyzerResult<Option<LogicalExpr>> {
+    pub fn extract_filters(
+        &self,
+        filter_predicate: LogicalExpr,
+        plan_ctx: &mut PlanCtx,
+    ) -> AnalyzerResult<Option<LogicalExpr>> {
         let mut extracted_filters: Vec<OperatorApplication> = vec![];
         let mut extracted_projections: Vec<PropertyAccess> = vec![];
 
-        let remaining = self.process_expr(filter_predicate,
+        let remaining = self.process_expr(
+            filter_predicate,
             &mut extracted_filters,
             &mut extracted_projections,
             false,
@@ -102,7 +112,11 @@ impl FilterTagging {
 
         // tag extracted filters to respective table data
         for extracted_filter in extracted_filters {
-            let table_alias = if let Some(single_table_alias) = self.get_table_alias_if_single_table_condition(&LogicalExpr::OperatorApplicationExp(extracted_filter.clone()), true) {
+            let table_alias = if let Some(single_table_alias) = self
+                .get_table_alias_if_single_table_condition(
+                    &LogicalExpr::OperatorApplicationExp(extracted_filter.clone()),
+                    true,
+                ) {
                 single_table_alias
             } else {
                 String::new()
@@ -134,71 +148,75 @@ impl FilterTagging {
             // }
 
             if let Some(table_ctx) = plan_ctx.get_mut_table_ctx_opt(&table_alias) {
-                let converted_filters = self.convert_prop_acc_to_column(LogicalExpr::OperatorApplicationExp(extracted_filter));
+                let converted_filters = self.convert_prop_acc_to_column(
+                    LogicalExpr::OperatorApplicationExp(extracted_filter),
+                );
                 table_ctx.insert_filter(converted_filters);
 
                 if table_ctx.is_relation() {
                     table_ctx.set_use_edge_list(true);
                 }
             } else {
-                return Err(AnalyzerError::OrphanAlias { pass: Pass::FilterTagging, alias: table_alias.to_string() });
+                return Err(AnalyzerError::OrphanAlias {
+                    pass: Pass::FilterTagging,
+                    alias: table_alias.to_string(),
+                });
             }
-
         }
 
         // add extracted_projections to their respective nodes.
         for prop_acc in extracted_projections {
             let table_alias = prop_acc.table_alias.clone();
-            if let Some(table_ctx) = plan_ctx.get_mut_table_ctx_opt(&table_alias.0){
+            if let Some(table_ctx) = plan_ctx.get_mut_table_ctx_opt(&table_alias.0) {
                 table_ctx.insert_projection(ProjectionItem {
                     expression: LogicalExpr::PropertyAccessExp(prop_acc),
                     col_alias: None,
                 });
-                
+
                 // If there is any filter on relationship then use edgelist of that relation.
                 if table_ctx.is_relation() {
                     table_ctx.set_use_edge_list(true);
                 }
             } else {
-                return Err(AnalyzerError::OrphanAlias { pass: Pass::FilterTagging, alias: table_alias.to_string() });
+                return Err(AnalyzerError::OrphanAlias {
+                    pass: Pass::FilterTagging,
+                    alias: table_alias.to_string(),
+                });
             }
-
         }
 
         Ok(remaining)
-
-
     }
 
     fn convert_prop_acc_to_column(&self, expr: LogicalExpr) -> LogicalExpr {
         match expr {
             LogicalExpr::PropertyAccessExp(property_access) => {
-                LogicalExpr::Column(property_access.column) 
-            },
+                LogicalExpr::Column(property_access.column)
+            }
             LogicalExpr::OperatorApplicationExp(op_app) => {
                 let mut new_operands: Vec<LogicalExpr> = vec![];
                 for operand in op_app.operands {
                     let new_operand = self.convert_prop_acc_to_column(operand);
                     new_operands.push(new_operand);
                 }
-                LogicalExpr::OperatorApplicationExp(OperatorApplication { operator: op_app.operator, operands: new_operands })
-            },
+                LogicalExpr::OperatorApplicationExp(OperatorApplication {
+                    operator: op_app.operator,
+                    operands: new_operands,
+                })
+            }
             LogicalExpr::List(exprs) => {
                 let mut new_exprs = Vec::new();
                 for sub_expr in exprs {
-
                     let new_expr = self.convert_prop_acc_to_column(sub_expr);
                     new_exprs.push(new_expr);
-
                 }
                 LogicalExpr::List(new_exprs)
-            },
+            }
             LogicalExpr::ScalarFnCall(fc) => {
                 let mut new_args = Vec::new();
                 for arg in fc.args {
-                    let new_arg =  self.convert_prop_acc_to_column(arg);
+                    let new_arg = self.convert_prop_acc_to_column(arg);
                     new_args.push(new_arg);
-
                 }
                 LogicalExpr::ScalarFnCall(ScalarFnCall {
                     name: fc.name,
@@ -206,10 +224,10 @@ impl FilterTagging {
                 })
             }
 
-            LogicalExpr::AggregateFnCall(fc) =>{
+            LogicalExpr::AggregateFnCall(fc) => {
                 let mut new_args = Vec::new();
                 for arg in fc.args {
-                    let new_arg =  self.convert_prop_acc_to_column(arg);
+                    let new_arg = self.convert_prop_acc_to_column(arg);
                     new_args.push(new_arg);
                 }
                 LogicalExpr::AggregateFnCall(AggregateFnCall {
@@ -237,27 +255,32 @@ impl FilterTagging {
                 if current_is_or {
                     let cloned_op_app = LogicalExpr::OperatorApplicationExp(op_app.clone());
                     // If the entire OR belongs to single table then we extract it. This OR should not have any agg fns.
-                    if self.get_table_alias_if_single_table_condition(&cloned_op_app, false).is_some() {
+                    if self
+                        .get_table_alias_if_single_table_condition(&cloned_op_app, false)
+                        .is_some()
+                    {
                         extracted_filters.push(op_app);
                         return None;
                     }
                 }
                 // Update our flag: once inside an Or, we stay inside.
                 let new_in_or = in_or || current_is_or;
-    
+
                 // Process each operand recursively, passing the flag.
                 let mut new_operands = Vec::new();
                 for operand in op_app.operands {
-                    if let Some(new_operand) =
-                        self.process_expr(operand, extracted_filters, extracted_projections, new_in_or)
-                    {
+                    if let Some(new_operand) = self.process_expr(
+                        operand,
+                        extracted_filters,
+                        extracted_projections,
+                        new_in_or,
+                    ) {
                         new_operands.push(new_operand);
                     }
                 }
                 // Update the operator application with the processed operands.
                 op_app.operands = new_operands;
-    
-    
+
                 // TODO ALl aggregated functions will be evaluated in final where clause. We have to check what kind of fns we can put here.
                 // because if we put aggregated fns like count() then it will mess up the final result because we want the count of all joined entries in the set,
                 // in case of anchor node this could lead incorrect answers.
@@ -277,16 +300,17 @@ impl FilterTagging {
                                 // should_extract = true;
                             }
                         }
-                    } if let LogicalExpr::AggregateFnCall(fc) = operand {
+                    }
+                    if let LogicalExpr::AggregateFnCall(fc) = operand {
                         for arg in &fc.args {
                             if let LogicalExpr::PropertyAccessExp(prop_acc) = arg {
                                 condition_belongs_to.insert(&prop_acc.table_alias.0);
                                 temp_prop_acc.push(prop_acc.clone());
                                 // should_extract = false;
-                                agg_operand_found = true; 
+                                agg_operand_found = true;
                             }
                         }
-                    }else if let LogicalExpr::PropertyAccessExp(prop_acc) = operand {
+                    } else if let LogicalExpr::PropertyAccessExp(prop_acc) = operand {
                         condition_belongs_to.insert(&prop_acc.table_alias.0);
                         temp_prop_acc.push(prop_acc.clone());
                         // should_extract = true;
@@ -300,34 +324,36 @@ impl FilterTagging {
                 //     println!("\n operands: {:?}\n", op_app.operands);
                 // }
                 // if it is a multinode condition then we are not extracting. It will be kept at overall conditions
-                // and applied at the end in the final query. This applies to OR conditions. 
+                // and applied at the end in the final query. This applies to OR conditions.
                 // We won't extract OR conditions but add projections to their respective tables.
                 if !new_in_or && !agg_operand_found && condition_belongs_to.len() == 1 {
                     extracted_filters.push(op_app);
                     return None;
                 } else if new_in_or || condition_belongs_to.len() > 1 {
                     extracted_projections.append(&mut temp_prop_acc);
-                } 
-    
+                }
+
                 // If after processing there is only one operand left and it is not unary then collapse the operator application.
                 if op_app.operands.len() == 1 && op_app.operator != Operator::Not {
                     return Some(op_app.operands.into_iter().next().unwrap()); // unwrap is safe we are checking the len in condition
                 }
-    
+
                 // if both operands has been extracted then remove the parent op
                 if op_app.operands.is_empty() {
                     return None;
                 }
-    
+
                 // Otherwise, return the rebuilt operator application.
                 Some(LogicalExpr::OperatorApplicationExp(op_app))
             }
-            
+
             // If we have a function call, process each argument.
             LogicalExpr::ScalarFnCall(fc) => {
                 let mut new_args = Vec::new();
                 for arg in fc.args {
-                    if let Some(new_arg) = self.process_expr(arg, extracted_filters, extracted_projections, in_or) {
+                    if let Some(new_arg) =
+                        self.process_expr(arg, extracted_filters, extracted_projections, in_or)
+                    {
                         new_args.push(new_arg);
                     }
                 }
@@ -337,10 +363,12 @@ impl FilterTagging {
                 }))
             }
 
-            LogicalExpr::AggregateFnCall(fc) =>{
+            LogicalExpr::AggregateFnCall(fc) => {
                 let mut new_args = Vec::new();
                 for arg in fc.args {
-                    if let Some(new_arg) = self.process_expr(arg, extracted_filters, extracted_projections, in_or) {
+                    if let Some(new_arg) =
+                        self.process_expr(arg, extracted_filters, extracted_projections, in_or)
+                    {
                         new_args.push(new_arg);
                     }
                 }
@@ -349,7 +377,7 @@ impl FilterTagging {
                     args: new_args,
                 }))
             }
-    
+
             // For a list, process each element.
             LogicalExpr::List(exprs) => {
                 let mut new_exprs = Vec::new();
@@ -362,7 +390,7 @@ impl FilterTagging {
                 }
                 Some(LogicalExpr::List(new_exprs))
             }
-    
+
             // Base cases – literals, variables, and property accesses remain unchanged.
             other => Some(other),
         }
@@ -371,13 +399,19 @@ impl FilterTagging {
     // this function is used to get the table alias from an expression. We use this for OR conditions.
     // it is used to check if all the operands of an operator application have the same table alias.
     // if they don't then we return None.
-    fn get_table_alias_if_single_table_condition(&self, expr: &LogicalExpr, with_agg_fn: bool) -> Option<String> {
+    fn get_table_alias_if_single_table_condition(
+        &self,
+        expr: &LogicalExpr,
+        with_agg_fn: bool,
+    ) -> Option<String> {
         let table_alias = match &expr {
             LogicalExpr::PropertyAccessExp(prop_acc) => Some(prop_acc.table_alias.0.clone()),
             LogicalExpr::OperatorApplicationExp(op_app) => {
                 let mut found_table_alias_opt: Option<String> = None;
                 for operand in &op_app.operands {
-                    if let Some(current_table_alias) = self.get_table_alias_if_single_table_condition(operand, with_agg_fn) {
+                    if let Some(current_table_alias) =
+                        self.get_table_alias_if_single_table_condition(operand, with_agg_fn)
+                    {
                         if let Some(found_table_alias) = found_table_alias_opt.as_ref() {
                             if *found_table_alias != current_table_alias {
                                 return None;
@@ -388,11 +422,13 @@ impl FilterTagging {
                     }
                 }
                 found_table_alias_opt
-            },
+            }
             LogicalExpr::ScalarFnCall(scalar_fn_call) => {
                 let mut found_table_alias_opt: Option<String> = None;
                 for arg in &scalar_fn_call.args {
-                    if let Some(current_table_alias) = self.get_table_alias_if_single_table_condition(arg, with_agg_fn) {
+                    if let Some(current_table_alias) =
+                        self.get_table_alias_if_single_table_condition(arg, with_agg_fn)
+                    {
                         if let Some(found_table_alias) = found_table_alias_opt.as_ref() {
                             if *found_table_alias != current_table_alias {
                                 return None;
@@ -403,12 +439,14 @@ impl FilterTagging {
                     }
                 }
                 found_table_alias_opt
-            },
+            }
             LogicalExpr::AggregateFnCall(aggregate_fn_call) => {
                 let mut found_table_alias_opt: Option<String> = None;
                 if with_agg_fn {
                     for arg in &aggregate_fn_call.args {
-                        if let Some(current_table_alias) = self.get_table_alias_if_single_table_condition(arg, with_agg_fn) {
+                        if let Some(current_table_alias) =
+                            self.get_table_alias_if_single_table_condition(arg, with_agg_fn)
+                        {
                             if let Some(found_table_alias) = found_table_alias_opt.as_ref() {
                                 if *found_table_alias != current_table_alias {
                                     return None;
@@ -420,25 +458,20 @@ impl FilterTagging {
                     }
                 }
                 found_table_alias_opt
-                
-            },
+            }
             _ => None,
         };
         table_alias
     }
-    
-    
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::query_planner::logical_expr::logical_expr::{
-        Column, Literal, PropertyAccess, TableAlias
+        Column, Literal, PropertyAccess, TableAlias,
     };
-    use crate::query_planner::logical_plan::logical_plan::{
-        Filter, GraphNode, LogicalPlan, Scan
-    };
+    use crate::query_planner::logical_plan::logical_plan::{Filter, GraphNode, LogicalPlan, Scan};
     use crate::query_planner::plan_ctx::plan_ctx::TableCtx;
 
     fn create_property_access(table: &str, column: &str) -> LogicalExpr {
@@ -460,25 +493,43 @@ mod tests {
 
     fn setup_plan_ctx_with_tables() -> PlanCtx {
         let mut plan_ctx = PlanCtx::default();
-        
+
         // Add user table (node)
         plan_ctx.insert_table_ctx(
             "user".to_string(),
-            TableCtx::build("user".to_string(), Some("Person".to_string()), vec![], false, true),
+            TableCtx::build(
+                "user".to_string(),
+                Some("Person".to_string()),
+                vec![],
+                false,
+                true,
+            ),
         );
-        
+
         // Add follows table (relationship)
         plan_ctx.insert_table_ctx(
             "follows".to_string(),
-            TableCtx::build("follows".to_string(), Some("FOLLOWS".to_string()), vec![], true, true),
+            TableCtx::build(
+                "follows".to_string(),
+                Some("FOLLOWS".to_string()),
+                vec![],
+                true,
+                true,
+            ),
         );
-        
+
         // Add company table (node)
         plan_ctx.insert_table_ctx(
             "company".to_string(),
-            TableCtx::build("company".to_string(), Some("Company".to_string()), vec![], false, true),
+            TableCtx::build(
+                "company".to_string(),
+                Some("Company".to_string()),
+                vec![],
+                false,
+                true,
+            ),
         );
-        
+
         plan_ctx
     }
 
@@ -489,7 +540,9 @@ mod tests {
 
         // Test filter: user.age = 25
         let filter_expr = create_simple_filter("user", "age", 25);
-        let result = analyzer.extract_filters(filter_expr, &mut plan_ctx).unwrap();
+        let result = analyzer
+            .extract_filters(filter_expr, &mut plan_ctx)
+            .unwrap();
 
         // Should extract the filter completely (no remaining filter)
         assert!(result.is_none());
@@ -510,7 +563,7 @@ mod tests {
                     LogicalExpr::Literal(Literal::Integer(val)) => assert_eq!(*val, 25),
                     _ => panic!("Expected Integer literal"),
                 }
-            },
+            }
             _ => panic!("Expected OperatorApplication"),
         }
     }
@@ -529,7 +582,9 @@ mod tests {
             ],
         });
 
-        let result = analyzer.extract_filters(filter_expr, &mut plan_ctx).unwrap();
+        let result = analyzer
+            .extract_filters(filter_expr, &mut plan_ctx)
+            .unwrap();
         assert!(result.is_none());
 
         // Should tag filter to follows table and set use_edge_list to true
@@ -552,7 +607,9 @@ mod tests {
             ],
         });
 
-        let result = analyzer.extract_filters(filter_expr, &mut plan_ctx).unwrap();
+        let result = analyzer
+            .extract_filters(filter_expr, &mut plan_ctx)
+            .unwrap();
 
         // Should NOT extract the filter (remains in final where clause)
         assert!(result.is_some());
@@ -560,7 +617,7 @@ mod tests {
             LogicalExpr::OperatorApplicationExp(op_app) => {
                 assert_eq!(op_app.operator, Operator::Equal);
                 assert_eq!(op_app.operands.len(), 2);
-            },
+            }
             _ => panic!("Expected OperatorApplication to remain"),
         }
 
@@ -593,7 +650,9 @@ mod tests {
             ],
         });
 
-        let result = analyzer.extract_filters(filter_expr, &mut plan_ctx).unwrap();
+        let result = analyzer
+            .extract_filters(filter_expr, &mut plan_ctx)
+            .unwrap();
 
         // Should NOT extract filters inside OR (remains in final where clause)
         assert!(result.is_none());
@@ -601,7 +660,6 @@ mod tests {
         // Should extract filters to user table but should add projections
         let user_ctx = plan_ctx.get_table_ctx("user").unwrap();
         assert_eq!(user_ctx.get_filters().len(), 1);
-        
     }
 
     #[test]
@@ -624,7 +682,9 @@ mod tests {
             ],
         });
 
-        let result = analyzer.extract_filters(filter_expr, &mut plan_ctx).unwrap();
+        let result = analyzer
+            .extract_filters(filter_expr, &mut plan_ctx)
+            .unwrap();
 
         // Should NOT extract filters inside OR (remains in final where clause)
         assert!(result.is_some());
@@ -632,7 +692,7 @@ mod tests {
             LogicalExpr::OperatorApplicationExp(op_app) => {
                 assert_eq!(op_app.operator, Operator::Or);
                 assert_eq!(op_app.operands.len(), 2);
-            },
+            }
             _ => panic!("Expected OR condition to remain"),
         }
 
@@ -647,8 +707,6 @@ mod tests {
         assert_eq!(company_ctx.get_filters().len(), 0);
         // Should add projections for the property accesses in OR condition
         assert_eq!(company_ctx.get_projections().len(), 1); // status 
-        
-       
     }
 
     #[test]
@@ -668,7 +726,9 @@ mod tests {
             ],
         });
 
-        let result = analyzer.extract_filters(filter_expr, &mut plan_ctx).unwrap();
+        let result = analyzer
+            .extract_filters(filter_expr, &mut plan_ctx)
+            .unwrap();
 
         // Should NOT extract aggregate conditions (remains in final where clause)
         assert!(result.is_some());
@@ -676,7 +736,7 @@ mod tests {
             LogicalExpr::OperatorApplicationExp(op_app) => {
                 assert_eq!(op_app.operator, Operator::GreaterThan);
                 assert_eq!(op_app.operands.len(), 2);
-            },
+            }
             _ => panic!("Expected aggregate condition to remain"),
         }
 
@@ -702,7 +762,9 @@ mod tests {
             ],
         });
 
-        let result = analyzer.extract_filters(filter_expr, &mut plan_ctx).unwrap();
+        let result = analyzer
+            .extract_filters(filter_expr, &mut plan_ctx)
+            .unwrap();
 
         // Should extract scalar function filters
         assert!(result.is_none());
@@ -721,10 +783,10 @@ mod tests {
                             LogicalExpr::Column(col) => assert_eq!(col.0, "name"),
                             _ => panic!("Expected Column after conversion"),
                         }
-                    },
+                    }
                     _ => panic!("Expected ScalarFnCall"),
                 }
-            },
+            }
             _ => panic!("Expected OperatorApplication"),
         }
     }
@@ -738,8 +800,9 @@ mod tests {
         let filter_expr = LogicalExpr::OperatorApplicationExp(OperatorApplication {
             operator: Operator::And,
             operands: vec![
-                create_simple_filter("user", "age", 25),  // Extractable (single table)
-                LogicalExpr::OperatorApplicationExp(OperatorApplication {  // Not extractable (multi-table)
+                create_simple_filter("user", "age", 25), // Extractable (single table)
+                LogicalExpr::OperatorApplicationExp(OperatorApplication {
+                    // Not extractable (multi-table)
                     operator: Operator::Equal,
                     operands: vec![
                         create_property_access("user", "id"),
@@ -749,7 +812,9 @@ mod tests {
             ],
         });
 
-        let result = analyzer.extract_filters(filter_expr, &mut plan_ctx).unwrap();
+        let result = analyzer
+            .extract_filters(filter_expr, &mut plan_ctx)
+            .unwrap();
 
         // Should partially extract: single-table filter extracted, multi-table remains
         assert!(result.is_some());
@@ -757,7 +822,7 @@ mod tests {
             LogicalExpr::OperatorApplicationExp(op_app) => {
                 assert_eq!(op_app.operator, Operator::Equal); // The multi-table condition remains
                 assert_eq!(op_app.operands.len(), 2);
-            },
+            }
             _ => panic!("Expected remaining multi-table condition"),
         }
 
@@ -793,7 +858,7 @@ mod tests {
         match result {
             Transformed::Yes(new_plan) => {
                 assert_eq!(new_plan, scan); // Should return the scan directly
-            },
+            }
             _ => panic!("Expected transformation that removes filter"),
         }
 
@@ -835,13 +900,13 @@ mod tests {
                         match node.input.as_ref() {
                             LogicalPlan::Scan(scan) => {
                                 assert_eq!(scan.table_alias, Some("user".to_string()));
-                            },
+                            }
                             _ => panic!("Expected scan as direct input after filter removal"),
                         }
-                    },
+                    }
                     _ => panic!("Expected GraphNode at top level"),
                 }
-            },
+            }
             _ => panic!("Expected transformation"),
         }
 
@@ -865,7 +930,7 @@ mod tests {
             AnalyzerError::OrphanAlias { pass, alias } => {
                 assert_eq!(pass, Pass::FilterTagging);
                 assert_eq!(alias, "nonexistent");
-            },
+            }
             _ => panic!("Expected OrphanAlias error"),
         }
     }
@@ -873,18 +938,18 @@ mod tests {
     #[test]
     fn test_get_table_alias_single_property_access() {
         let analyzer = FilterTagging::new();
-        
+
         // Test single property access: user.name
         let expr = create_property_access("user", "name");
         let result = analyzer.get_table_alias_if_single_table_condition(&expr, false);
-        
+
         assert_eq!(result, Some("user".to_string()));
     }
 
     #[test]
     fn test_get_table_alias_operator_application_same_table() {
         let analyzer = FilterTagging::new();
-        
+
         // Test operator with same table: user.age = 25
         let expr = LogicalExpr::OperatorApplicationExp(OperatorApplication {
             operator: Operator::Equal,
@@ -893,7 +958,7 @@ mod tests {
                 LogicalExpr::Literal(Literal::Integer(25)),
             ],
         });
-        
+
         let result = analyzer.get_table_alias_if_single_table_condition(&expr, false);
         assert_eq!(result, Some("user".to_string()));
     }
@@ -901,7 +966,7 @@ mod tests {
     #[test]
     fn test_get_table_alias_operator_application_different_tables() {
         let analyzer = FilterTagging::new();
-        
+
         // Test operator with different tables: user.id = company.owner_id
         let expr = LogicalExpr::OperatorApplicationExp(OperatorApplication {
             operator: Operator::Equal,
@@ -910,7 +975,7 @@ mod tests {
                 create_property_access("company", "owner_id"),
             ],
         });
-        
+
         let result = analyzer.get_table_alias_if_single_table_condition(&expr, false);
         assert_eq!(result, None);
     }
@@ -918,13 +983,13 @@ mod tests {
     #[test]
     fn test_get_table_alias_scalar_function_same_table() {
         let analyzer = FilterTagging::new();
-        
+
         // Test scalar function with same table: length(user.name)
         let expr = LogicalExpr::ScalarFnCall(ScalarFnCall {
             name: "length".to_string(),
             args: vec![create_property_access("user", "name")],
         });
-        
+
         let result = analyzer.get_table_alias_if_single_table_condition(&expr, false);
         assert_eq!(result, Some("user".to_string()));
     }
@@ -932,7 +997,7 @@ mod tests {
     #[test]
     fn test_get_table_alias_scalar_function_different_tables() {
         let analyzer = FilterTagging::new();
-        
+
         // Test scalar function with different tables: concat(user.first_name, company.suffix)
         let expr = LogicalExpr::ScalarFnCall(ScalarFnCall {
             name: "concat".to_string(),
@@ -941,7 +1006,7 @@ mod tests {
                 create_property_access("company", "suffix"),
             ],
         });
-        
+
         let result = analyzer.get_table_alias_if_single_table_condition(&expr, false);
         assert_eq!(result, None);
     }
@@ -949,13 +1014,13 @@ mod tests {
     #[test]
     fn test_get_table_alias_aggregate_function_with_agg_fn_true() {
         let analyzer = FilterTagging::new();
-        
+
         // Test aggregate function with with_agg_fn=true: count(user.id)
         let expr = LogicalExpr::AggregateFnCall(AggregateFnCall {
             name: "count".to_string(),
             args: vec![create_property_access("user", "id")],
         });
-        
+
         let result = analyzer.get_table_alias_if_single_table_condition(&expr, true);
         assert_eq!(result, Some("user".to_string()));
     }
@@ -963,13 +1028,13 @@ mod tests {
     #[test]
     fn test_get_table_alias_aggregate_function_with_agg_fn_false() {
         let analyzer = FilterTagging::new();
-        
+
         // Test aggregate function with with_agg_fn=false: count(user.id)
         let expr = LogicalExpr::AggregateFnCall(AggregateFnCall {
             name: "count".to_string(),
             args: vec![create_property_access("user", "id")],
         });
-        
+
         let result = analyzer.get_table_alias_if_single_table_condition(&expr, false);
         assert_eq!(result, None); // Should return None when with_agg_fn is false
     }
@@ -977,7 +1042,7 @@ mod tests {
     #[test]
     fn test_get_table_alias_mixed_expression_same_table() {
         let analyzer = FilterTagging::new();
-        
+
         // Test mixed expression with scalar function and property: length(user.name) > user.min_length
         let expr = LogicalExpr::OperatorApplicationExp(OperatorApplication {
             operator: Operator::GreaterThan,
@@ -989,7 +1054,7 @@ mod tests {
                 create_property_access("user", "min_length"),
             ],
         });
-        
+
         let result = analyzer.get_table_alias_if_single_table_condition(&expr, false);
         assert_eq!(result, Some("user".to_string()));
     }
@@ -997,7 +1062,7 @@ mod tests {
     #[test]
     fn test_get_table_alias_literals_only() {
         let analyzer = FilterTagging::new();
-        
+
         // Test expression with only literals: 42 = 42
         let expr = LogicalExpr::OperatorApplicationExp(OperatorApplication {
             operator: Operator::Equal,
@@ -1006,7 +1071,7 @@ mod tests {
                 LogicalExpr::Literal(Literal::Integer(42)),
             ],
         });
-        
+
         let result = analyzer.get_table_alias_if_single_table_condition(&expr, false);
         assert_eq!(result, None); // No property accesses, should return None
     }

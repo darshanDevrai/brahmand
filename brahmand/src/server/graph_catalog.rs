@@ -3,7 +3,6 @@ use std::time::Duration;
 use clickhouse::Client;
 use tokio::{sync::RwLock, time::interval};
 
-
 use crate::graph_catalog::graph_schema::{GraphSchema, GraphSchemaElement};
 
 use super::{GLOBAL_GRAPH_SCHEMA, models::GraphCatalog};
@@ -100,7 +99,6 @@ pub async fn get_graph_catalog(clickhouse_client: Client) -> Result<GraphSchema,
 }
 
 pub async fn validate_schema(graph_schema_element: &Vec<GraphSchemaElement>) -> Result<(), String> {
-
     for element in graph_schema_element {
         match element {
             GraphSchemaElement::Rel(relationship_schema) => {
@@ -121,16 +119,13 @@ pub async fn validate_schema(graph_schema_element: &Vec<GraphSchemaElement>) -> 
                 {
                     return Err("From and To node tables must be present before creating a relationship between them".to_string());
                 }
-
-            },
+            }
             _ => (),
             // GraphSchemaElement::Node(_) => Ok(()),
         }
     }
 
     Ok(())
-
-    
 }
 
 pub async fn add_to_schema(
@@ -143,7 +138,7 @@ pub async fn add_to_schema(
         match element {
             GraphSchemaElement::Node(node_schema) => {
                 graph_schema.insert_node_schema(node_schema.table_name.to_string(), node_schema);
-                graph_schema.increment_version(); 
+                graph_schema.increment_version();
             }
             GraphSchemaElement::Rel(relationship_schema) => {
                 graph_schema.insert_rel_schema(
@@ -151,18 +146,15 @@ pub async fn add_to_schema(
                     relationship_schema,
                 );
                 graph_schema.increment_version();
-            },
+            }
             GraphSchemaElement::RelIndex(relationship_index_schema) => {
                 graph_schema.insert_rel_index_schema(
                     relationship_index_schema.table_name.to_string(),
                     relationship_index_schema,
                 );
             }
-
         }
     }
-
-    
 
     let schema_json = serde_json::to_string(&*graph_schema)
         .map_err(|e| format!("Schema serialization error: {}", e))?;
@@ -223,7 +215,8 @@ pub async fn monitor_schema_updates(ch_client: Client) -> Result<(), String> {
 
             println!(
                 "Global schema updated from version {} to {}",
-                mem_version, remote_schema.get_version()
+                mem_version,
+                remote_schema.get_version()
             );
         }
     }

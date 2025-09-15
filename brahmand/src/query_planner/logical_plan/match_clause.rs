@@ -2,14 +2,26 @@ use std::sync::Arc;
 
 use uuid::Uuid;
 
-use crate::{open_cypher_parser::ast, query_planner::{logical_expr::logical_expr::{Column, LogicalExpr, Operator, OperatorApplication, Property}, logical_plan::{errors::LogicalPlanError, logical_plan::{GraphNode, GraphRel, LogicalPlan, Scan}, plan_builder::LogicalPlanResult}, plan_ctx::plan_ctx::{PlanCtx, TableCtx}}};
+use crate::{
+    open_cypher_parser::ast,
+    query_planner::{
+        logical_expr::logical_expr::{
+            Column, LogicalExpr, Operator, OperatorApplication, Property,
+        },
+        logical_plan::{
+            errors::LogicalPlanError,
+            logical_plan::{GraphNode, GraphRel, LogicalPlan, Scan},
+            plan_builder::LogicalPlanResult,
+        },
+        plan_ctx::plan_ctx::{PlanCtx, TableCtx},
+    },
+};
 
 use super::generate_id;
 
-
 fn generate_scan(alias: String, label: Option<String>) -> Arc<LogicalPlan> {
     let table_alias = if alias.is_empty() { None } else { Some(alias) };
-    Arc::new(LogicalPlan::Scan(Scan{
+    Arc::new(LogicalPlan::Scan(Scan {
         table_alias: table_alias,
         table_name: label,
     }))
@@ -19,65 +31,83 @@ fn convert_properties(props: Vec<Property>) -> LogicalPlanResult<Vec<LogicalExpr
     let mut extracted_props: Vec<LogicalExpr> = vec![];
 
     for prop in props {
-
         match prop {
             Property::PropertyKV(property_kvpair) => {
                 let op_app = LogicalExpr::OperatorApplicationExp(OperatorApplication {
                     operator: Operator::Equal,
                     operands: vec![
                         LogicalExpr::Column(Column(property_kvpair.key)),
-                        LogicalExpr::Literal(property_kvpair.value)
-                    ]
+                        LogicalExpr::Literal(property_kvpair.value),
+                    ],
                 });
                 extracted_props.push(op_app);
-            },
-            Property::Param(_) => {
-                return Err(LogicalPlanError::FoundParamInProperties)
-            },
+            }
+            Property::Param(_) => return Err(LogicalPlanError::FoundParamInProperties),
         }
-        
     }
 
     Ok(extracted_props)
-
 }
 
 fn convert_properties_to_operator_application(plan_ctx: &mut PlanCtx) -> LogicalPlanResult<()> {
-
-    for (_,table_ctx) in plan_ctx.get_mut_alias_table_ctx_map().iter_mut() {
+    for (_, table_ctx) in plan_ctx.get_mut_alias_table_ctx_map().iter_mut() {
         let mut extracted_props = convert_properties(table_ctx.get_and_clear_properties())?;
         if !extracted_props.is_empty() {
             table_ctx.set_use_edge_list(true);
         }
-        table_ctx.append_filters(&mut extracted_props); 
+        table_ctx.append_filters(&mut extracted_props);
     }
     Ok(())
 }
 
-
-
-fn traverse_connected_pattern<'a>(connected_patterns: &Vec<ast::ConnectedPattern<'a>>, mut plan: Arc<LogicalPlan>, plan_ctx: &mut PlanCtx, path_pattern_idx: usize) -> LogicalPlanResult<Arc<LogicalPlan>> {
-    
-    for connected_pattern in connected_patterns {    
-
+fn traverse_connected_pattern<'a>(
+    connected_patterns: &Vec<ast::ConnectedPattern<'a>>,
+    mut plan: Arc<LogicalPlan>,
+    plan_ctx: &mut PlanCtx,
+    path_pattern_idx: usize,
+) -> LogicalPlanResult<Arc<LogicalPlan>> {
+    for connected_pattern in connected_patterns {
         let start_node_ref = connected_pattern.start_node.borrow();
         let start_node_label = start_node_ref.label.map(|val| val.to_string());
-        let start_node_alias = if let Some(alias) = start_node_ref.name { alias.to_string()} else {generate_id()};
-        let start_node_props = start_node_ref.properties.clone().map(|props| props.into_iter().map(Property::from).collect()).unwrap_or_else(Vec::new);
-        
+        let start_node_alias = if let Some(alias) = start_node_ref.name {
+            alias.to_string()
+        } else {
+            generate_id()
+        };
+        let start_node_props = start_node_ref
+            .properties
+            .clone()
+            .map(|props| props.into_iter().map(Property::from).collect())
+            .unwrap_or_else(Vec::new);
+
         let rel = &connected_pattern.relationship;
-        let rel_alias = if let Some(alias) = rel.name { alias.to_string()} else {generate_id()};
+        let rel_alias = if let Some(alias) = rel.name {
+            alias.to_string()
+        } else {
+            generate_id()
+        };
         let rel_label = rel.label.map(|val| val.to_string());
-        let rel_properties = rel.properties.clone().map(|props| props.into_iter().map(Property::from).collect()).unwrap_or_else(Vec::new);
+        let rel_properties = rel
+            .properties
+            .clone()
+            .map(|props| props.into_iter().map(Property::from).collect())
+            .unwrap_or_else(Vec::new);
 
         let end_node_ref = connected_pattern.end_node.borrow();
-        let end_node_alias = if let Some(alias) = end_node_ref.name { alias.to_string()} else {generate_id()};
+        let end_node_alias = if let Some(alias) = end_node_ref.name {
+            alias.to_string()
+        } else {
+            generate_id()
+        };
         let end_node_label = end_node_ref.label.map(|val| val.to_string());
-        let end_node_props = end_node_ref.properties.clone().map(|props| props.into_iter().map(Property::from).collect()).unwrap_or_else(Vec::new);
-        
+        let end_node_props = end_node_ref
+            .properties
+            .clone()
+            .map(|props| props.into_iter().map(Property::from).collect())
+            .unwrap_or_else(Vec::new);
 
         // if start alias already present in ctx map, it means the current nested connected pattern's start node will be connecting at right side plan and end node will be at the left
-        if let Some(table_ctx) = plan_ctx.get_mut_table_ctx_opt(&start_node_alias){
+        if let Some(table_ctx) = plan_ctx.get_mut_table_ctx_opt(&start_node_alias) {
             if start_node_label.is_some() {
                 table_ctx.set_label(start_node_label);
             }
@@ -89,9 +119,18 @@ fn traverse_connected_pattern<'a>(connected_patterns: &Vec<ast::ConnectedPattern
                 input: generate_scan(end_node_alias.clone(), None),
                 alias: end_node_alias.clone(),
             };
-            plan_ctx.insert_table_ctx(end_node_alias.clone(), TableCtx::build(end_node_alias.clone(), end_node_label, end_node_props, false, end_node_ref.name.is_some()));
+            plan_ctx.insert_table_ctx(
+                end_node_alias.clone(),
+                TableCtx::build(
+                    end_node_alias.clone(),
+                    end_node_label,
+                    end_node_props,
+                    false,
+                    end_node_ref.name.is_some(),
+                ),
+            );
 
-            let graph_rel_node = GraphRel{
+            let graph_rel_node = GraphRel {
                 left: Arc::new(LogicalPlan::GraphNode(end_graph_node)),
                 center: generate_scan(rel_alias.clone(), None),
                 right: plan.clone(),
@@ -99,11 +138,19 @@ fn traverse_connected_pattern<'a>(connected_patterns: &Vec<ast::ConnectedPattern
                 direction: rel.direction.clone().into(),
                 left_connection: end_node_alias,
                 right_connection: start_node_alias,
-                is_rel_anchor: false
+                is_rel_anchor: false,
             };
-            plan_ctx.insert_table_ctx(rel_alias.clone(), TableCtx::build(rel_alias, rel_label, rel_properties, true, rel.name.is_some()));
+            plan_ctx.insert_table_ctx(
+                rel_alias.clone(),
+                TableCtx::build(
+                    rel_alias,
+                    rel_label,
+                    rel_properties,
+                    true,
+                    rel.name.is_some(),
+                ),
+            );
 
-            
             plan = Arc::new(LogicalPlan::GraphRel(graph_rel_node));
         }
         // if end alias already present in ctx map, it means the current nested connected pattern's end node will be connecting at right side plan and start node will be at the left
@@ -119,9 +166,18 @@ fn traverse_connected_pattern<'a>(connected_patterns: &Vec<ast::ConnectedPattern
                 input: generate_scan(start_node_alias.clone(), None),
                 alias: start_node_alias.clone(),
             };
-            plan_ctx.insert_table_ctx(start_node_alias.clone(), TableCtx::build(start_node_alias.clone(), start_node_label, start_node_props, false, start_node_ref.name.is_some()));
+            plan_ctx.insert_table_ctx(
+                start_node_alias.clone(),
+                TableCtx::build(
+                    start_node_alias.clone(),
+                    start_node_label,
+                    start_node_props,
+                    false,
+                    start_node_ref.name.is_some(),
+                ),
+            );
 
-            let graph_rel_node = GraphRel{
+            let graph_rel_node = GraphRel {
                 left: Arc::new(LogicalPlan::GraphNode(start_graph_node)),
                 center: generate_scan(rel_alias.clone(), None),
                 right: plan.clone(),
@@ -129,16 +185,23 @@ fn traverse_connected_pattern<'a>(connected_patterns: &Vec<ast::ConnectedPattern
                 direction: rel.direction.clone().into(),
                 left_connection: start_node_alias,
                 right_connection: end_node_alias,
-                is_rel_anchor: false
+                is_rel_anchor: false,
             };
-            plan_ctx.insert_table_ctx(rel_alias.clone(), TableCtx::build(rel_alias, rel_label, rel_properties, true, rel.name.is_some()));
-           
-            plan = Arc::new(LogicalPlan::GraphRel(graph_rel_node));
+            plan_ctx.insert_table_ctx(
+                rel_alias.clone(),
+                TableCtx::build(
+                    rel_alias,
+                    rel_label,
+                    rel_properties,
+                    true,
+                    rel.name.is_some(),
+                ),
+            );
 
+            plan = Arc::new(LogicalPlan::GraphRel(graph_rel_node));
         }
         // not connected with existing nodes
         else {
-
             // if two comma separated patterns found and they are not connected to each other i.e. there is no common node alias between them then throw error.
             if path_pattern_idx > 0 {
                 // throw error
@@ -150,16 +213,33 @@ fn traverse_connected_pattern<'a>(connected_patterns: &Vec<ast::ConnectedPattern
                 input: generate_scan(start_node_alias.clone(), None),
                 alias: start_node_alias.clone(),
             };
-            plan_ctx.insert_table_ctx(start_node_alias.clone(), TableCtx::build(start_node_alias.clone(), start_node_label, start_node_props, false, start_node_ref.name.is_some()));
+            plan_ctx.insert_table_ctx(
+                start_node_alias.clone(),
+                TableCtx::build(
+                    start_node_alias.clone(),
+                    start_node_label,
+                    start_node_props,
+                    false,
+                    start_node_ref.name.is_some(),
+                ),
+            );
 
             let end_graph_node = GraphNode {
                 input: generate_scan(end_node_alias.clone(), None),
                 alias: end_node_alias.clone(),
             };
-            plan_ctx.insert_table_ctx(end_node_alias.clone(), TableCtx::build(end_node_alias.clone(), end_node_label, end_node_props, false, end_node_ref.name.is_some()));
+            plan_ctx.insert_table_ctx(
+                end_node_alias.clone(),
+                TableCtx::build(
+                    end_node_alias.clone(),
+                    end_node_label,
+                    end_node_props,
+                    false,
+                    end_node_ref.name.is_some(),
+                ),
+            );
 
-
-            let graph_rel_node = GraphRel{
+            let graph_rel_node = GraphRel {
                 left: Arc::new(LogicalPlan::GraphNode(end_graph_node)),
                 center: generate_scan(rel_alias.clone(), None),
                 right: Arc::new(LogicalPlan::GraphNode(start_graph_node)),
@@ -167,29 +247,45 @@ fn traverse_connected_pattern<'a>(connected_patterns: &Vec<ast::ConnectedPattern
                 direction: rel.direction.clone().into(),
                 left_connection: end_node_alias,
                 right_connection: start_node_alias,
-                is_rel_anchor: false
+                is_rel_anchor: false,
             };
-            plan_ctx.insert_table_ctx(rel_alias.clone(), TableCtx::build(rel_alias, rel_label, rel_properties, true, rel.name.is_some()));
+            plan_ctx.insert_table_ctx(
+                rel_alias.clone(),
+                TableCtx::build(
+                    rel_alias,
+                    rel_label,
+                    rel_properties,
+                    true,
+                    rel.name.is_some(),
+                ),
+            );
 
-            
-            plan =  Arc::new(LogicalPlan::GraphRel(graph_rel_node));
+            plan = Arc::new(LogicalPlan::GraphRel(graph_rel_node));
         }
-
     }
 
     Ok(plan)
 }
 
-fn traverse_node_pattern(node_pattern: &ast::NodePattern, plan: Arc<LogicalPlan>, plan_ctx: &mut PlanCtx) -> LogicalPlanResult<Arc<LogicalPlan>> {
-    
-
+fn traverse_node_pattern(
+    node_pattern: &ast::NodePattern,
+    plan: Arc<LogicalPlan>,
+    plan_ctx: &mut PlanCtx,
+) -> LogicalPlanResult<Arc<LogicalPlan>> {
     // For now we are not supporting empty node. standalone node with name is supported.
-    let node_alias = node_pattern.name.ok_or(LogicalPlanError::EmptyNode)?.to_string();
+    let node_alias = node_pattern
+        .name
+        .ok_or(LogicalPlanError::EmptyNode)?
+        .to_string();
     let node_label = node_pattern.label.map(|val| val.to_string());
-    let node_props = node_pattern.properties.clone().map(|props| props.into_iter().map(Property::from).collect()).unwrap_or_else(Vec::new);
-    
+    let node_props = node_pattern
+        .properties
+        .clone()
+        .map(|props| props.into_iter().map(Property::from).collect())
+        .unwrap_or_else(Vec::new);
+
     // if alias already present in ctx map then just add its conditions and do not add it in the logical plan
-    if let Some(table_ctx) = plan_ctx.get_mut_table_ctx_opt(&node_alias){
+    if let Some(table_ctx) = plan_ctx.get_mut_table_ctx_opt(&node_alias) {
         if node_label.is_some() {
             table_ctx.set_label(node_label);
         }
@@ -197,9 +293,18 @@ fn traverse_node_pattern(node_pattern: &ast::NodePattern, plan: Arc<LogicalPlan>
             table_ctx.append_properties(node_props);
         }
         return Ok(plan);
-    }else{
+    } else {
         // plan_ctx.alias_table_ctx_map.insert(node_alias.clone(), TableCtx { label: node_label, properties: node_props, filter_predicates: vec![], projection_items: vec![], is_rel: false, use_edge_list: false, explicit_alias: node_pattern.name.is_some() });
-        plan_ctx.insert_table_ctx(node_alias.clone(), TableCtx::build(node_alias.clone(), node_label, node_props, false, node_pattern.name.is_some()));
+        plan_ctx.insert_table_ctx(
+            node_alias.clone(),
+            TableCtx::build(
+                node_alias.clone(),
+                node_label,
+                node_props,
+                false,
+                node_pattern.name.is_some(),
+            ),
+        );
 
         let graph_node = GraphNode {
             input: generate_scan(node_alias.clone(), None),
@@ -209,11 +314,10 @@ fn traverse_node_pattern(node_pattern: &ast::NodePattern, plan: Arc<LogicalPlan>
     }
 }
 
-
 pub fn evaluate_match_clause<'a>(
     match_clause: &ast::MatchClause<'a>,
     mut plan: Arc<LogicalPlan>,
-    mut plan_ctx: &mut PlanCtx
+    mut plan_ctx: &mut PlanCtx,
 ) -> LogicalPlanResult<Arc<LogicalPlan>> {
     for (idx, path_pattern) in match_clause.path_patterns.iter().enumerate() {
         match path_pattern {
@@ -228,15 +332,13 @@ pub fn evaluate_match_clause<'a>(
 
     convert_properties_to_operator_application(plan_ctx)?;
     Ok(plan)
-
 }
-
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::query_planner::logical_expr::logical_expr::{Direction, Literal, PropertyKVPair};
     use crate::open_cypher_parser::ast;
+    use crate::query_planner::logical_expr::logical_expr::{Direction, Literal, PropertyKVPair};
     use std::cell::RefCell;
     use std::rc::Rc;
 
@@ -269,7 +371,7 @@ mod tests {
                     LogicalExpr::Literal(Literal::String(s)) => assert_eq!(s, "John"),
                     _ => panic!("Expected String literal"),
                 }
-            },
+            }
             _ => panic!("Expected OperatorApplication"),
         }
 
@@ -281,7 +383,7 @@ mod tests {
                     LogicalExpr::Literal(Literal::Integer(age)) => assert_eq!(*age, 30),
                     _ => panic!("Expected Integer literal"),
                 }
-            },
+            }
             _ => panic!("Expected OperatorApplication"),
         }
     }
@@ -315,14 +417,14 @@ mod tests {
     fn test_generate_id_uniqueness() {
         let id1 = generate_id();
         let id2 = generate_id();
-        
+
         // IDs should be unique
         assert_ne!(id1, id2);
-        
+
         // IDs should start with 'a'
         assert!(id1.starts_with('a'));
         assert!(id2.starts_with('a'));
-        
+
         // IDs should be reasonable length (not too short or too long)
         assert!(id1.len() > 1 && id1.len() < 20);
         assert!(id2.len() > 1 && id2.len() < 20);
@@ -333,20 +435,17 @@ mod tests {
         let mut plan_ctx = PlanCtx::default();
         let initial_plan = Arc::new(LogicalPlan::Empty);
 
-            let node_pattern = ast::NodePattern {
-             name: Some("customer"),
-             label: Some("Person"),
-             properties: Some(vec![
-                 ast::Property::PropertyKV(
-                     ast::PropertyKVPair {
-                         key: "city",
-                         value: ast::Expression::Literal(ast::Literal::String("Boston")),
-                     }
-                 ),
-             ]),
-         };
+        let node_pattern = ast::NodePattern {
+            name: Some("customer"),
+            label: Some("Person"),
+            properties: Some(vec![ast::Property::PropertyKV(ast::PropertyKVPair {
+                key: "city",
+                value: ast::Expression::Literal(ast::Literal::String("Boston")),
+            })]),
+        };
 
-        let result = traverse_node_pattern(&node_pattern, initial_plan.clone(), &mut plan_ctx).unwrap();
+        let result =
+            traverse_node_pattern(&node_pattern, initial_plan.clone(), &mut plan_ctx).unwrap();
 
         // Should return a GraphNode plan
         match result.as_ref() {
@@ -357,10 +456,10 @@ mod tests {
                     LogicalPlan::Scan(scan) => {
                         assert_eq!(scan.table_alias, Some("customer".to_string()));
                         assert_eq!(scan.table_name, None); // generate_scan sets table_name to label, but we pass None
-                    },
+                    }
                     _ => panic!("Expected Scan as input"),
                 }
-            },
+            }
             _ => panic!("Expected GraphNode"),
         }
 
@@ -389,19 +488,16 @@ mod tests {
         );
 
         let node_pattern = ast::NodePattern {
-             name: Some("customer"),
-             label: Some("Person"), // Different label
-             properties: Some(vec![
-                 ast::Property::PropertyKV(
-                     ast::PropertyKVPair {
-                         key: "age",
-                         value: ast::Expression::Literal(ast::Literal::Integer(25)),
-                     }
-                 ),
-             ]),
-         };
+            name: Some("customer"),
+            label: Some("Person"), // Different label
+            properties: Some(vec![ast::Property::PropertyKV(ast::PropertyKVPair {
+                key: "age",
+                value: ast::Expression::Literal(ast::Literal::Integer(25)),
+            })]),
+        };
 
-        let result = traverse_node_pattern(&node_pattern, initial_plan.clone(), &mut plan_ctx).unwrap();
+        let result =
+            traverse_node_pattern(&node_pattern, initial_plan.clone(), &mut plan_ctx).unwrap();
 
         // Should return the same plan (not create new GraphNode)
         assert_eq!(result, initial_plan);
@@ -448,12 +544,12 @@ mod tests {
             properties: None,
         };
 
-                 let relationship = ast::RelationshipPattern {
-             name: Some("works_at"),
-             direction: ast::Direction::Outgoing,
-             label: Some("WORKS_AT"),
-             properties: None,
-         };
+        let relationship = ast::RelationshipPattern {
+            name: Some("works_at"),
+            direction: ast::Direction::Outgoing,
+            label: Some("WORKS_AT"),
+            properties: None,
+        };
 
         let connected_pattern = ast::ConnectedPattern {
             start_node: Rc::new(RefCell::new(start_node)),
@@ -463,7 +559,9 @@ mod tests {
 
         let connected_patterns = vec![connected_pattern];
 
-        let result = traverse_connected_pattern(&connected_patterns, initial_plan, &mut plan_ctx, 0).unwrap();
+        let result =
+            traverse_connected_pattern(&connected_patterns, initial_plan, &mut plan_ctx, 0)
+                .unwrap();
 
         // Should return a GraphRel plan
         match result.as_ref() {
@@ -478,7 +576,7 @@ mod tests {
                 match graph_rel.left.as_ref() {
                     LogicalPlan::GraphNode(left_node) => {
                         assert_eq!(left_node.alias, "company");
-                    },
+                    }
                     _ => panic!("Expected GraphNode on left"),
                 }
 
@@ -486,10 +584,10 @@ mod tests {
                 match graph_rel.right.as_ref() {
                     LogicalPlan::GraphNode(right_node) => {
                         assert_eq!(right_node.alias, "user");
-                    },
+                    }
                     _ => panic!("Expected GraphNode on right"),
                 }
-            },
+            }
             _ => panic!("Expected GraphRel"),
         }
 
@@ -510,11 +608,17 @@ mod tests {
         // Pre-populate with existing start node
         plan_ctx.insert_table_ctx(
             "user".to_string(),
-            TableCtx::build("user".to_string(), Some("Person".to_string()), vec![], false, true),
+            TableCtx::build(
+                "user".to_string(),
+                Some("Person".to_string()),
+                vec![],
+                false,
+                true,
+            ),
         );
 
         let start_node = ast::NodePattern {
-            name: Some("user"), // This exists in plan_ctx
+            name: Some("user"),      // This exists in plan_ctx
             label: Some("Employee"), // Different label
             properties: None,
         };
@@ -526,11 +630,11 @@ mod tests {
         };
 
         let relationship = ast::RelationshipPattern {
-             name: Some("assigned_to"),
-             direction: ast::Direction::Incoming,
-             label: Some("ASSIGNED_TO"),
-             properties: None,
-         };
+            name: Some("assigned_to"),
+            direction: ast::Direction::Incoming,
+            label: Some("ASSIGNED_TO"),
+            properties: None,
+        };
 
         let connected_pattern = ast::ConnectedPattern {
             start_node: Rc::new(RefCell::new(start_node)),
@@ -540,7 +644,9 @@ mod tests {
 
         let connected_patterns = vec![connected_pattern];
 
-        let result = traverse_connected_pattern(&connected_patterns, initial_plan, &mut plan_ctx, 0).unwrap();
+        let result =
+            traverse_connected_pattern(&connected_patterns, initial_plan, &mut plan_ctx, 0)
+                .unwrap();
 
         // Should return a GraphRel plan with different structure
         match result.as_ref() {
@@ -554,10 +660,10 @@ mod tests {
                 match graph_rel.left.as_ref() {
                     LogicalPlan::GraphNode(left_node) => {
                         assert_eq!(left_node.alias, "project");
-                    },
+                    }
                     _ => panic!("Expected GraphNode on left"),
                 }
-            },
+            }
             _ => panic!("Expected GraphRel"),
         }
 
@@ -599,7 +705,8 @@ mod tests {
         let connected_patterns = vec![connected_pattern];
 
         // Pass path_pattern_idx > 0 to simulate second pattern that's disconnected
-        let result = traverse_connected_pattern(&connected_patterns, initial_plan, &mut plan_ctx, 1);
+        let result =
+            traverse_connected_pattern(&connected_patterns, initial_plan, &mut plan_ctx, 1);
 
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -617,14 +724,10 @@ mod tests {
         let node_pattern = ast::NodePattern {
             name: Some("admin"),
             label: Some("User"),
-            properties: Some(vec![
-                ast::Property::PropertyKV(
-                    ast::PropertyKVPair {
-                        key: "role",
-                        value: ast::Expression::Literal(ast::Literal::String("administrator")),
-                    }
-                ),
-            ]),
+            properties: Some(vec![ast::Property::PropertyKV(ast::PropertyKVPair {
+                key: "role",
+                value: ast::Expression::Literal(ast::Literal::String("administrator")),
+            })]),
         };
 
         let start_node = ast::NodePattern {
@@ -666,7 +769,7 @@ mod tests {
             LogicalPlan::GraphRel(graph_rel) => {
                 assert_eq!(graph_rel.alias, "manages");
                 assert_eq!(graph_rel.direction, Direction::Outgoing);
-            },
+            }
             _ => panic!("Expected GraphRel at top level"),
         }
 
@@ -679,15 +782,13 @@ mod tests {
     #[test]
     fn test_convert_properties_to_operator_application() {
         let mut plan_ctx = PlanCtx::default();
-        
+
         // Add table context with properties
-        let properties = vec![
-            Property::PropertyKV(PropertyKVPair {
-                key: "status".to_string(),
-                value: Literal::String("active".to_string()),
-            }),
-        ];
-        
+        let properties = vec![Property::PropertyKV(PropertyKVPair {
+            key: "status".to_string(),
+            value: Literal::String("active".to_string()),
+        })];
+
         let table_ctx = TableCtx::build(
             "user".to_string(),
             Some("Person".to_string()),
@@ -695,7 +796,7 @@ mod tests {
             false,
             true,
         );
-        
+
         plan_ctx.insert_table_ctx("user".to_string(), table_ctx);
 
         // Before conversion, table should have no filters
@@ -720,7 +821,7 @@ mod tests {
                     LogicalExpr::Column(col) => assert_eq!(col.0, "status"),
                     _ => panic!("Expected Column"),
                 }
-            },
+            }
             _ => panic!("Expected OperatorApplication"),
         }
     }
@@ -728,15 +829,13 @@ mod tests {
     #[test]
     fn test_generate_scan() {
         let scan = generate_scan("customers".to_string(), Some("Customer".to_string()));
-        
+
         match scan.as_ref() {
             LogicalPlan::Scan(scan_plan) => {
                 assert_eq!(scan_plan.table_alias, Some("customers".to_string()));
                 assert_eq!(scan_plan.table_name, Some("Customer".to_string()));
-            },
+            }
             _ => panic!("Expected Scan plan"),
         }
     }
 }
-
-

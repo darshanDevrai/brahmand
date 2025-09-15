@@ -2,7 +2,9 @@ use std::fmt::Display;
 
 use thiserror::Error;
 
-use crate::{graph_catalog::errors::GraphSchemaError, query_planner::plan_ctx::errors::PlanCtxError};
+use crate::{
+    graph_catalog::errors::GraphSchemaError, query_planner::plan_ctx::errors::PlanCtxError,
+};
 
 #[derive(Debug, Clone, Error, PartialEq)]
 pub enum Pass {
@@ -14,7 +16,7 @@ pub enum Pass {
     ProjectionTagging,
     SchemaInference,
     PlanSanitization,
-    QueryValidation
+    QueryValidation,
 }
 
 impl Display for Pass {
@@ -35,17 +37,22 @@ impl Display for Pass {
 
 #[derive(Debug, Clone, Error, PartialEq)]
 pub enum AnalyzerError {
-
-    #[error(" {pass}: No relation label found. Currently we need label to identify the relationship table. This will change in future.")]
-    MissingRelationLabel {pass: Pass},
+    #[error(
+        " {pass}: No relation label found. Currently we need label to identify the relationship table. This will change in future."
+    )]
+    MissingRelationLabel { pass: Pass },
     #[error(" {pass}: No relationship schema found.")]
-    NoRelationSchemaFound {pass: Pass},
+    NoRelationSchemaFound { pass: Pass },
 
-    #[error(" {pass}: Not enough information. Labels are required to identify nodes and relationships.")]
-    NotEnoughLabels {pass: Pass},
+    #[error(
+        " {pass}: Not enough information. Labels are required to identify nodes and relationships."
+    )]
+    NotEnoughLabels { pass: Pass },
 
-    #[error(" {pass}: Alias `{alias}` not found in Match Clause. Alias should be from Match Clause.")]
-    OrphanAlias {pass: Pass, alias: String},
+    #[error(
+        " {pass}: Alias `{alias}` not found in Match Clause. Alias should be from Match Clause."
+    )]
+    OrphanAlias { pass: Pass, alias: String },
 
     #[error("PlanCtxError: {pass}: {source}.")]
     PlanCtx {
@@ -55,15 +62,12 @@ pub enum AnalyzerError {
     },
 
     #[error("GraphSchema: {pass}: {source}.")]
-    GraphSchema { 
+    GraphSchema {
         pass: Pass,
         #[source]
         source: GraphSchemaError,
     },
 
     #[error("Invalid relation query - {rel}")]
-    InvalidRelationInQuery {rel: String},
-
-
-
+    InvalidRelationInQuery { rel: String },
 }
