@@ -170,9 +170,9 @@ pub struct PropertyKVPair {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct ConnectedPattern {
-    pub start_node: std::rc::Rc<std::cell::RefCell<NodePattern>>,
+    pub start_node: Arc<NodePattern>,
     pub relationship: RelationshipPattern,
-    pub end_node: std::rc::Rc<std::cell::RefCell<NodePattern>>,
+    pub end_node: Arc<NodePattern>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -321,13 +321,13 @@ impl<'a> From<open_cypher_parser::ast::PropertyKVPair<'a>> for PropertyKVPair {
 impl<'a> From<open_cypher_parser::ast::ConnectedPattern<'a>> for ConnectedPattern {
     fn from(value: open_cypher_parser::ast::ConnectedPattern<'a>) -> Self {
         ConnectedPattern {
-            start_node: std::rc::Rc::new(std::cell::RefCell::new(NodePattern::from(
+            start_node: Arc::new(NodePattern::from(
                 value.start_node.borrow().clone(),
-            ))),
+            )),
             relationship: RelationshipPattern::from(value.relationship),
-            end_node: std::rc::Rc::new(std::cell::RefCell::new(NodePattern::from(
+            end_node: Arc::new(NodePattern::from(
                 value.end_node.borrow().clone(),
-            ))),
+            )),
         }
     }
 }
@@ -605,19 +605,19 @@ mod tests {
         let logical_connected_pattern = ConnectedPattern::from(ast_connected_pattern);
 
         assert_eq!(
-            logical_connected_pattern.start_node.borrow().name,
+            logical_connected_pattern.start_node.name,
             Some("user".to_string())
         );
         assert_eq!(
-            logical_connected_pattern.start_node.borrow().label,
+            logical_connected_pattern.start_node.label,
             Some("User".to_string())
         );
         assert_eq!(
-            logical_connected_pattern.end_node.borrow().name,
+            logical_connected_pattern.end_node.name,
             Some("company".to_string())
         );
         assert_eq!(
-            logical_connected_pattern.end_node.borrow().label,
+            logical_connected_pattern.end_node.label,
             Some("Company".to_string())
         );
         assert_eq!(
