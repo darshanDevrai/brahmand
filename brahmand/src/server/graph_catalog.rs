@@ -100,9 +100,8 @@ pub async fn get_graph_catalog(clickhouse_client: Client) -> Result<GraphSchema,
 
 pub async fn validate_schema(graph_schema_element: &Vec<GraphSchemaElement>) -> Result<(), String> {
     for element in graph_schema_element {
-        match element {
-            GraphSchemaElement::Rel(relationship_schema) => {
-                // here check if both from_node and to_node tables are present or not in the schema
+        if let GraphSchemaElement::Rel(relationship_schema) = element {
+            // here check if both from_node and to_node tables are present or not in the schema
 
                 let graph_schema_lock = GLOBAL_GRAPH_SCHEMA
                     .get()
@@ -119,9 +118,6 @@ pub async fn validate_schema(graph_schema_element: &Vec<GraphSchemaElement>) -> 
                 {
                     return Err("From and To node tables must be present before creating a relationship between them".to_string());
                 }
-            }
-            _ => (),
-            // GraphSchemaElement::Node(_) => Ok(()),
         }
     }
 

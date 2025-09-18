@@ -11,7 +11,7 @@ use super::expression::parse_identifier;
 // (table_name,(schema, properties))
 type ParsedNodeTableSchema<'a> = (&'a str, (Vec<ColumnSchema<'a>>, Vec<Expression<'a>>));
 
-pub fn parse_node_table_schema(input: &str) -> IResult<&str, ParsedNodeTableSchema> {
+pub fn parse_node_table_schema(input: &'_ str) -> IResult<&'_ str, ParsedNodeTableSchema<'_>> {
     let (input, table_name) = ws(parse_identifier).parse(input)?;
 
     let (input, (schema, properties)) = parse_node_table_properties_list(input)?;
