@@ -15,7 +15,7 @@ use super::{
     expression::parse_expression,
 };
 
-pub fn parse_remove_clause(input: &str) -> IResult<&str, RemoveClause, OpenCypherParsingError> {
+pub fn parse_remove_clause(input: &'_ str) -> IResult<&'_ str, RemoveClause<'_>, OpenCypherParsingError<'_>> {
     let (input, _) = ws(tag_no_case("REMOVE")).parse(input)?;
 
     let (input, remove_items) = context(
@@ -32,7 +32,7 @@ pub fn parse_remove_clause(input: &str) -> IResult<&str, RemoveClause, OpenCyphe
     Ok((input, remove_clause))
 }
 
-fn remove_item_parser(input: &str) -> IResult<&str, PropertyAccess, OpenCypherParsingError> {
+fn remove_item_parser(input: &'_ str) -> IResult<&'_ str, PropertyAccess<'_>, OpenCypherParsingError<'_>> {
     let (input, expression) = parse_expression.parse(input).map_err(|e| match e {
         nom::Err::Incomplete(needed) => nom::Err::Incomplete(needed),
         nom::Err::Error(err) => nom::Err::Failure(OpenCypherParsingError::from(err)),

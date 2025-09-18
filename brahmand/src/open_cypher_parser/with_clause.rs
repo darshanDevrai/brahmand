@@ -15,7 +15,7 @@ use super::{
     expression::{parse_expression, parse_identifier},
 };
 
-fn parse_with_item(input: &str) -> IResult<&str, WithItem> {
+fn parse_with_item(input: &'_ str) -> IResult<&'_ str, WithItem<'_>> {
     let (input, expression) = parse_expression.parse(input)?;
     let (input, alias) = opt(preceded(ws(tag_no_case("AS")), ws(parse_identifier))).parse(input)?;
 
@@ -23,7 +23,7 @@ fn parse_with_item(input: &str) -> IResult<&str, WithItem> {
     Ok((input, with_item))
 }
 
-pub fn parse_with_clause(input: &str) -> IResult<&str, WithClause, OpenCypherParsingError> {
+pub fn parse_with_clause(input: &'_ str) -> IResult<&'_ str, WithClause<'_>, OpenCypherParsingError<'_>> {
     // Parse the RETURN statement
 
     let (input, _) = ws(tag_no_case("WITH")).parse(input)?;

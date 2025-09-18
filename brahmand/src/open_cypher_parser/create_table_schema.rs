@@ -17,7 +17,7 @@ fn parse_multiword_identifier(input: &str) -> IResult<&str, Vec<&str>> {
     separated_list1(multispace0, parse_identifier).parse(input)
 }
 
-pub fn parse_property_function_call(input: &str) -> IResult<&str, Expression> {
+pub fn parse_property_function_call(input: &'_ str) -> IResult<&'_ str, Expression<'_>> {
     let (input, fn_name_parts) = ws(parse_multiword_identifier).parse(input)?;
     // parse args
     let (input, args) = delimited(
@@ -36,7 +36,7 @@ pub fn parse_property_function_call(input: &str) -> IResult<&str, Expression> {
 }
 
 //Parse a column schema item: e.g. "title STRING"
-fn parse_column_schema(input: &str) -> IResult<&str, ColumnSchema> {
+fn parse_column_schema(input: &'_ str) -> IResult<&'_ str, ColumnSchema<'_>> {
     let (input, col_name) = ws(parse_identifier).parse(input)?;
     let (input, col_dtype) = ws(parse_identifier).parse(input)?;
     let (input, default_value) =
@@ -57,7 +57,7 @@ pub enum SchemaItem<'a> {
 }
 // Parse one item inside the table definition.
 // We try to parse a column definition first; if that fails, we parse a property function call.
-pub fn parse_property_item(input: &str) -> IResult<&str, SchemaItem> {
+pub fn parse_property_item(input: &'_ str) -> IResult<&'_ str, SchemaItem<'_>> {
     alt((
         map(parse_property_function_call, SchemaItem::Property),
         map(parse_column_schema, |col| {

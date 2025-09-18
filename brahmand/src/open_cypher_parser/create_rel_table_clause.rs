@@ -19,7 +19,7 @@ type ParsedRelTableSchema<'a> = (
     (Vec<ColumnSchema<'a>>, Vec<Expression<'a>>),
 );
 
-fn parse_rel_table_schema(input: &str) -> IResult<&str, ParsedRelTableSchema> {
+fn parse_rel_table_schema(input: &'_ str) -> IResult<&'_ str, ParsedRelTableSchema<'_>> {
     let (input, table_name) = ws(parse_identifier).parse(input)?;
     // Inside the parentheses, first parse the connection.
     let (input, (from_to, table_schema_prop)) = delimited(
@@ -80,8 +80,8 @@ pub fn parse_create_rel_table_clause(
 }
 
 fn rel_table_schema_parser(
-    input: &str,
-) -> IResult<&str, ParsedRelTableSchema, OpenCypherParsingError> {
+    input: &'_ str,
+) -> IResult<&'_ str, ParsedRelTableSchema<'_>, OpenCypherParsingError<'_>> {
     parse_rel_table_schema(input).map_err(|e| match e {
         nom::Err::Incomplete(needed) => nom::Err::Incomplete(needed),
         nom::Err::Error(err) => nom::Err::Failure(OpenCypherParsingError::from(err)),
