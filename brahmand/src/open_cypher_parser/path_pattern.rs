@@ -24,7 +24,7 @@ use super::common::ws;
 use super::expression::parse_parameter;
 use super::{common, expression};
 
-pub fn parse_path_pattern(input: &str) -> IResult<&str, PathPattern> {
+pub fn parse_path_pattern(input: &'_ str) -> IResult<&'_ str, PathPattern<'_>> {
     let (input, start_node_pattern) = parse_node_pattern.parse(input)?;
 
     let (_, is_start_of_relation) = is_start_of_a_relationship.parse(input)?;
@@ -75,8 +75,8 @@ pub fn parse_path_pattern(input: &str) -> IResult<&str, PathPattern> {
 }
 
 fn parse_relationship_and_connected_node(
-    input: &str,
-) -> IResult<&str, Option<(RelationshipPattern, NodePattern)>> {
+    input: &'_ str,
+) -> IResult<&'_ str, Option<(RelationshipPattern<'_>, NodePattern<'_>)>> {
     let (input, relationship_pattern) = parse_relationship_pattern(input)?;
 
     match relationship_pattern {
@@ -117,7 +117,7 @@ fn is_start_of_a_relationship(input: &str) -> IResult<&str, bool> {
     Ok((input, is_start))
 }
 
-fn get_relation_node(input: &str) -> IResult<&str, Option<(RelationshipPattern, NodePattern)>> {
+fn get_relation_node(input: &'_ str) -> IResult<&'_ str, Option<(RelationshipPattern<'_>, NodePattern<'_>)>> {
     // Try to detect the start of a relationship pattern.
     let (_, is_start_of_relation) = is_start_of_a_relationship(input)?;
     if is_start_of_relation {
@@ -128,8 +128,8 @@ fn get_relation_node(input: &str) -> IResult<&str, Option<(RelationshipPattern, 
 }
 
 fn parse_consecutive_relationships(
-    input: &str,
-) -> IResult<&str, Vec<(RelationshipPattern, NodePattern)>> {
+    input: &'_ str,
+) -> IResult<&'_ str, Vec<(RelationshipPattern<'_>, NodePattern<'_>)>> {
     let (input, maybe_relation_node) = get_relation_node(input)?;
 
     // If we got a relation-node, accumulate it and continue recursively.
@@ -145,7 +145,7 @@ fn parse_consecutive_relationships(
 }
 
 // {name: 'Oliver Stone', age: 52}
-pub fn parse_properties(input: &str) -> IResult<&str, Vec<Property>> {
+pub fn parse_properties(input: &'_ str) -> IResult<&'_ str, Vec<Property<'_>>> {
     alt((
         // Property map: requires curly braces and key-value pairs.
         delimited(
@@ -185,8 +185,8 @@ pub fn parse_properties(input: &str) -> IResult<&str, Vec<Property>> {
 }
 
 fn parse_name_or_label_with_properties(
-    input: &str,
-) -> IResult<&str, (Option<&str>, Option<Vec<Property>>)> {
+    input: &'_ str,
+) -> IResult<&'_ str, (Option<&'_ str>, Option<Vec<Property<'_>>>)> {
     let (remainder, node_label) =
         ws(opt(common::parse_alphanumeric_with_underscore)).parse(input)?;
     let (remainder, node_properties) = opt(parse_properties).parse(remainder)?;
@@ -196,8 +196,8 @@ fn parse_name_or_label_with_properties(
 type NameOrLabelWithProperties<'a> = (Option<&'a str>, Option<Vec<Property<'a>>>);
 
 fn parse_name_label(
-    input: &str,
-) -> IResult<&str, (NameOrLabelWithProperties, NameOrLabelWithProperties)> {
+    input: &'_ str,
+) -> IResult<&'_ str, (NameOrLabelWithProperties<'_>, NameOrLabelWithProperties<'_>)> {
     let (input, _) = multispace0(input)?;
 
     separated_pair(
@@ -212,7 +212,7 @@ fn parse_name_label(
 //     opt(tag_no_case(",")).parse(input)
 // }
 
-fn parse_node_pattern(input: &str) -> IResult<&str, NodePattern> {
+fn parse_node_pattern(input: &'_ str) -> IResult<&'_ str, NodePattern<'_>> {
     let (input, _) = multispace0(input)?;
 
     let empty_node_parser = map(delimited(ws(char('(')), space0, ws(char(')'))), |_| {
@@ -239,8 +239,8 @@ fn parse_node_pattern(input: &str) -> IResult<&str, NodePattern> {
 }
 
 fn parse_relationship_internals(
-    input: &str,
-) -> IResult<&str, (NameOrLabelWithProperties, NameOrLabelWithProperties)> {
+    input: &'_ str,
+) -> IResult<&'_ str, (NameOrLabelWithProperties<'_>, NameOrLabelWithProperties<'_>)> {
     delimited(ws(char('[')), parse_name_label, ws(char(']'))).parse(input)
 }
 
@@ -248,7 +248,7 @@ fn parse_relationship_internals(
 //  '<-[ name:KIND ]-' , '-[ name:KIND ]->' '-[ name:KIND ]-',
 // '<-[name]-', '-[name]->', '-[name]-'
 // '<-[]', '-[]->', '-[]-'
-fn parse_relationship_pattern(input: &str) -> IResult<&str, Option<RelationshipPattern>> {
+fn parse_relationship_pattern(input: &'_ str) -> IResult<&'_ str, Option<RelationshipPattern<'_>>> {
     let empty_incoming_relationship_parser =
         map(delimited(ws(tag("<-")), space0, ws(tag("-"))), |_| {
             RelationshipPattern {

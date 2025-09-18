@@ -16,7 +16,7 @@ use super::{
     expression::parse_expression,
 };
 
-pub fn parse_order_by_item(input: &str) -> IResult<&str, OrderByItem> {
+pub fn parse_order_by_item(input: &'_ str) -> IResult<&'_ str, OrderByItem<'_>> {
     let (input, expression) = parse_expression(input)?;
 
     let (input, order_opt) = opt(ws(alt((
@@ -30,7 +30,7 @@ pub fn parse_order_by_item(input: &str) -> IResult<&str, OrderByItem> {
     Ok((input, OrderByItem { expression, order }))
 }
 
-pub fn parse_order_by_clause(input: &str) -> IResult<&str, OrderByClause, OpenCypherParsingError> {
+pub fn parse_order_by_clause(input: &'_ str) -> IResult<&'_ str, OrderByClause<'_>, OpenCypherParsingError<'_>> {
     let (input, _) = ws(tag_no_case("ORDER BY")).parse(input)?;
 
     let (input, order_by_items) = context(

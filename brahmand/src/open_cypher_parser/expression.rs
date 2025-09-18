@@ -18,18 +18,18 @@ use super::{
     path_pattern,
 };
 
-pub fn parse_expression(input: &str) -> IResult<&str, Expression> {
+pub fn parse_expression(input: &'_ str) -> IResult<&'_ str, Expression<'_>> {
     let (input, expression) = parse_logical_or.parse(input)?;
     Ok((input, expression))
 }
 
-pub fn parse_path_pattern_expression(input: &str) -> IResult<&str, Expression> {
+pub fn parse_path_pattern_expression(input: &'_ str) -> IResult<&'_ str, Expression<'_>> {
     let (input, path_pattern) = path_pattern::parse_path_pattern(input)?;
     Ok((input, Expression::PathPattern(path_pattern)))
 }
 
 // parse_postfix_expression
-fn parse_postfix_expression(input: &str) -> IResult<&str, Expression> {
+fn parse_postfix_expression(input: &'_ str) -> IResult<&'_ str, Expression<'_>> {
     // First, parse a basic primary expression: literal, variable, or parenthesized expression.
     let (input, expr) = alt((
         parse_parameter,
@@ -65,7 +65,7 @@ fn parse_postfix_expression(input: &str) -> IResult<&str, Expression> {
     }
 }
 
-fn parse_primary(input: &str) -> IResult<&str, Expression> {
+fn parse_primary(input: &'_ str) -> IResult<&'_ str, Expression<'_>> {
     alt((
         parse_path_pattern_expression,
         parse_function_call,
@@ -99,7 +99,7 @@ pub fn parse_operator_symbols(input: &str) -> IResult<&str, Operator> {
     .parse(input)
 }
 
-fn parse_unary_expression(input: &str) -> IResult<&str, Expression> {
+fn parse_unary_expression(input: &'_ str) -> IResult<&'_ str, Expression<'_>> {
     alt((
         map(
             preceded(ws(tag_no_case("NOT")), parse_unary_expression),
@@ -124,7 +124,7 @@ fn parse_unary_expression(input: &str) -> IResult<&str, Expression> {
     .parse(input)
 }
 
-fn parse_binary_expression(input: &str) -> IResult<&str, Expression> {
+fn parse_binary_expression(input: &'_ str) -> IResult<&'_ str, Expression<'_>> {
     // parse the left-hand side.
     let (input, lhs) = parse_unary_expression(input)?;
 
@@ -151,7 +151,7 @@ fn parse_binary_expression(input: &str) -> IResult<&str, Expression> {
     Ok((remaining_input, final_expression))
 }
 
-fn parse_logical_and(input: &str) -> IResult<&str, Expression> {
+fn parse_logical_and(input: &'_ str) -> IResult<&'_ str, Expression<'_>> {
     let (input, lhs) = parse_binary_expression(input)?;
 
     let mut remaining_input = input;
@@ -191,7 +191,7 @@ fn parse_logical_and(input: &str) -> IResult<&str, Expression> {
 //     ).parse(input)
 // }
 
-fn parse_logical_or(input: &str) -> IResult<&str, Expression> {
+fn parse_logical_or(input: &'_ str) -> IResult<&'_ str, Expression<'_>> {
     let (input, lhs) = parse_logical_and(input)?;
 
     let mut remaining_input = input;
@@ -231,7 +231,7 @@ pub fn parse_identifier(input: &str) -> IResult<&str, &str> {
     take_while1(is_identifier_char).parse(input)
 }
 
-pub fn parse_function_call(input: &str) -> IResult<&str, Expression> {
+pub fn parse_function_call(input: &'_ str) -> IResult<&'_ str, Expression<'_>> {
     // First, parse the function name.
     let (input, name) = ws(parse_identifier).parse(input)?;
     // Then parse the comma-separated arguments within parentheses.
@@ -251,7 +251,7 @@ pub fn parse_function_call(input: &str) -> IResult<&str, Expression> {
     ))
 }
 
-pub fn parse_list_literal(input: &str) -> IResult<&str, Expression> {
+pub fn parse_list_literal(input: &'_ str) -> IResult<&'_ str, Expression<'_>> {
     // Parse content within [ ... ] as a comma-separated list of expressions.
     let (input, exprs) = delimited(
         // Opening bracket with optional whitespace afterwards
@@ -269,7 +269,7 @@ pub fn parse_list_literal(input: &str) -> IResult<&str, Expression> {
     Ok((input, Expression::List(exprs)))
 }
 
-pub fn parse_property_access(input: &str) -> IResult<&str, Expression> {
+pub fn parse_property_access(input: &'_ str) -> IResult<&'_ str, Expression<'_>> {
     let (input, property_access_pair) =
         separated_list1(char('.'), common::parse_alphanumeric_with_underscore).parse(input)?;
 
@@ -297,7 +297,7 @@ fn is_param_char(c: char) -> bool {
     c.is_alphanumeric() //|| c == '_'
 }
 
-pub fn parse_parameter(input: &str) -> IResult<&str, Expression> {
+pub fn parse_parameter(input: &'_ str) -> IResult<&'_ str, Expression<'_>> {
     // println!("Input in parse_parameter {:?}", input);
 
     let (input, param) = preceded(tag("$"), take_while1(is_param_char)).parse(input)?;
@@ -306,8 +306,8 @@ pub fn parse_parameter(input: &str) -> IResult<&str, Expression> {
 }
 
 pub fn parse_parameter_property_access_literal_variable_expression(
-    input: &str,
-) -> IResult<&str, Expression> {
+    input: &'_ str,
+) -> IResult<&'_ str, Expression<'_>> {
     // println!("Input in parse_literal_variable_parameter_expression {:?}", input);
 
     let (input, expression) = alt((
@@ -319,7 +319,7 @@ pub fn parse_parameter_property_access_literal_variable_expression(
     Ok((input, expression))
 }
 
-pub fn parse_literal_or_variable_expression(input: &str) -> IResult<&str, Expression> {
+pub fn parse_literal_or_variable_expression(input: &'_ str) -> IResult<&'_ str, Expression<'_>> {
     alt((
         map(ws(parse_string_literal), Expression::Literal),
         map(
@@ -345,7 +345,7 @@ pub fn parse_literal_or_variable_expression(input: &str) -> IResult<&str, Expres
     .parse(input)
 }
 
-pub fn parse_string_literal(input: &str) -> IResult<&str, Literal> {
+pub fn parse_string_literal(input: &'_ str) -> IResult<&'_ str, Literal<'_>> {
     let (input, s) = delimited(char('\''), take_until("\'"), char('\'')).parse(input)?;
 
     Ok((input, Literal::String(s)))

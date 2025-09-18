@@ -32,7 +32,7 @@ mod skip_clause;
 mod where_clause;
 mod with_clause;
 
-pub fn parse_statement(input: &str) -> IResult<&str, OpenCypherQueryAst, OpenCypherParsingError> {
+pub fn parse_statement(input: &'_ str) -> IResult<&'_ str, OpenCypherQueryAst<'_>, OpenCypherParsingError<'_>> {
     context(
         "missing semicolon",
         cut(terminated(parse_query_with_nom, ws(tag(";")))),
@@ -41,8 +41,8 @@ pub fn parse_statement(input: &str) -> IResult<&str, OpenCypherQueryAst, OpenCyp
 }
 
 pub fn parse_query_with_nom(
-    input: &str,
-) -> IResult<&str, OpenCypherQueryAst, OpenCypherParsingError> {
+    input: &'_ str,
+) -> IResult<&'_ str, OpenCypherQueryAst<'_>, OpenCypherParsingError<'_>> {
     let (input, _) = multispace0.parse(input)?;
 
     let (input, match_clause): (&str, Option<MatchClause>) =
@@ -91,7 +91,7 @@ pub fn parse_query_with_nom(
     Ok((input, cypher_query))
 }
 
-pub fn parse_query(input: &str) -> Result<OpenCypherQueryAst, OpenCypherParsingError> {
+pub fn parse_query(input: &'_ str) -> Result<OpenCypherQueryAst<'_>, OpenCypherParsingError<'_>> {
     match parse_statement(input) {
         // if remainder is present then either show error or do something with it
         Ok((_, query_ast)) => Ok(query_ast),

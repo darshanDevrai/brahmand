@@ -41,8 +41,8 @@ pub fn parse_create_node_table_clause(
 }
 
 fn node_table_schema_parser(
-    input: &str,
-) -> IResult<&str, ParsedNodeTableSchema, OpenCypherParsingError> {
+    input: &'_ str,
+) -> IResult<&'_ str, ParsedNodeTableSchema<'_>, OpenCypherParsingError<'_>> {
     parse_node_table_schema(input).map_err(|e| match e {
         nom::Err::Incomplete(needed) => nom::Err::Incomplete(needed),
         nom::Err::Error(err) => nom::Err::Failure(OpenCypherParsingError::from(err)),
