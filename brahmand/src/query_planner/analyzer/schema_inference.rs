@@ -415,6 +415,7 @@ impl SchemaInference {
                 self.get_table_name_from_filters_and_projections(graph_schema, right_table_ctx);
             // Check the location of extracted nodes in the rel schema because the left and right of a graph changes with direction
             if extracted_left_node_table_result.is_some() {
+                #[allow(clippy::unnecessary_unwrap)]
                 let left_table_name = extracted_left_node_table_result.unwrap();
 
                 let right_table_name = if relation_schema.from_node == left_table_name {
@@ -522,6 +523,7 @@ impl SchemaInference {
                 self.get_table_name_from_filters_and_projections(graph_schema, right_table_ctx);
 
             if relations_found.len() > 1 && extracted_right_node_table_result.is_some() {
+                #[allow(clippy::unnecessary_unwrap)]
                 let extracted_right_node_table_name = extracted_right_node_table_result.unwrap();
                 for relation_schema in relations_found {
                     let rel_table_name = &relation_schema.table_name;
@@ -588,6 +590,7 @@ impl SchemaInference {
                 self.get_table_name_from_filters_and_projections(graph_schema, left_table_ctx);
 
             if relations_found.len() > 1 && extracted_left_node_table_result.is_some() {
+                #[allow(clippy::unnecessary_unwrap)]
                 let extracted_left_node_table_name = extracted_left_node_table_result.unwrap();
                 for relation_schema in relations_found {
                     let rel_table_name = &relation_schema.table_name;
@@ -642,7 +645,9 @@ impl SchemaInference {
             if extracted_left_node_table_result.is_some()
                 && extracted_right_node_table_result.is_some()
             {
+                #[allow(clippy::unnecessary_unwrap)]
                 let left_table_name = extracted_left_node_table_result.unwrap();
+                #[allow(clippy::unnecessary_unwrap)]
                 let right_table_name = extracted_right_node_table_result.unwrap();
 
                 for (_, relation_schema) in graph_schema.get_relationships_schemas().iter() {
@@ -701,6 +706,7 @@ impl SchemaInference {
             else if extracted_left_node_table_result.is_none()
                 && extracted_right_node_table_result.is_some()
             {
+                #[allow(clippy::unnecessary_unwrap)]
                 let right_table_name = extracted_right_node_table_result.unwrap();
                 for (_, relation_schema) in graph_schema.get_relationships_schemas().iter() {
                     if relation_schema.from_node == right_table_name {

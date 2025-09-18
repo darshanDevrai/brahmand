@@ -281,6 +281,7 @@ impl GraphJoinInference {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn handle_edge_list_traversal(
         &self,
         graph_rel: &GraphRel,
