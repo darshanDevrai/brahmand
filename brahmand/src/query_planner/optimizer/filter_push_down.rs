@@ -7,7 +7,7 @@ use crate::query_planner::{
         errors::{OptimizerError, Pass},
         optimizer_pass::{OptimizerPass, OptimizerResult},
     },
-    plan_ctx::plan_ctx::PlanCtx,
+    plan_ctx::PlanCtx,
     transformed::Transformed,
 };
 

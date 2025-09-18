@@ -13,7 +13,7 @@ use crate::{
             TableAlias,
         },
         logical_plan::logical_plan::{GraphJoins, GraphRel, Join, JoinType, LogicalPlan},
-        plan_ctx::plan_ctx::PlanCtx,
+        plan_ctx::PlanCtx,
         transformed::Transformed,
     },
 };
@@ -931,7 +931,7 @@ mod tests {
             logical_plan::logical_plan::{
                 GraphNode, GraphRel, JoinType, LogicalPlan, Projection, ProjectionItem, Scan,
             },
-            plan_ctx::plan_ctx::{PlanCtx, TableCtx},
+            plan_ctx::{PlanCtx, TableCtx},
         },
     };
     use std::collections::HashMap;

@@ -4,7 +4,7 @@ use crate::query_planner::{
     analyzer::analyzer_pass::{AnalyzerPass, AnalyzerResult},
     logical_expr::logical_expr::LogicalExpr,
     logical_plan::logical_plan::{GroupBy, LogicalPlan, ProjectionItem},
-    plan_ctx::plan_ctx::PlanCtx,
+    plan_ctx::PlanCtx,
     transformed::Transformed,
 };
 

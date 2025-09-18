@@ -16,7 +16,7 @@ use crate::{
     },
 };
 
-use super::plan_ctx::plan_ctx::PlanCtx;
+use super::plan_ctx::PlanCtx;
 
 mod analyzer_pass;
 mod duplicate_scans_removing;

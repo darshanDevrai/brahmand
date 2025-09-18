@@ -3,7 +3,7 @@ use std::{collections::HashSet, sync::Arc};
 use crate::query_planner::{
     analyzer::analyzer_pass::{AnalyzerPass, AnalyzerResult},
     logical_plan::logical_plan::LogicalPlan,
-    plan_ctx::plan_ctx::PlanCtx,
+    plan_ctx::PlanCtx,
     transformed::Transformed,
 };
 

@@ -10,7 +10,7 @@ use crate::query_planner::{
     },
 };
 
-use super::plan_ctx::plan_ctx::PlanCtx;
+use super::plan_ctx::PlanCtx;
 
 mod anchor_node_selection;
 pub mod errors;

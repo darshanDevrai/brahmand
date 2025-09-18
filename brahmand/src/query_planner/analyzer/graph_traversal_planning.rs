@@ -17,7 +17,7 @@ use crate::{
                 Cte, GraphRel, LogicalPlan, Projection, ProjectionItem, Scan, Union, UnionType,
             },
         },
-        plan_ctx::plan_ctx::{PlanCtx, TableCtx},
+        plan_ctx::{PlanCtx, TableCtx},
         transformed::Transformed,
     },
 };

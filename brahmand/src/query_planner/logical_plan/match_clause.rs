@@ -11,7 +11,7 @@ use crate::{
             logical_plan::{GraphNode, GraphRel, LogicalPlan, Scan},
             plan_builder::LogicalPlanResult,
         },
-        plan_ctx::plan_ctx::{PlanCtx, TableCtx},
+        plan_ctx::{PlanCtx, TableCtx},
     },
 };
 

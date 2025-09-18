@@ -7,7 +7,7 @@ use crate::{
         },
         logical_expr::logical_expr::Direction,
         logical_plan::logical_plan::GraphRel,
-        plan_ctx::plan_ctx::{PlanCtx, TableCtx},
+        plan_ctx::{PlanCtx, TableCtx},
     },
 };
 

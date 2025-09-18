@@ -9,7 +9,6 @@ use axum::{
 use clickhouse::Client;
 use serde_json::Value;
 use tokio::io::AsyncBufReadExt;
-use uuid::Uuid;
 
 use crate::{
     clickhouse_query_generator,

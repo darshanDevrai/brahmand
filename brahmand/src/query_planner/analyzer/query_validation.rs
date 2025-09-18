@@ -9,7 +9,7 @@ use crate::{
         },
         logical_expr::logical_expr::Direction,
         logical_plan::logical_plan::LogicalPlan,
-        plan_ctx::plan_ctx::PlanCtx,
+        plan_ctx::PlanCtx,
         transformed::Transformed,
     },
 };

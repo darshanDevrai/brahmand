@@ -7,7 +7,7 @@ use crate::{
     query_planner::logical_plan::{logical_plan::LogicalPlan, plan_builder::LogicalPlanResult},
 };
 
-use super::plan_ctx::plan_ctx::PlanCtx;
+use super::plan_ctx::PlanCtx;
 
 pub mod errors;
 pub mod logical_plan;
