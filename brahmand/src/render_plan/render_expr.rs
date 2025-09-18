@@ -1,5 +1,5 @@
 use super::plan_builder::RenderPlanBuilder;
-use crate::render_plan::render_plan::RenderPlan;
+use crate::render_plan::RenderPlan;
 
 use crate::query_planner::logical_expr::logical_expr::LogicalExpr;
 

@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::query_planner::{
     logical_expr::logical_expr::{LogicalExpr, Operator},
-    logical_plan::logical_plan::{GraphRel, LogicalPlan},
+    logical_plan::{GraphRel, LogicalPlan},
     optimizer::{
         errors::OptimizerError,
         optimizer_pass::{OptimizerPass, OptimizerResult},

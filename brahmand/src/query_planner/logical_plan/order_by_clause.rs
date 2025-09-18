@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::{
     open_cypher_parser::ast::OrderByClause,
-    query_planner::logical_plan::logical_plan::{LogicalPlan, OrderBy, OrderByItem},
+    query_planner::logical_plan::{LogicalPlan, OrderBy, OrderByItem},
 };
 
 pub fn evaluate_order_by_clause<'a>(

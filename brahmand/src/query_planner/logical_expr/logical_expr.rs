@@ -1,6 +1,6 @@
 use crate::{
     open_cypher_parser::{self},
-    query_planner::logical_plan::logical_plan::LogicalPlan,
+    query_planner::logical_plan::LogicalPlan,
 };
 use std::{fmt, sync::Arc};
 

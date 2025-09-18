@@ -8,7 +8,7 @@ use crate::{
             errors::{AnalyzerError, Pass},
         },
         logical_expr::logical_expr::LogicalExpr,
-        logical_plan::logical_plan::{LogicalPlan, ProjectionItem, Scan},
+        logical_plan::{LogicalPlan, ProjectionItem, Scan},
         plan_ctx::{PlanCtx, TableCtx},
         transformed::Transformed,
     },

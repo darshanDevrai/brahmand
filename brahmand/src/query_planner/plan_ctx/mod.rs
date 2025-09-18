@@ -5,7 +5,7 @@ use std::{collections::HashMap, fmt};
 
 use crate::query_planner::{
     logical_expr::logical_expr::{LogicalExpr, Property},
-    logical_plan::logical_plan::ProjectionItem,
+    logical_plan::ProjectionItem,
     plan_ctx::errors::PlanCtxError,
 };
 

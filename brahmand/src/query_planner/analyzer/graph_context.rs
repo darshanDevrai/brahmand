@@ -6,7 +6,7 @@ use crate::{
             errors::{AnalyzerError, Pass},
         },
         logical_expr::logical_expr::Direction,
-        logical_plan::logical_plan::GraphRel,
+        logical_plan::GraphRel,
         plan_ctx::{PlanCtx, TableCtx},
     },
 };

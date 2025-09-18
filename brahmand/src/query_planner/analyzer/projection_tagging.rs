@@ -10,7 +10,7 @@ use crate::{
         logical_expr::logical_expr::{
             AggregateFnCall, Column, LogicalExpr, PropertyAccess, TableAlias,
         },
-        logical_plan::logical_plan::{LogicalPlan, Projection, ProjectionItem},
+        logical_plan::{LogicalPlan, Projection, ProjectionItem},
         plan_ctx::PlanCtx,
         transformed::Transformed,
     },

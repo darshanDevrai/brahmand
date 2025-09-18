@@ -6,7 +6,7 @@ use types::QueryType;
 use crate::{
     graph_catalog::graph_schema::GraphSchema,
     open_cypher_parser::ast::OpenCypherQueryAst,
-    query_planner::{analyzer::errors::AnalyzerError, logical_plan::logical_plan::LogicalPlan},
+    query_planner::{analyzer::errors::AnalyzerError, logical_plan::LogicalPlan},
 };
 
 pub mod analyzer;

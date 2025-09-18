@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::query_planner::{
-    logical_plan::logical_plan::LogicalPlan, optimizer::errors::OptimizerError,
+    logical_plan::LogicalPlan, optimizer::errors::OptimizerError,
     plan_ctx::PlanCtx, transformed::Transformed,
 };
 

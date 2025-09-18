@@ -8,7 +8,7 @@ use crate::query_planner::{
     logical_expr::logical_expr::{
         AggregateFnCall, LogicalExpr, Operator, OperatorApplication, PropertyAccess, ScalarFnCall,
     },
-    logical_plan::logical_plan::{Filter, LogicalPlan, ProjectionItem},
+    logical_plan::{Filter, LogicalPlan, ProjectionItem},
     plan_ctx::PlanCtx,
     transformed::Transformed,
 };
@@ -467,7 +467,7 @@ mod tests {
     use crate::query_planner::logical_expr::logical_expr::{
         Column, Literal, PropertyAccess, TableAlias,
     };
-    use crate::query_planner::logical_plan::logical_plan::{Filter, GraphNode, LogicalPlan, Scan};
+    use crate::query_planner::logical_plan::{Filter, GraphNode, LogicalPlan, Scan};
     use crate::query_planner::plan_ctx::TableCtx;
 
     fn create_property_access(table: &str, column: &str) -> LogicalExpr {

@@ -1,10 +1,10 @@
-use crate::query_planner::logical_plan::logical_plan::LogicalPlan;
+use crate::query_planner::logical_plan::LogicalPlan;
 
 use super::errors::RenderBuildError;
 use super::render_expr::{
     AggregateFnCall, ColumnAlias, Operator, OperatorApplication, RenderExpr, ScalarFnCall,
 };
-use super::render_plan::{
+use super::{
     Cte, CteItems, FilterItems, FromTable, FromTableItem, GroupByExpressions, Join, JoinItems,
     LimitItem, OrderByItem, OrderByItems, RenderPlan, SelectItem, SelectItems, SkipItem, Union,
     UnionItems,

@@ -13,7 +13,7 @@ use crate::{
         },
         logical_plan::{
             self,
-            logical_plan::{
+            {
                 Cte, GraphRel, LogicalPlan, Projection, ProjectionItem, Scan, Union, UnionType,
             },
         },

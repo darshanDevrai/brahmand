@@ -12,7 +12,7 @@ use crate::{
             Column, Direction, LogicalExpr, Operator, OperatorApplication, PropertyAccess,
             TableAlias,
         },
-        logical_plan::logical_plan::{GraphJoins, GraphRel, Join, JoinType, LogicalPlan},
+        logical_plan::{GraphJoins, GraphRel, Join, JoinType, LogicalPlan},
         plan_ctx::PlanCtx,
         transformed::Transformed,
     },
@@ -928,7 +928,7 @@ mod tests {
             logical_expr::logical_expr::{
                 Column, Direction, LogicalExpr, Operator, PropertyAccess, TableAlias,
             },
-            logical_plan::logical_plan::{
+            logical_plan::{
                 GraphNode, GraphRel, JoinType, LogicalPlan, Projection, ProjectionItem, Scan,
             },
             plan_ctx::{PlanCtx, TableCtx},

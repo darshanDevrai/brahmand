@@ -8,7 +8,7 @@ use crate::{
         },
         logical_plan::{
             errors::LogicalPlanError,
-            logical_plan::{GraphNode, GraphRel, LogicalPlan, Scan},
+            {GraphNode, GraphRel, LogicalPlan, Scan},
             plan_builder::LogicalPlanResult,
         },
         plan_ctx::{PlanCtx, TableCtx},

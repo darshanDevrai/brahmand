@@ -3,7 +3,7 @@ use errors::ClickhouseQueryGeneratorError;
 use crate::{
     graph_catalog::graph_schema::{GraphSchema, GraphSchemaElement},
     open_cypher_parser::ast::OpenCypherQueryAst,
-    render_plan::{ToSql, render_plan::RenderPlan},
+    render_plan::{ToSql, RenderPlan},
 };
 
 mod common;

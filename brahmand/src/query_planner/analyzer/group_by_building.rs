@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::query_planner::{
     analyzer::analyzer_pass::{AnalyzerPass, AnalyzerResult},
     logical_expr::logical_expr::LogicalExpr,
-    logical_plan::logical_plan::{GroupBy, LogicalPlan, ProjectionItem},
+    logical_plan::{GroupBy, LogicalPlan, ProjectionItem},
     plan_ctx::PlanCtx,
     transformed::Transformed,
 };
@@ -108,7 +108,7 @@ mod tests {
     use crate::query_planner::logical_expr::logical_expr::{
         AggregateFnCall, Column, PropertyAccess, TableAlias,
     };
-    use crate::query_planner::logical_plan::logical_plan::{LogicalPlan, Projection, Scan};
+    use crate::query_planner::logical_plan::{LogicalPlan, Projection, Scan};
 
     fn create_property_access(table: &str, column: &str) -> LogicalExpr {
         LogicalExpr::PropertyAccessExp(PropertyAccess {

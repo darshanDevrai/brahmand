@@ -12,7 +12,7 @@ use crate::{
             plan_sanitization::PlanSanitization, projection_tagging::ProjectionTagging,
             query_validation::QueryValidation, schema_inference::SchemaInference,
         },
-        logical_plan::logical_plan::LogicalPlan,
+        logical_plan::LogicalPlan,
     },
 };
 

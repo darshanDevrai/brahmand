@@ -4,7 +4,7 @@ use crate::render_plan::{
     render_expr::{
         Column, ColumnAlias, InSubquery, Literal, Operator, PropertyAccess, RenderExpr, TableAlias,
     },
-    render_plan::{
+    {
         Cte, CteItems, FilterItems, FromTableItem, GroupByExpressions, Join, JoinItems, JoinType,
         OrderByItems, OrderByOrder, RenderPlan, SelectItems, UnionItems, UnionType,
     },

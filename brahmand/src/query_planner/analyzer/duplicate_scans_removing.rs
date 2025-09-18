@@ -2,7 +2,7 @@ use std::{collections::HashSet, sync::Arc};
 
 use crate::query_planner::{
     analyzer::analyzer_pass::{AnalyzerPass, AnalyzerResult},
-    logical_plan::logical_plan::LogicalPlan,
+    logical_plan::LogicalPlan,
     plan_ctx::PlanCtx,
     transformed::Transformed,
 };
@@ -107,7 +107,7 @@ mod tests {
     use crate::query_planner::logical_expr::logical_expr::{
         Direction, Literal, LogicalExpr, Operator, OperatorApplication,
     };
-    use crate::query_planner::logical_plan::logical_plan::{
+    use crate::query_planner::logical_plan::{
         Filter, GraphNode, GraphRel, LogicalPlan, Projection, ProjectionItem, Scan,
     };
 
