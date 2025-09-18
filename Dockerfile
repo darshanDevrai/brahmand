@@ -15,9 +15,9 @@ RUN cargo build --release --bin brahmand \
     && cargo build --release --bin brahmand-client
 
 # We do not need the Rust toolchain to run the binary!
-FROM debian:bookworm-slim AS runtime
+FROM debian:bullseye-slim AS runtime
 RUN apt-get update && \
-    apt-get install -y libssl3 ca-certificates && \
+    apt-get install -y libssl1.1 ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 # Copy binaries

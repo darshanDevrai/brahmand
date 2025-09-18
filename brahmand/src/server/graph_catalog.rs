@@ -50,7 +50,7 @@ pub async fn get_graph_catalog(clickhouse_client: Client) -> Result<GraphSchema,
         }
         Err(err) => {
             // if it is a connection error then send error to the client from server
-            // if the graph meta table is not present then create a one.
+            // if the graph catalog table is not present then create a one.
             let err_msg = err.to_string();
             // println!("err_msg -> {:?}", err_msg);
 
