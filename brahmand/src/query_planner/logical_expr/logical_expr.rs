@@ -321,13 +321,9 @@ impl<'a> From<open_cypher_parser::ast::PropertyKVPair<'a>> for PropertyKVPair {
 impl<'a> From<open_cypher_parser::ast::ConnectedPattern<'a>> for ConnectedPattern {
     fn from(value: open_cypher_parser::ast::ConnectedPattern<'a>) -> Self {
         ConnectedPattern {
-            start_node: Arc::new(NodePattern::from(
-                value.start_node.borrow().clone(),
-            )),
+            start_node: Arc::new(NodePattern::from(value.start_node.borrow().clone())),
             relationship: RelationshipPattern::from(value.relationship),
-            end_node: Arc::new(NodePattern::from(
-                value.end_node.borrow().clone(),
-            )),
+            end_node: Arc::new(NodePattern::from(value.end_node.borrow().clone())),
         }
     }
 }

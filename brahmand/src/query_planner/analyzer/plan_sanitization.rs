@@ -41,13 +41,12 @@ impl PlanSanitization {
                 }
             }
             LogicalPlan::GraphNode(graph_node) => {
-                let child_tf =
-                    self.sanitize_plan(graph_node.input.clone(),  last_node_traversed)?;
+                let child_tf = self.sanitize_plan(graph_node.input.clone(), last_node_traversed)?;
                 graph_node.rebuild_or_clone(child_tf, logical_plan.clone())
             }
             LogicalPlan::GraphRel(graph_rel) => {
                 let left_tf = if last_node_traversed {
-                    self.sanitize_plan(graph_rel.left.clone(),  last_node_traversed)?
+                    self.sanitize_plan(graph_rel.left.clone(), last_node_traversed)?
                 } else {
                     // Left can be an empty node.
                     if !matches!(graph_rel.left.as_ref(), LogicalPlan::Empty) {
@@ -56,23 +55,18 @@ impl PlanSanitization {
                     Transformed::No(graph_rel.left.clone())
                 };
                 // We want to sanitize relationships scans irrespective of last_node_traversed or not, so pass true here.
-                let center_tf = self.sanitize_plan(graph_rel.center.clone(),  true)?;
-                let right_tf =
-                    self.sanitize_plan(graph_rel.right.clone(),  last_node_traversed)?;
+                let center_tf = self.sanitize_plan(graph_rel.center.clone(), true)?;
+                let right_tf = self.sanitize_plan(graph_rel.right.clone(), last_node_traversed)?;
                 graph_rel.rebuild_or_clone(left_tf, center_tf, right_tf, logical_plan.clone())
             }
             LogicalPlan::Filter(filter) => {
-                let child_tf =
-                    self.sanitize_plan(filter.input.clone(),  last_node_traversed)?;
+                let child_tf = self.sanitize_plan(filter.input.clone(), last_node_traversed)?;
                 filter.rebuild_or_clone(child_tf, logical_plan.clone())
             }
             LogicalPlan::Projection(projection) => {
                 if last_node_traversed {
-                    let sanitized_input = self.sanitize_plan(
-                        projection.input.clone(),
-                        
-                        last_node_traversed,
-                    )?;
+                    let sanitized_input =
+                        self.sanitize_plan(projection.input.clone(), last_node_traversed)?;
                     let sanitized_projection = self.sanitize_projection(&projection.items);
                     let sanitized_projection_plan = LogicalPlan::Projection(Projection {
                         input: sanitized_input.get_plan(),
@@ -80,49 +74,40 @@ impl PlanSanitization {
                     });
                     Transformed::Yes(Arc::new(sanitized_projection_plan))
                 } else {
-                    let child_tf = self.sanitize_plan(
-                        projection.input.clone(),
-                        
-                        last_node_traversed,
-                    )?;
+                    let child_tf =
+                        self.sanitize_plan(projection.input.clone(), last_node_traversed)?;
                     projection.rebuild_or_clone(child_tf, logical_plan.clone())
                 }
             }
             LogicalPlan::GroupBy(group_by) => {
-                let child_tf =
-                    self.sanitize_plan(group_by.input.clone(),  last_node_traversed)?;
+                let child_tf = self.sanitize_plan(group_by.input.clone(), last_node_traversed)?;
                 group_by.rebuild_or_clone(child_tf, logical_plan.clone())
             }
             LogicalPlan::OrderBy(order_by) => {
-                let child_tf =
-                    self.sanitize_plan(order_by.input.clone(),  last_node_traversed)?;
+                let child_tf = self.sanitize_plan(order_by.input.clone(), last_node_traversed)?;
                 order_by.rebuild_or_clone(child_tf, logical_plan.clone())
             }
             LogicalPlan::Skip(skip) => {
-                let child_tf =
-                    self.sanitize_plan(skip.input.clone(),  last_node_traversed)?;
+                let child_tf = self.sanitize_plan(skip.input.clone(), last_node_traversed)?;
                 skip.rebuild_or_clone(child_tf, logical_plan.clone())
             }
             LogicalPlan::Limit(limit) => {
-                let child_tf =
-                    self.sanitize_plan(limit.input.clone(),  last_node_traversed)?;
+                let child_tf = self.sanitize_plan(limit.input.clone(), last_node_traversed)?;
                 limit.rebuild_or_clone(child_tf, logical_plan.clone())
             }
             LogicalPlan::Cte(cte) => {
-                let child_tf =
-                    self.sanitize_plan(cte.input.clone(),  last_node_traversed)?;
+                let child_tf = self.sanitize_plan(cte.input.clone(), last_node_traversed)?;
                 cte.rebuild_or_clone(child_tf, logical_plan.clone())
             }
             LogicalPlan::GraphJoins(graph_joins) => {
                 let child_tf =
-                    self.sanitize_plan(graph_joins.input.clone(),  last_node_traversed)?;
+                    self.sanitize_plan(graph_joins.input.clone(), last_node_traversed)?;
                 graph_joins.rebuild_or_clone(child_tf, logical_plan.clone())
             }
             LogicalPlan::Union(union) => {
                 let mut inputs_tf: Vec<Transformed<Arc<LogicalPlan>>> = vec![];
                 for input_plan in union.inputs.iter() {
-                    let child_tf =
-                        self.sanitize_plan(input_plan.clone(),  last_node_traversed)?;
+                    let child_tf = self.sanitize_plan(input_plan.clone(), last_node_traversed)?;
                     inputs_tf.push(child_tf);
                 }
                 union.rebuild_or_clone(inputs_tf, logical_plan.clone())

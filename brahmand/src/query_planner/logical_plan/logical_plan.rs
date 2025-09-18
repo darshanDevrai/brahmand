@@ -168,7 +168,7 @@ impl Filter {
             Transformed::Yes(new_input) => {
                 let new_node = LogicalPlan::Filter(Filter {
                     input: new_input.clone(),
-                    predicate: self.predicate.clone()
+                    predicate: self.predicate.clone(),
                 });
                 Transformed::Yes(Arc::new(new_node))
             }

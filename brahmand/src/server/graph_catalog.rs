@@ -103,21 +103,21 @@ pub async fn validate_schema(graph_schema_element: &Vec<GraphSchemaElement>) -> 
         if let GraphSchemaElement::Rel(relationship_schema) = element {
             // here check if both from_node and to_node tables are present or not in the schema
 
-                let graph_schema_lock = GLOBAL_GRAPH_SCHEMA
-                    .get()
-                    .expect("Schema not initialized")
-                    .read()
-                    .await;
+            let graph_schema_lock = GLOBAL_GRAPH_SCHEMA
+                .get()
+                .expect("Schema not initialized")
+                .read()
+                .await;
 
-                if !graph_schema_lock
+            if !graph_schema_lock
+                .get_nodes_schemas()
+                .contains_key(&relationship_schema.from_node)
+                || !graph_schema_lock
                     .get_nodes_schemas()
-                    .contains_key(&relationship_schema.from_node)
-                    || !graph_schema_lock
-                        .get_nodes_schemas()
-                        .contains_key(&relationship_schema.to_node)
-                {
-                    return Err("From and To node tables must be present before creating a relationship between them".to_string());
-                }
+                    .contains_key(&relationship_schema.to_node)
+            {
+                return Err("From and To node tables must be present before creating a relationship between them".to_string());
+            }
         }
     }
 
