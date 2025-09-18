@@ -1,4 +1,3 @@
-
 use crate::render_plan::errors::RenderBuildError;
 use crate::render_plan::render_expr::{ColumnAlias, OperatorApplication, RenderExpr};
 

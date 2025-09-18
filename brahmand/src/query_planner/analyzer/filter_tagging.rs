@@ -112,12 +112,11 @@ impl FilterTagging {
 
         // tag extracted filters to respective table data
         for extracted_filter in extracted_filters {
-            let table_alias = Self::
-                get_table_alias_if_single_table_condition(
-                    &LogicalExpr::OperatorApplicationExp(extracted_filter.clone()),
-                    true,
-                )
-                .unwrap_or_default();
+            let table_alias = Self::get_table_alias_if_single_table_condition(
+                &LogicalExpr::OperatorApplicationExp(extracted_filter.clone()),
+                true,
+            )
+            .unwrap_or_default();
             // let mut table_alias = "";
             // for operand in &extracted_filter.operands {
             //     match operand {
@@ -251,8 +250,7 @@ impl FilterTagging {
                 if current_is_or {
                     let cloned_op_app = LogicalExpr::OperatorApplicationExp(op_app.clone());
                     // If the entire OR belongs to single table then we extract it. This OR should not have any agg fns.
-                    if Self::
-                        get_table_alias_if_single_table_condition(&cloned_op_app, false)
+                    if Self::get_table_alias_if_single_table_condition(&cloned_op_app, false)
                         .is_some()
                     {
                         extracted_filters.push(op_app);
@@ -378,9 +376,12 @@ impl FilterTagging {
             LogicalExpr::List(exprs) => {
                 let mut new_exprs = Vec::new();
                 for sub_expr in exprs {
-                    if let Some(new_expr) =
-                        Self::process_expr(sub_expr, extracted_filters, extracted_projections, in_or)
-                    {
+                    if let Some(new_expr) = Self::process_expr(
+                        sub_expr,
+                        extracted_filters,
+                        extracted_projections,
+                        in_or,
+                    ) {
                         new_exprs.push(new_expr);
                     }
                 }
@@ -462,9 +463,7 @@ impl FilterTagging {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::query_planner::logical_expr::{
-        Column, Literal, PropertyAccess, TableAlias,
-    };
+    use crate::query_planner::logical_expr::{Column, Literal, PropertyAccess, TableAlias};
     use crate::query_planner::logical_plan::{Filter, GraphNode, LogicalPlan, Scan};
     use crate::query_planner::plan_ctx::TableCtx;
 

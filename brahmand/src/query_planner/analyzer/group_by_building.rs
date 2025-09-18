@@ -105,9 +105,7 @@ impl GroupByBuilding {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::query_planner::logical_expr::{
-        AggregateFnCall, Column, PropertyAccess, TableAlias,
-    };
+    use crate::query_planner::logical_expr::{AggregateFnCall, Column, PropertyAccess, TableAlias};
     use crate::query_planner::logical_plan::{LogicalPlan, Projection, Scan};
 
     fn create_property_access(table: &str, column: &str) -> LogicalExpr {

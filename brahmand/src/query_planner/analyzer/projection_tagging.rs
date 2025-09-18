@@ -7,9 +7,7 @@ use crate::{
             analyzer_pass::{AnalyzerPass, AnalyzerResult},
             errors::{AnalyzerError, Pass},
         },
-        logical_expr::{
-            AggregateFnCall, Column, LogicalExpr, PropertyAccess, TableAlias,
-        },
+        logical_expr::{AggregateFnCall, Column, LogicalExpr, PropertyAccess, TableAlias},
         logical_plan::{LogicalPlan, Projection, ProjectionItem},
         plan_ctx::PlanCtx,
         transformed::Transformed,

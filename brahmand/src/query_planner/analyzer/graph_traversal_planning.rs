@@ -8,14 +8,9 @@ use crate::{
             errors::Pass,
             graph_context::{self, GraphContext},
         },
-        logical_expr::{
-            Column, ColumnAlias, Direction, InSubquery, LogicalExpr, PropertyAccess,
-        },
+        logical_expr::{Column, ColumnAlias, Direction, InSubquery, LogicalExpr, PropertyAccess},
         logical_plan::{
-            self,
-            {
-                Cte, GraphRel, LogicalPlan, Projection, ProjectionItem, Scan, Union, UnionType,
-            },
+            self, {Cte, GraphRel, LogicalPlan, Projection, ProjectionItem, Scan, Union, UnionType},
         },
         plan_ctx::{PlanCtx, TableCtx},
         transformed::Transformed,

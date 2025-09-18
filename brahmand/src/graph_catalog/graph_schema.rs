@@ -120,11 +120,9 @@ impl GraphSchema {
     }
 
     pub fn get_node_schema(&self, node_label: &str) -> Result<&NodeSchema, GraphSchemaError> {
-        self.nodes
-            .get(node_label)
-            .ok_or(GraphSchemaError::Node {
-                node_label: node_label.to_string(),
-            })
+        self.nodes.get(node_label).ok_or(GraphSchemaError::Node {
+            node_label: node_label.to_string(),
+        })
     }
 
     pub fn get_rel_schema(&self, rel_label: &str) -> Result<&RelationshipSchema, GraphSchemaError> {
@@ -139,11 +137,11 @@ impl GraphSchema {
         &self,
         rel_label: &str,
     ) -> Result<&RelationshipIndexSchema, GraphSchemaError> {
-        self.relationships_indexes.get(rel_label).ok_or(
-            GraphSchemaError::RelationIndex {
+        self.relationships_indexes
+            .get(rel_label)
+            .ok_or(GraphSchemaError::RelationIndex {
                 rel_label: rel_label.to_string(),
-            },
-        )
+            })
     }
 
     pub fn get_relationships_schemas(&self) -> &HashMap<String, RelationshipSchema> {

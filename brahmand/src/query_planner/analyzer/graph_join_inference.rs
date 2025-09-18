@@ -107,8 +107,7 @@ impl GraphJoinInference {
                 skip.rebuild_or_clone(child_tf, logical_plan.clone())
             }
             LogicalPlan::Limit(limit) => {
-                let child_tf =
-                    Self::build_graph_joins(limit.input.clone(), collected_graph_joins)?;
+                let child_tf = Self::build_graph_joins(limit.input.clone(), collected_graph_joins)?;
                 limit.rebuild_or_clone(child_tf, logical_plan.clone())
             }
             LogicalPlan::Union(union) => {
@@ -925,9 +924,7 @@ mod tests {
     use crate::{
         graph_catalog::graph_schema::{GraphSchema, NodeIdSchema, NodeSchema, RelationshipSchema},
         query_planner::{
-            logical_expr::{
-                Column, Direction, LogicalExpr, Operator, PropertyAccess, TableAlias,
-            },
+            logical_expr::{Column, Direction, LogicalExpr, Operator, PropertyAccess, TableAlias},
             logical_plan::{
                 GraphNode, GraphRel, JoinType, LogicalPlan, Projection, ProjectionItem, Scan,
             },

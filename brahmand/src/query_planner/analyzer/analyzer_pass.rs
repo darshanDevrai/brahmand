@@ -2,10 +2,7 @@ use std::sync::Arc;
 
 use crate::{
     graph_catalog::graph_schema::GraphSchema,
-    query_planner::{
-        logical_plan::LogicalPlan, plan_ctx::PlanCtx,
-        transformed::Transformed,
-    },
+    query_planner::{logical_plan::LogicalPlan, plan_ctx::PlanCtx, transformed::Transformed},
 };
 
 use super::errors::AnalyzerError;

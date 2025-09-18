@@ -1,6 +1,5 @@
 pub mod errors;
 
-
 use std::{collections::HashMap, fmt};
 
 use crate::query_planner::{
@@ -261,4 +260,3 @@ impl TableCtx {
         Ok(())
     }
 }
-

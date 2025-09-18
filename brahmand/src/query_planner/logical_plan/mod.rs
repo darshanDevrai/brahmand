@@ -1,6 +1,3 @@
-
-
-
 use std::{fmt, sync::Arc};
 
 use crate::open_cypher_parser::ast::{
@@ -8,9 +5,7 @@ use crate::open_cypher_parser::ast::{
     OrerByOrder as CypherOrerByOrder, ReturnItem as CypherReturnItem,
 };
 use crate::query_planner::{
-    logical_expr::{
-        ColumnAlias, Direction, Literal, LogicalExpr, Operator, OperatorApplication,
-    },
+    logical_expr::{ColumnAlias, Direction, Literal, LogicalExpr, Operator, OperatorApplication},
     transformed::Transformed,
 };
 
@@ -18,7 +13,7 @@ use uuid::Uuid;
 
 use crate::{
     open_cypher_parser::ast::OpenCypherQueryAst,
-    query_planner::logical_plan::{plan_builder::LogicalPlanResult},
+    query_planner::logical_plan::plan_builder::LogicalPlanResult,
 };
 
 use super::plan_ctx::PlanCtx;
@@ -31,8 +26,6 @@ pub mod plan_builder;
 mod return_clause;
 mod skip_n_limit_clause;
 mod where_clause;
-
-
 
 pub fn evaluate_query(
     query_ast: OpenCypherQueryAst<'_>,
@@ -48,9 +41,6 @@ pub fn generate_id() -> String {
             .replace("-", "")
     )
 }
-
-
-
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum LogicalPlan {

@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use crate::query_planner::{
-    logical_plan::LogicalPlan, optimizer::errors::OptimizerError,
-    plan_ctx::PlanCtx, transformed::Transformed,
+    logical_plan::LogicalPlan, optimizer::errors::OptimizerError, plan_ctx::PlanCtx,
+    transformed::Transformed,
 };
 
 pub type OptimizerResult<T> = Result<T, OptimizerError>;
