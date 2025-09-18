@@ -8,7 +8,7 @@ use crate::open_cypher_parser::ast::{
     OrerByOrder as CypherOrerByOrder, ReturnItem as CypherReturnItem,
 };
 use crate::query_planner::{
-    logical_expr::logical_expr::{
+    logical_expr::{
         ColumnAlias, Direction, Literal, LogicalExpr, Operator, OperatorApplication,
     },
     transformed::Transformed,
@@ -586,7 +586,7 @@ impl LogicalPlan {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::query_planner::logical_expr::logical_expr::{
+    use crate::query_planner::logical_expr::{
         Column, Literal, LogicalExpr, Operator, OperatorApplication, PropertyAccess, TableAlias,
     };
     // use crate::open_cypher_parser::ast;

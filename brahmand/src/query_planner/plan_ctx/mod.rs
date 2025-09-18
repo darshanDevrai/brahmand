@@ -4,7 +4,7 @@ pub mod errors;
 use std::{collections::HashMap, fmt};
 
 use crate::query_planner::{
-    logical_expr::logical_expr::{LogicalExpr, Property},
+    logical_expr::{LogicalExpr, Property},
     logical_plan::ProjectionItem,
     plan_ctx::errors::PlanCtxError,
 };

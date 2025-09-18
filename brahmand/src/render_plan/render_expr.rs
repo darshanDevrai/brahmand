@@ -1,9 +1,9 @@
 use super::plan_builder::RenderPlanBuilder;
 use crate::render_plan::RenderPlan;
 
-use crate::query_planner::logical_expr::logical_expr::LogicalExpr;
+use crate::query_planner::logical_expr::LogicalExpr;
 
-use crate::query_planner::logical_expr::logical_expr::{
+use crate::query_planner::logical_expr::{
     AggregateFnCall as LogicalAggregateFnCall, Column as LogicalColumn,
     ColumnAlias as LogicalColumnAlias, InSubquery as LogicalInSubquery, Literal as LogicalLiteral,
     Operator as LogicalOperator, OperatorApplication as LogicalOperatorApplication,

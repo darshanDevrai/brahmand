@@ -104,7 +104,7 @@ impl DuplicateScansRemoving {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::query_planner::logical_expr::logical_expr::{
+    use crate::query_planner::logical_expr::{
         Direction, Literal, LogicalExpr, Operator, OperatorApplication,
     };
     use crate::query_planner::logical_plan::{

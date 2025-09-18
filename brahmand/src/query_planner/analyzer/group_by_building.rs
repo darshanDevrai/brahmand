@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::query_planner::{
     analyzer::analyzer_pass::{AnalyzerPass, AnalyzerResult},
-    logical_expr::logical_expr::LogicalExpr,
+    logical_expr::LogicalExpr,
     logical_plan::{GroupBy, LogicalPlan, ProjectionItem},
     plan_ctx::PlanCtx,
     transformed::Transformed,
@@ -105,7 +105,7 @@ impl GroupByBuilding {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::query_planner::logical_expr::logical_expr::{
+    use crate::query_planner::logical_expr::{
         AggregateFnCall, Column, PropertyAccess, TableAlias,
     };
     use crate::query_planner::logical_plan::{LogicalPlan, Projection, Scan};

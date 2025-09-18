@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::query_planner::{
     analyzer::analyzer_pass::{AnalyzerPass, AnalyzerResult},
-    logical_expr::logical_expr::LogicalExpr,
+    logical_expr::LogicalExpr,
     logical_plan::{LogicalPlan, Projection, ProjectionItem, Scan},
     plan_ctx::PlanCtx,
     transformed::Transformed,

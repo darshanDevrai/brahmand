@@ -8,7 +8,7 @@ use crate::{
             errors::Pass,
             graph_context::{self, GraphContext},
         },
-        logical_expr::logical_expr::{
+        logical_expr::{
             Column, ColumnAlias, Direction, InSubquery, LogicalExpr, PropertyAccess,
         },
         logical_plan::{

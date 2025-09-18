@@ -5,7 +5,7 @@ use crate::query_planner::{
         analyzer_pass::{AnalyzerPass, AnalyzerResult},
         errors::{AnalyzerError, Pass},
     },
-    logical_expr::logical_expr::{
+    logical_expr::{
         AggregateFnCall, LogicalExpr, Operator, OperatorApplication, PropertyAccess, ScalarFnCall,
     },
     logical_plan::{Filter, LogicalPlan, ProjectionItem},
@@ -464,7 +464,7 @@ impl FilterTagging {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::query_planner::logical_expr::logical_expr::{
+    use crate::query_planner::logical_expr::{
         Column, Literal, PropertyAccess, TableAlias,
     };
     use crate::query_planner::logical_plan::{Filter, GraphNode, LogicalPlan, Scan};

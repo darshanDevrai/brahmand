@@ -7,7 +7,7 @@ use crate::{
             analyzer_pass::{AnalyzerPass, AnalyzerResult},
             errors::{AnalyzerError, Pass},
         },
-        logical_expr::logical_expr::Direction,
+        logical_expr::Direction,
         logical_plan::LogicalPlan,
         plan_ctx::PlanCtx,
         transformed::Transformed,

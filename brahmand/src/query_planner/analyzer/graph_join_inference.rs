@@ -8,7 +8,7 @@ use crate::{
             errors::Pass,
             graph_context::{self, GraphContext},
         },
-        logical_expr::logical_expr::{
+        logical_expr::{
             Column, Direction, LogicalExpr, Operator, OperatorApplication, PropertyAccess,
             TableAlias,
         },
@@ -925,7 +925,7 @@ mod tests {
     use crate::{
         graph_catalog::graph_schema::{GraphSchema, NodeIdSchema, NodeSchema, RelationshipSchema},
         query_planner::{
-            logical_expr::logical_expr::{
+            logical_expr::{
                 Column, Direction, LogicalExpr, Operator, PropertyAccess, TableAlias,
             },
             logical_plan::{

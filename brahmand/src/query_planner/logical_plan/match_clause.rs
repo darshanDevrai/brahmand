@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::{
     open_cypher_parser::ast,
     query_planner::{
-        logical_expr::logical_expr::{
+        logical_expr::{
             Column, LogicalExpr, Operator, OperatorApplication, Property,
         },
         logical_plan::{
@@ -336,7 +336,7 @@ pub fn evaluate_match_clause<'a>(
 mod tests {
     use super::*;
     use crate::open_cypher_parser::ast;
-    use crate::query_planner::logical_expr::logical_expr::{Direction, Literal, PropertyKVPair};
+    use crate::query_planner::logical_expr::{Direction, Literal, PropertyKVPair};
     use std::cell::RefCell;
     use std::rc::Rc;
 
