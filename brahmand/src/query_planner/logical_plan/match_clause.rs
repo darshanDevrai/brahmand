@@ -277,8 +277,8 @@ fn traverse_node_pattern(
         .name
         .ok_or(LogicalPlanError::EmptyNode)?
         .to_string();
-    let node_label = node_pattern.label.map(|val| val.to_string());
-    let node_props = node_pattern
+    let node_label: Option<String> = node_pattern.label.map(|val| val.to_string());
+    let node_props: Vec<Property> = node_pattern
         .properties
         .clone()
         .map(|props| props.into_iter().map(Property::from).collect())
