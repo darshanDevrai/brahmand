@@ -16,7 +16,7 @@ pub trait AnalyzerPass {
     fn analyze(
         &self,
         logical_plan: Arc<LogicalPlan>,
-        plan_ctx: &mut PlanCtx,
+        _plan_ctx: &mut PlanCtx,
     ) -> AnalyzerResult<Transformed<Arc<LogicalPlan>>> {
         Ok(Transformed::No(logical_plan.clone()))
     }
@@ -24,8 +24,8 @@ pub trait AnalyzerPass {
     fn analyze_with_graph_schema(
         &self,
         logical_plan: Arc<LogicalPlan>,
-        plan_ctx: &mut PlanCtx,
-        graph_schema: &GraphSchema,
+        _plan_ctx: &mut PlanCtx,
+        _graph_schema: &GraphSchema,
     ) -> AnalyzerResult<Transformed<Arc<LogicalPlan>>> {
         Ok(Transformed::No(logical_plan.clone()))
     }

@@ -15,7 +15,7 @@ pub enum Pass {
     // GroupByBuilding,
     ProjectionTagging,
     SchemaInference,
-    PlanSanitization,
+    // PlanSanitization,
     QueryValidation,
 }
 
@@ -29,7 +29,7 @@ impl Display for Pass {
             // Pass::GroupByBuilding => write!(f, "GroupByBuilding"),
             Pass::ProjectionTagging => write!(f, "ProjectionTagging"),
             Pass::SchemaInference => write!(f, "SchemaInference"),
-            Pass::PlanSanitization => write!(f, "PlanSanitization"),
+            // Pass::PlanSanitization => write!(f, "PlanSanitization"),
             Pass::QueryValidation => write!(f, "QueryValidation"),
         }
     }
@@ -41,8 +41,6 @@ pub enum AnalyzerError {
         " {pass}: No relation label found. Currently we need label to identify the relationship table. This will change in future."
     )]
     MissingRelationLabel { pass: Pass },
-    #[error(" {pass}: No relationship schema found.")]
-    NoRelationSchemaFound { pass: Pass },
 
     #[error(
         " {pass}: Not enough information. Labels are required to identify nodes and relationships."

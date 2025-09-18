@@ -221,92 +221,92 @@ async fn execute_cte_queries(
     }
 }
 
-async fn execute_temp_table_queries(
-    app_state: Arc<AppState>,
-    mut ch_sql_queries: Vec<String>,
-    output_format: OutputFormat,
-    instant: Instant,
-) -> Result<Response, (StatusCode, String)> {
-    let session_id = Uuid::new_v4();
-    let ch_client = app_state
-        .clickhouse_client
-        .clone()
-        .with_option("session_id", session_id);
-    let last_query = ch_sql_queries.pop().unwrap();
+// async fn execute_temp_table_queries(
+//     app_state: Arc<AppState>,
+//     mut ch_sql_queries: Vec<String>,
+//     output_format: OutputFormat,
+//     instant: Instant,
+// ) -> Result<Response, (StatusCode, String)> {
+//     let session_id = Uuid::new_v4();
+//     let ch_client = app_state
+//         .clickhouse_client
+//         .clone()
+//         .with_option("session_id", session_id);
+//     let last_query = ch_sql_queries.pop().unwrap();
 
-    for ch_query in ch_sql_queries {
-        println!("\n ch_query -> {:?}", ch_query);
-        let ch_client = app_state
-            .clickhouse_client
-            .clone()
-            .with_option("session_id", session_id);
-        ch_client
-            .query(&ch_query)
-            .execute()
-            .await
-            .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    }
+//     for ch_query in ch_sql_queries {
+//         println!("\n ch_query -> {:?}", ch_query);
+//         let ch_client = app_state
+//             .clickhouse_client
+//             .clone()
+//             .with_option("session_id", session_id);
+//         ch_client
+//             .query(&ch_query)
+//             .execute()
+//             .await
+//             .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+//     }
 
-    if output_format == OutputFormat::Pretty
-        || output_format == OutputFormat::PrettyCompact
-        || output_format == OutputFormat::Csv
-        || output_format == OutputFormat::CSVWithNames
-    {
-        let mut lines = ch_client
-            .query(&last_query)
-            .fetch_bytes(output_format)
-            .map_err(|e| {
-                (
-                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                    format!("Clickhouse Error: {}", e),
-                )
-            })?
-            .lines();
+//     if output_format == OutputFormat::Pretty
+//         || output_format == OutputFormat::PrettyCompact
+//         || output_format == OutputFormat::Csv
+//         || output_format == OutputFormat::CSVWithNames
+//     {
+//         let mut lines = ch_client
+//             .query(&last_query)
+//             .fetch_bytes(output_format)
+//             .map_err(|e| {
+//                 (
+//                     axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+//                     format!("Clickhouse Error: {}", e),
+//                 )
+//             })?
+//             .lines();
 
-        let mut rows: Vec<String> = vec![];
-        while let Some(line) = lines.next_line().await.map_err(|e| {
-            (
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Clickhouse Error: {}", e),
-            )
-        })? {
-            // let value: serde_json::Value = serde_json::de::from_str(&line).unwrap();
-            rows.push(line);
-        }
+//         let mut rows: Vec<String> = vec![];
+//         while let Some(line) = lines.next_line().await.map_err(|e| {
+//             (
+//                 axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+//                 format!("Clickhouse Error: {}", e),
+//             )
+//         })? {
+//             // let value: serde_json::Value = serde_json::de::from_str(&line).unwrap();
+//             rows.push(line);
+//         }
 
-        let now = Instant::now();
-        let elapsed = now.duration_since(instant).as_secs_f64();
-        let elapsed_rounded = (elapsed * 1000.0).round() / 1000.0;
-        rows.push(format!("\nElapsed: {} sec", elapsed_rounded));
+//         let now = Instant::now();
+//         let elapsed = now.duration_since(instant).as_secs_f64();
+//         let elapsed_rounded = (elapsed * 1000.0).round() / 1000.0;
+//         rows.push(format!("\nElapsed: {} sec", elapsed_rounded));
 
-        let text = rows.join("\n");
+//         let text = rows.join("\n");
 
-        let mut response = (StatusCode::OK, text).into_response();
-        response
-            .headers_mut()
-            .insert(header::CONTENT_TYPE, HeaderValue::from_static("text/plain"));
-        Ok(response)
-    } else {
-        // Execute the arbitrary ClickHouse query.
-        let mut lines = ch_client
-            .query(&last_query)
-            .fetch_bytes("JSONEachRow")
-            .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-            .lines();
+//         let mut response = (StatusCode::OK, text).into_response();
+//         response
+//             .headers_mut()
+//             .insert(header::CONTENT_TYPE, HeaderValue::from_static("text/plain"));
+//         Ok(response)
+//     } else {
+//         // Execute the arbitrary ClickHouse query.
+//         let mut lines = ch_client
+//             .query(&last_query)
+//             .fetch_bytes("JSONEachRow")
+//             .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+//             .lines();
 
-        let mut rows: Vec<Value> = vec![];
-        while let Some(line) = lines
-            .next_line()
-            .await
-            .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-        {
-            let value: serde_json::Value = serde_json::de::from_str(&line).unwrap();
-            rows.push(value);
-        }
+//         let mut rows: Vec<Value> = vec![];
+//         while let Some(line) = lines
+//             .next_line()
+//             .await
+//             .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+//         {
+//             let value: serde_json::Value = serde_json::de::from_str(&line).unwrap();
+//             rows.push(value);
+//         }
 
-        Ok(Json(rows).into_response())
-    }
-}
+//         Ok(Json(rows).into_response())
+//     }
+// }
 
 pub async fn ddl_handler(
     clickhouse_client: Client,

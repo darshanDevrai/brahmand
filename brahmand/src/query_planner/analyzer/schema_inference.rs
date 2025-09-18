@@ -770,7 +770,7 @@ impl SchemaInference {
 
     fn get_column_name_from_filter_predicates(
         &self,
-        filter_predicates: &Vec<LogicalExpr>,
+        filter_predicates: &[LogicalExpr],
     ) -> Option<String> {
         for filter_predicate in filter_predicates.iter() {
             if let LogicalExpr::OperatorApplicationExp(op_app) = filter_predicate {
@@ -786,7 +786,7 @@ impl SchemaInference {
 
     fn get_column_name_from_projection_items(
         &self,
-        projection_items: &Vec<ProjectionItem>,
+        projection_items: &[ProjectionItem],
     ) -> Option<String> {
         for projection_item in projection_items.iter() {
             if let Some(column_name) =

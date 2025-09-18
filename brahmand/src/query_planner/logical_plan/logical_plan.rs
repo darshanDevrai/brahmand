@@ -105,16 +105,6 @@ pub enum JoinType {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct ConnectedTraversal {
-    pub start_node: Arc<LogicalPlan>,
-    pub relationship: Arc<LogicalPlan>,
-    pub end_node: Arc<LogicalPlan>,
-    pub rel_alias: String,
-    pub rel_direction: Direction,
-    pub nested_node_alias: Option<String>,
-}
-
-#[derive(Debug, PartialEq, Clone)]
 pub struct Filter {
     pub input: Arc<LogicalPlan>,
     pub predicate: LogicalExpr,
@@ -178,8 +168,7 @@ impl Filter {
             Transformed::Yes(new_input) => {
                 let new_node = LogicalPlan::Filter(Filter {
                     input: new_input.clone(),
-                    predicate: self.predicate.clone(),
-                    ..self.clone()
+                    predicate: self.predicate.clone()
                 });
                 Transformed::Yes(Arc::new(new_node))
             }

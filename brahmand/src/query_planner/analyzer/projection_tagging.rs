@@ -152,7 +152,7 @@ impl ProjectionTagging {
         ProjectionTagging
     }
 
-    fn select_all_present(&self, projection_items: &Vec<ProjectionItem>) -> bool {
+    fn select_all_present(&self, projection_items: &[ProjectionItem]) -> bool {
         projection_items
             .iter()
             .any(|item| item.expression == LogicalExpr::Star)

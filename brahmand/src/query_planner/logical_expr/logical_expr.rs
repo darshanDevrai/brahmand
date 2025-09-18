@@ -231,7 +231,7 @@ impl<'a> From<open_cypher_parser::ast::PropertyAccess<'a>> for PropertyAccess {
     }
 }
 
-impl<'a> From<open_cypher_parser::ast::Direction> for Direction {
+impl From<open_cypher_parser::ast::Direction> for Direction {
     fn from(value: open_cypher_parser::ast::Direction) -> Self {
         match value {
             open_cypher_parser::ast::Direction::Outgoing => Direction::Outgoing,

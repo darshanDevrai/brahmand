@@ -6,7 +6,7 @@ use crate::query_planner::plan_ctx::errors::PlanCtxError;
 
 #[derive(Debug, Clone, Error, PartialEq)]
 pub enum Pass {
-    AnchorNodeSelection,
+    // AnchorNodeSelection,
     ProjectionPushDown,
     FilterPushDown,
 }
@@ -14,7 +14,7 @@ pub enum Pass {
 impl Display for Pass {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Pass::AnchorNodeSelection => write!(f, "AnchorNodeSelection"),
+            // Pass::AnchorNodeSelection => write!(f, "AnchorNodeSelection"),
             Pass::ProjectionPushDown => write!(f, "ProjectionPushDown"),
             Pass::FilterPushDown => write!(f, "FilterPushDown"),
         }
