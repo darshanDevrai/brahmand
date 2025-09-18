@@ -202,7 +202,7 @@ impl ToSql for UnionItems {
                 UnionType::Distinct => "UNION DISTINCT \n",
                 UnionType::All => "UNION ALL \n",
             };
-            
+
             union_sql_strs.join(union_type_str)
         } else {
             "".into()

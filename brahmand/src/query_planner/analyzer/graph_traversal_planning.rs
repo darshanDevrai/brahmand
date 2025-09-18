@@ -297,12 +297,7 @@ impl GraphTRaversalPlanning {
     ) -> AnalyzerResult<(GraphRel, Vec<CtxToUpdate>)> {
         let mut ctxs_to_update: Vec<CtxToUpdate> = vec![];
 
-        
         let mut rel_ctxs_to_update: Vec<CtxToUpdate>;
-        
-
-        
-        
 
         let (r_cte_name, r_plan, r_ctxs_to_update) = self.get_rel_ctx_for_edge_list(
             graph_rel,

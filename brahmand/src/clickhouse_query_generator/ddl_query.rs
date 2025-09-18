@@ -146,8 +146,6 @@ fn get_rel_props(properties: Vec<Expression>, from: &str, to: &str) -> RelProper
     let default_pk = &format!("from_{from}, to_{to}");
     primary_keys.push(default_pk);
 
-    
-
     RelProperties {
         primary_keys: primary_keys.join(", "),
         adj_index,

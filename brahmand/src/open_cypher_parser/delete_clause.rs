@@ -15,7 +15,9 @@ use super::{
     expression::parse_literal_or_variable_expression,
 };
 
-pub fn parse_delete_clause(input: &'_ str) -> IResult<&'_ str, DeleteClause<'_>, OpenCypherParsingError<'_>> {
+pub fn parse_delete_clause(
+    input: &'_ str,
+) -> IResult<&'_ str, DeleteClause<'_>, OpenCypherParsingError<'_>> {
     // Optionally consume "DETACH" keyword.
     let (input, detach_opt) = opt(ws(tag_no_case("DETACH"))).parse(input)?;
     let is_detach = detach_opt.is_some();

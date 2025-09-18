@@ -23,7 +23,9 @@ fn parse_return_item(input: &'_ str) -> IResult<&'_ str, ReturnItem<'_>> {
     Ok((input, return_item))
 }
 
-pub fn parse_return_clause(input: &'_ str) -> IResult<&'_ str, ReturnClause<'_>, OpenCypherParsingError<'_>> {
+pub fn parse_return_clause(
+    input: &'_ str,
+) -> IResult<&'_ str, ReturnClause<'_>, OpenCypherParsingError<'_>> {
     // Parse the RETURN statement
 
     let (input, _) = ws(tag_no_case("RETURN")).parse(input)?;

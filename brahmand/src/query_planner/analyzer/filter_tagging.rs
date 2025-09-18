@@ -116,7 +116,8 @@ impl FilterTagging {
                 .get_table_alias_if_single_table_condition(
                     &LogicalExpr::OperatorApplicationExp(extracted_filter.clone()),
                     true,
-                ).unwrap_or_default();
+                )
+                .unwrap_or_default();
             // let mut table_alias = "";
             // for operand in &extracted_filter.operands {
             //     match operand {
@@ -400,7 +401,6 @@ impl FilterTagging {
         expr: &LogicalExpr,
         with_agg_fn: bool,
     ) -> Option<String> {
-        
         match &expr {
             LogicalExpr::PropertyAccessExp(prop_acc) => Some(prop_acc.table_alias.0.clone()),
             LogicalExpr::OperatorApplicationExp(op_app) => {

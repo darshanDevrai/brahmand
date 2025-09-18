@@ -171,7 +171,6 @@ impl RenderPlanBuilder for LogicalPlan {
                     })
                 });
 
-                
                 items.collect::<Result<Vec<SelectItem>, RenderBuildError>>()?
             }
             LogicalPlan::GraphJoins(graph_joins) => graph_joins.input.extract_select_items()?,

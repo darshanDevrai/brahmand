@@ -245,11 +245,7 @@ impl<'a> From<open_cypher_parser::ast::OperatorApplication<'a>> for OperatorAppl
     fn from(value: open_cypher_parser::ast::OperatorApplication<'a>) -> Self {
         OperatorApplication {
             operator: Operator::from(value.operator),
-            operands: value
-                .operands
-                .into_iter()
-                .map(LogicalExpr::from)
-                .collect(),
+            operands: value.operands.into_iter().map(LogicalExpr::from).collect(),
         }
     }
 }
