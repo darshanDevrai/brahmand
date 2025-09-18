@@ -7,7 +7,9 @@ use super::{
     expression::parse_expression,
 };
 
-pub fn parse_skip_clause(input: &'_ str) -> IResult<&'_ str, SkipClause, OpenCypherParsingError<'_>> {
+pub fn parse_skip_clause(
+    input: &'_ str,
+) -> IResult<&'_ str, SkipClause, OpenCypherParsingError<'_>> {
     let (input, _) = ws(tag_no_case("SKIP")).parse(input)?;
 
     let (input, expression) = context("Error in skip clause", cut(parse_expression))

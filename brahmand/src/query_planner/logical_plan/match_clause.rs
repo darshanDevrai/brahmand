@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-
 use crate::{
     open_cypher_parser::ast,
     query_planner::{

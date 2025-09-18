@@ -117,7 +117,9 @@ fn is_start_of_a_relationship(input: &str) -> IResult<&str, bool> {
     Ok((input, is_start))
 }
 
-fn get_relation_node(input: &'_ str) -> IResult<&'_ str, Option<(RelationshipPattern<'_>, NodePattern<'_>)>> {
+fn get_relation_node(
+    input: &'_ str,
+) -> IResult<&'_ str, Option<(RelationshipPattern<'_>, NodePattern<'_>)>> {
     // Try to detect the start of a relationship pattern.
     let (_, is_start_of_relation) = is_start_of_a_relationship(input)?;
     if is_start_of_relation {

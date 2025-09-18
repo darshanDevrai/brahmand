@@ -30,7 +30,9 @@ pub fn parse_order_by_item(input: &'_ str) -> IResult<&'_ str, OrderByItem<'_>> 
     Ok((input, OrderByItem { expression, order }))
 }
 
-pub fn parse_order_by_clause(input: &'_ str) -> IResult<&'_ str, OrderByClause<'_>, OpenCypherParsingError<'_>> {
+pub fn parse_order_by_clause(
+    input: &'_ str,
+) -> IResult<&'_ str, OrderByClause<'_>, OpenCypherParsingError<'_>> {
     let (input, _) = ws(tag_no_case("ORDER BY")).parse(input)?;
 
     let (input, order_by_items) = context(

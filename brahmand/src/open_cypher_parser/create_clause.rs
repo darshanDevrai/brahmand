@@ -10,7 +10,9 @@ use super::ast::{CreateClause, PathPattern};
 use super::errors::OpenCypherParsingError;
 use super::path_pattern;
 
-pub fn parse_create_clause(input: &'_ str) -> IResult<&'_ str, CreateClause<'_>, OpenCypherParsingError<'_>> {
+pub fn parse_create_clause(
+    input: &'_ str,
+) -> IResult<&'_ str, CreateClause<'_>, OpenCypherParsingError<'_>> {
     let (input, _) = tag_no_case("CREATE")(input)?;
 
     let (input, pattern_parts) = context(

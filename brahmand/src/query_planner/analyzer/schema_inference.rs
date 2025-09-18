@@ -167,9 +167,11 @@ impl SchemaInference {
                     right_table_ctx,
                 )?;
 
-                for (alias, label) in [(left_alias, left_label),
+                for (alias, label) in [
+                    (left_alias, left_label),
                     (&graph_rel.alias, rel_label),
-                    (right_alias, right_label)] {
+                    (right_alias, right_label),
+                ] {
                     let table_ctx =
                         plan_ctx
                             .get_mut_table_ctx(alias)

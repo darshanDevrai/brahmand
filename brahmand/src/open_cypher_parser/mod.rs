@@ -32,7 +32,9 @@ mod skip_clause;
 mod where_clause;
 mod with_clause;
 
-pub fn parse_statement(input: &'_ str) -> IResult<&'_ str, OpenCypherQueryAst<'_>, OpenCypherParsingError<'_>> {
+pub fn parse_statement(
+    input: &'_ str,
+) -> IResult<&'_ str, OpenCypherQueryAst<'_>, OpenCypherParsingError<'_>> {
     context(
         "missing semicolon",
         cut(terminated(parse_query_with_nom, ws(tag(";")))),

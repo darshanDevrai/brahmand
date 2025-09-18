@@ -23,7 +23,9 @@ fn parse_with_item(input: &'_ str) -> IResult<&'_ str, WithItem<'_>> {
     Ok((input, with_item))
 }
 
-pub fn parse_with_clause(input: &'_ str) -> IResult<&'_ str, WithClause<'_>, OpenCypherParsingError<'_>> {
+pub fn parse_with_clause(
+    input: &'_ str,
+) -> IResult<&'_ str, WithClause<'_>, OpenCypherParsingError<'_>> {
     // Parse the RETURN statement
 
     let (input, _) = ws(tag_no_case("WITH")).parse(input)?;

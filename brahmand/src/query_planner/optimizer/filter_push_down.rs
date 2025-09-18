@@ -107,8 +107,6 @@ impl FilterPushDown {
         let mut iter = filter_items.into_iter();
         let first = iter.next();
 
-        
-
         first.map(|first_expr| {
             iter.fold(first_expr, |acc, expr| {
                 LogicalExpr::OperatorApplicationExp(OperatorApplication {

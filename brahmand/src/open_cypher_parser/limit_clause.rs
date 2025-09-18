@@ -7,7 +7,9 @@ use super::{
     expression::parse_expression,
 };
 
-pub fn parse_limit_clause(input: &'_ str) -> IResult<&'_ str, LimitClause, OpenCypherParsingError<'_>> {
+pub fn parse_limit_clause(
+    input: &'_ str,
+) -> IResult<&'_ str, LimitClause, OpenCypherParsingError<'_>> {
     // Parse the MATCH statement
 
     let (input, _) = ws(tag_no_case("LIMIT")).parse(input)?;

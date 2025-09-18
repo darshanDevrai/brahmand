@@ -4,7 +4,9 @@ use super::{
     ast::WhereClause, common::ws, errors::OpenCypherParsingError, expression::parse_expression,
 };
 
-pub fn parse_where_clause(input: &'_ str) -> IResult<&'_ str, WhereClause<'_>, OpenCypherParsingError<'_>> {
+pub fn parse_where_clause(
+    input: &'_ str,
+) -> IResult<&'_ str, WhereClause<'_>, OpenCypherParsingError<'_>> {
     // Parse the WHERE statement
 
     let (input, _) = ws(tag_no_case("WHERE")).parse(input)?;

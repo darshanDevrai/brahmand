@@ -104,13 +104,9 @@ pub fn get_graph_context<'a>(
             pass: pass.clone(),
             source: e,
         })?;
-    let right_schema =
-        graph_schema
-            .get_node_schema(&right_label)
-            .map_err(|e| AnalyzerError::GraphSchema {
-                pass,
-                source: e,
-            })?;
+    let right_schema = graph_schema
+        .get_node_schema(&right_label)
+        .map_err(|e| AnalyzerError::GraphSchema { pass, source: e })?;
 
     let left_node_id_column = left_schema.node_id.column.clone();
     let right_node_id_column = right_schema.node_id.column.clone();
