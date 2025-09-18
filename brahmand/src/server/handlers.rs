@@ -43,11 +43,7 @@ pub async fn query_handler(
 
         let query_type = query_planner::get_query_type(&cypher_ast);
 
-        let is_read = if query_type == QueryType::Read {
-            true
-        } else {
-            false
-        };
+        let is_read = query_type == QueryType::Read;
 
         if is_read {
             let logical_plan = query_planner::evaluate_read_query(cypher_ast, &graph_schema)

@@ -112,15 +112,11 @@ impl FilterTagging {
 
         // tag extracted filters to respective table data
         for extracted_filter in extracted_filters {
-            let table_alias = if let Some(single_table_alias) = self
+            let table_alias = self
                 .get_table_alias_if_single_table_condition(
                     &LogicalExpr::OperatorApplicationExp(extracted_filter.clone()),
                     true,
-                ) {
-                single_table_alias
-            } else {
-                String::new()
-            };
+                ).unwrap_or_default();
             // let mut table_alias = "";
             // for operand in &extracted_filter.operands {
             //     match operand {
@@ -404,7 +400,8 @@ impl FilterTagging {
         expr: &LogicalExpr,
         with_agg_fn: bool,
     ) -> Option<String> {
-        let table_alias = match &expr {
+        
+        match &expr {
             LogicalExpr::PropertyAccessExp(prop_acc) => Some(prop_acc.table_alias.0.clone()),
             LogicalExpr::OperatorApplicationExp(op_app) => {
                 let mut found_table_alias_opt: Option<String> = None;
@@ -460,8 +457,7 @@ impl FilterTagging {
                 found_table_alias_opt
             }
             _ => None,
-        };
-        table_alias
+        }
     }
 }
 

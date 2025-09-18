@@ -103,7 +103,7 @@ impl RenderPlanBuilder for LogicalPlan {
                 right_cte.append(&mut center_cte);
                 // then left
                 let left_alias = &graph_rel.left_connection;
-                if left_alias != &last_node_alias {
+                if left_alias != last_node_alias {
                     let mut left_cte = graph_rel.left.extract_ctes(last_node_alias)?;
                     right_cte.append(&mut left_cte);
                 }
@@ -171,8 +171,8 @@ impl RenderPlanBuilder for LogicalPlan {
                     })
                 });
 
-                let vec = items.collect::<Result<Vec<SelectItem>, RenderBuildError>>()?;
-                vec
+                
+                items.collect::<Result<Vec<SelectItem>, RenderBuildError>>()?
             }
             LogicalPlan::GraphJoins(graph_joins) => graph_joins.input.extract_select_items()?,
             LogicalPlan::GroupBy(group_by) => group_by.input.extract_select_items()?,

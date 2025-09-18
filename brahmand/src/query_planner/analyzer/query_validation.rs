@@ -8,7 +8,7 @@ use crate::{
             errors::{AnalyzerError, Pass},
         },
         logical_expr::logical_expr::Direction,
-        logical_plan::logical_plan::{GraphRel, LogicalPlan},
+        logical_plan::logical_plan::LogicalPlan,
         plan_ctx::plan_ctx::PlanCtx,
         transformed::Transformed,
     },

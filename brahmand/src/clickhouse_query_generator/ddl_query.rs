@@ -146,12 +146,12 @@ fn get_rel_props(properties: Vec<Expression>, from: &str, to: &str) -> RelProper
     let default_pk = &format!("from_{from}, to_{to}");
     primary_keys.push(default_pk);
 
-    let props = RelProperties {
-        primary_keys: primary_keys.join(", "),
-        adj_index: adj_index,
-    };
+    
 
-    props
+    RelProperties {
+        primary_keys: primary_keys.join(", "),
+        adj_index,
+    }
 }
 
 fn generate_create_node_table_query(

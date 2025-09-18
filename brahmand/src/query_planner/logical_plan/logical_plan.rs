@@ -6,8 +6,7 @@ use crate::open_cypher_parser::ast::{
 };
 use crate::query_planner::{
     logical_expr::logical_expr::{
-        ColumnAlias, Direction, Literal, LogicalExpr, Operator, OperatorApplication, Property,
-        TableAlias,
+        ColumnAlias, Direction, Literal, LogicalExpr, Operator, OperatorApplication,
     },
     transformed::Transformed,
 };

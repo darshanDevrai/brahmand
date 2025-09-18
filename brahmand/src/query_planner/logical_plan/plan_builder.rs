@@ -21,15 +21,15 @@ pub fn build_logical_plan(
 
     if let Some(match_clause) = &query_ast.match_clause {
         logical_plan =
-            match_clause::evaluate_match_clause(&match_clause, logical_plan, &mut plan_ctx)?;
+            match_clause::evaluate_match_clause(match_clause, logical_plan, &mut plan_ctx)?;
     }
 
     if let Some(where_clause) = &query_ast.where_clause {
-        logical_plan = where_clause::evaluate_where_clause(&where_clause, logical_plan);
+        logical_plan = where_clause::evaluate_where_clause(where_clause, logical_plan);
     }
 
     if let Some(return_clause) = &query_ast.return_clause {
-        logical_plan = return_clause::evaluate_return_clause(&return_clause, logical_plan);
+        logical_plan = return_clause::evaluate_return_clause(return_clause, logical_plan);
     }
 
     if let Some(order_clause) = &query_ast.order_by_clause {
@@ -37,11 +37,11 @@ pub fn build_logical_plan(
     }
 
     if let Some(skip_clause) = &query_ast.skip_clause {
-        logical_plan = skip_n_limit_clause::evaluate_skip_clause(&skip_clause, logical_plan);
+        logical_plan = skip_n_limit_clause::evaluate_skip_clause(skip_clause, logical_plan);
     }
 
     if let Some(limit_clause) = &query_ast.limit_clause {
-        logical_plan = skip_n_limit_clause::evaluate_limit_clause(&limit_clause, logical_plan);
+        logical_plan = skip_n_limit_clause::evaluate_limit_clause(limit_clause, logical_plan);
     }
 
     Ok((logical_plan, plan_ctx))

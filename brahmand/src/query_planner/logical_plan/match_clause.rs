@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use uuid::Uuid;
 
 use crate::{
     open_cypher_parser::ast,
@@ -22,7 +21,7 @@ use super::generate_id;
 fn generate_scan(alias: String, label: Option<String>) -> Arc<LogicalPlan> {
     let table_alias = if alias.is_empty() { None } else { Some(alias) };
     Arc::new(LogicalPlan::Scan(Scan {
-        table_alias: table_alias,
+        table_alias,
         table_name: label,
     }))
 }
@@ -282,7 +281,7 @@ fn traverse_node_pattern(
         .properties
         .clone()
         .map(|props| props.into_iter().map(Property::from).collect())
-        .unwrap_or_else(Vec::new);
+        .unwrap_or_default();
 
     // if alias already present in ctx map then just add its conditions and do not add it in the logical plan
     if let Some(table_ctx) = plan_ctx.get_mut_table_ctx_opt(&node_alias) {
@@ -292,7 +291,7 @@ fn traverse_node_pattern(
         if !node_props.is_empty() {
             table_ctx.append_properties(node_props);
         }
-        return Ok(plan);
+        Ok(plan)
     } else {
         // plan_ctx.alias_table_ctx_map.insert(node_alias.clone(), TableCtx { label: node_label, properties: node_props, filter_predicates: vec![], projection_items: vec![], is_rel: false, use_edge_list: false, explicit_alias: node_pattern.name.is_some() });
         plan_ctx.insert_table_ctx(
@@ -310,22 +309,22 @@ fn traverse_node_pattern(
             input: generate_scan(node_alias.clone(), None),
             alias: node_alias,
         };
-        return Ok(Arc::new(LogicalPlan::GraphNode(graph_node)));
+        Ok(Arc::new(LogicalPlan::GraphNode(graph_node)))
     }
 }
 
 pub fn evaluate_match_clause<'a>(
     match_clause: &ast::MatchClause<'a>,
     mut plan: Arc<LogicalPlan>,
-    mut plan_ctx: &mut PlanCtx,
+    plan_ctx: &mut PlanCtx,
 ) -> LogicalPlanResult<Arc<LogicalPlan>> {
     for (idx, path_pattern) in match_clause.path_patterns.iter().enumerate() {
         match path_pattern {
             ast::PathPattern::Node(node_pattern) => {
-                plan = traverse_node_pattern(node_pattern, plan, &mut plan_ctx)?;
+                plan = traverse_node_pattern(node_pattern, plan, plan_ctx)?;
             }
             ast::PathPattern::ConnectedPattern(connected_patterns) => {
-                plan = traverse_connected_pattern(connected_patterns, plan, &mut plan_ctx, idx)?;
+                plan = traverse_connected_pattern(connected_patterns, plan, plan_ctx, idx)?;
             }
         }
     }

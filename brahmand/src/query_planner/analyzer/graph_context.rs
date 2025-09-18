@@ -108,7 +108,7 @@ pub fn get_graph_context<'a>(
         graph_schema
             .get_node_schema(&right_label)
             .map_err(|e| AnalyzerError::GraphSchema {
-                pass: pass,
+                pass,
                 source: e,
             })?;
 

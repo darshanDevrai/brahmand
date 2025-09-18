@@ -1,5 +1,5 @@
 use crate::{
-    open_cypher_parser::{self, ast::Expression},
+    open_cypher_parser::{self},
     query_planner::logical_plan::logical_plan::LogicalPlan,
 };
 use std::{fmt, sync::Arc};
@@ -248,7 +248,7 @@ impl<'a> From<open_cypher_parser::ast::OperatorApplication<'a>> for OperatorAppl
             operands: value
                 .operands
                 .into_iter()
-                .map(|expr| LogicalExpr::from(expr))
+                .map(LogicalExpr::from)
                 .collect(),
         }
     }

@@ -107,15 +107,15 @@ impl FilterPushDown {
         let mut iter = filter_items.into_iter();
         let first = iter.next();
 
-        let combined = first.map(|first_expr| {
+        
+
+        first.map(|first_expr| {
             iter.fold(first_expr, |acc, expr| {
                 LogicalExpr::OperatorApplicationExp(OperatorApplication {
                     operator: Operator::And,
                     operands: vec![acc, expr],
                 })
             })
-        });
-
-        combined
+        })
     }
 }
