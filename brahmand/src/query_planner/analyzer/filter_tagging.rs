@@ -103,7 +103,7 @@ impl FilterTagging {
         let mut extracted_filters: Vec<OperatorApplication> = vec![];
         let mut extracted_projections: Vec<PropertyAccess> = vec![];
 
-        let remaining = self.process_expr(
+        let remaining = Self::process_expr(
             filter_predicate,
             &mut extracted_filters,
             &mut extracted_projections,
@@ -112,8 +112,8 @@ impl FilterTagging {
 
         // tag extracted filters to respective table data
         for extracted_filter in extracted_filters {
-            let table_alias = self
-                .get_table_alias_if_single_table_condition(
+            let table_alias = Self::
+                get_table_alias_if_single_table_condition(
                     &LogicalExpr::OperatorApplicationExp(extracted_filter.clone()),
                     true,
                 )
@@ -145,7 +145,7 @@ impl FilterTagging {
             // }
 
             if let Some(table_ctx) = plan_ctx.get_mut_table_ctx_opt(&table_alias) {
-                let converted_filters = self.convert_prop_acc_to_column(
+                let converted_filters = Self::convert_prop_acc_to_column(
                     LogicalExpr::OperatorApplicationExp(extracted_filter),
                 );
                 table_ctx.insert_filter(converted_filters);
@@ -185,7 +185,7 @@ impl FilterTagging {
         Ok(remaining)
     }
 
-    fn convert_prop_acc_to_column(&self, expr: LogicalExpr) -> LogicalExpr {
+    fn convert_prop_acc_to_column(expr: LogicalExpr) -> LogicalExpr {
         match expr {
             LogicalExpr::PropertyAccessExp(property_access) => {
                 LogicalExpr::Column(property_access.column)
@@ -193,7 +193,7 @@ impl FilterTagging {
             LogicalExpr::OperatorApplicationExp(op_app) => {
                 let mut new_operands: Vec<LogicalExpr> = vec![];
                 for operand in op_app.operands {
-                    let new_operand = self.convert_prop_acc_to_column(operand);
+                    let new_operand = Self::convert_prop_acc_to_column(operand);
                     new_operands.push(new_operand);
                 }
                 LogicalExpr::OperatorApplicationExp(OperatorApplication {
@@ -204,7 +204,7 @@ impl FilterTagging {
             LogicalExpr::List(exprs) => {
                 let mut new_exprs = Vec::new();
                 for sub_expr in exprs {
-                    let new_expr = self.convert_prop_acc_to_column(sub_expr);
+                    let new_expr = Self::convert_prop_acc_to_column(sub_expr);
                     new_exprs.push(new_expr);
                 }
                 LogicalExpr::List(new_exprs)
@@ -212,7 +212,7 @@ impl FilterTagging {
             LogicalExpr::ScalarFnCall(fc) => {
                 let mut new_args = Vec::new();
                 for arg in fc.args {
-                    let new_arg = self.convert_prop_acc_to_column(arg);
+                    let new_arg = Self::convert_prop_acc_to_column(arg);
                     new_args.push(new_arg);
                 }
                 LogicalExpr::ScalarFnCall(ScalarFnCall {
@@ -224,7 +224,7 @@ impl FilterTagging {
             LogicalExpr::AggregateFnCall(fc) => {
                 let mut new_args = Vec::new();
                 for arg in fc.args {
-                    let new_arg = self.convert_prop_acc_to_column(arg);
+                    let new_arg = Self::convert_prop_acc_to_column(arg);
                     new_args.push(new_arg);
                 }
                 LogicalExpr::AggregateFnCall(AggregateFnCall {
@@ -237,7 +237,6 @@ impl FilterTagging {
     }
 
     fn process_expr(
-        &self,
         expr: LogicalExpr,
         extracted_filters: &mut Vec<OperatorApplication>,
         extracted_projections: &mut Vec<PropertyAccess>,
@@ -252,8 +251,8 @@ impl FilterTagging {
                 if current_is_or {
                     let cloned_op_app = LogicalExpr::OperatorApplicationExp(op_app.clone());
                     // If the entire OR belongs to single table then we extract it. This OR should not have any agg fns.
-                    if self
-                        .get_table_alias_if_single_table_condition(&cloned_op_app, false)
+                    if Self::
+                        get_table_alias_if_single_table_condition(&cloned_op_app, false)
                         .is_some()
                     {
                         extracted_filters.push(op_app);
@@ -266,7 +265,7 @@ impl FilterTagging {
                 // Process each operand recursively, passing the flag.
                 let mut new_operands = Vec::new();
                 for operand in op_app.operands {
-                    if let Some(new_operand) = self.process_expr(
+                    if let Some(new_operand) = Self::process_expr(
                         operand,
                         extracted_filters,
                         extracted_projections,
@@ -349,7 +348,7 @@ impl FilterTagging {
                 let mut new_args = Vec::new();
                 for arg in fc.args {
                     if let Some(new_arg) =
-                        self.process_expr(arg, extracted_filters, extracted_projections, in_or)
+                        Self::process_expr(arg, extracted_filters, extracted_projections, in_or)
                     {
                         new_args.push(new_arg);
                     }
@@ -364,7 +363,7 @@ impl FilterTagging {
                 let mut new_args = Vec::new();
                 for arg in fc.args {
                     if let Some(new_arg) =
-                        self.process_expr(arg, extracted_filters, extracted_projections, in_or)
+                        Self::process_expr(arg, extracted_filters, extracted_projections, in_or)
                     {
                         new_args.push(new_arg);
                     }
@@ -380,7 +379,7 @@ impl FilterTagging {
                 let mut new_exprs = Vec::new();
                 for sub_expr in exprs {
                     if let Some(new_expr) =
-                        self.process_expr(sub_expr, extracted_filters, extracted_projections, in_or)
+                        Self::process_expr(sub_expr, extracted_filters, extracted_projections, in_or)
                     {
                         new_exprs.push(new_expr);
                     }
@@ -397,7 +396,6 @@ impl FilterTagging {
     // it is used to check if all the operands of an operator application have the same table alias.
     // if they don't then we return None.
     fn get_table_alias_if_single_table_condition(
-        &self,
         expr: &LogicalExpr,
         with_agg_fn: bool,
     ) -> Option<String> {
@@ -407,7 +405,7 @@ impl FilterTagging {
                 let mut found_table_alias_opt: Option<String> = None;
                 for operand in &op_app.operands {
                     if let Some(current_table_alias) =
-                        self.get_table_alias_if_single_table_condition(operand, with_agg_fn)
+                        Self::get_table_alias_if_single_table_condition(operand, with_agg_fn)
                     {
                         if let Some(found_table_alias) = found_table_alias_opt.as_ref() {
                             if *found_table_alias != current_table_alias {
@@ -424,7 +422,7 @@ impl FilterTagging {
                 let mut found_table_alias_opt: Option<String> = None;
                 for arg in &scalar_fn_call.args {
                     if let Some(current_table_alias) =
-                        self.get_table_alias_if_single_table_condition(arg, with_agg_fn)
+                        Self::get_table_alias_if_single_table_condition(arg, with_agg_fn)
                     {
                         if let Some(found_table_alias) = found_table_alias_opt.as_ref() {
                             if *found_table_alias != current_table_alias {
@@ -442,7 +440,7 @@ impl FilterTagging {
                 if with_agg_fn {
                     for arg in &aggregate_fn_call.args {
                         if let Some(current_table_alias) =
-                            self.get_table_alias_if_single_table_condition(arg, with_agg_fn)
+                            Self::get_table_alias_if_single_table_condition(arg, with_agg_fn)
                         {
                             if let Some(found_table_alias) = found_table_alias_opt.as_ref() {
                                 if *found_table_alias != current_table_alias {
@@ -933,19 +931,15 @@ mod tests {
 
     #[test]
     fn test_get_table_alias_single_property_access() {
-        let analyzer = FilterTagging::new();
-
         // Test single property access: user.name
         let expr = create_property_access("user", "name");
-        let result = analyzer.get_table_alias_if_single_table_condition(&expr, false);
+        let result = FilterTagging::get_table_alias_if_single_table_condition(&expr, false);
 
         assert_eq!(result, Some("user".to_string()));
     }
 
     #[test]
     fn test_get_table_alias_operator_application_same_table() {
-        let analyzer = FilterTagging::new();
-
         // Test operator with same table: user.age = 25
         let expr = LogicalExpr::OperatorApplicationExp(OperatorApplication {
             operator: Operator::Equal,
@@ -955,14 +949,12 @@ mod tests {
             ],
         });
 
-        let result = analyzer.get_table_alias_if_single_table_condition(&expr, false);
+        let result = FilterTagging::get_table_alias_if_single_table_condition(&expr, false);
         assert_eq!(result, Some("user".to_string()));
     }
 
     #[test]
     fn test_get_table_alias_operator_application_different_tables() {
-        let analyzer = FilterTagging::new();
-
         // Test operator with different tables: user.id = company.owner_id
         let expr = LogicalExpr::OperatorApplicationExp(OperatorApplication {
             operator: Operator::Equal,
@@ -972,28 +964,24 @@ mod tests {
             ],
         });
 
-        let result = analyzer.get_table_alias_if_single_table_condition(&expr, false);
+        let result = FilterTagging::get_table_alias_if_single_table_condition(&expr, false);
         assert_eq!(result, None);
     }
 
     #[test]
     fn test_get_table_alias_scalar_function_same_table() {
-        let analyzer = FilterTagging::new();
-
         // Test scalar function with same table: length(user.name)
         let expr = LogicalExpr::ScalarFnCall(ScalarFnCall {
             name: "length".to_string(),
             args: vec![create_property_access("user", "name")],
         });
 
-        let result = analyzer.get_table_alias_if_single_table_condition(&expr, false);
+        let result = FilterTagging::get_table_alias_if_single_table_condition(&expr, false);
         assert_eq!(result, Some("user".to_string()));
     }
 
     #[test]
     fn test_get_table_alias_scalar_function_different_tables() {
-        let analyzer = FilterTagging::new();
-
         // Test scalar function with different tables: concat(user.first_name, company.suffix)
         let expr = LogicalExpr::ScalarFnCall(ScalarFnCall {
             name: "concat".to_string(),
@@ -1003,42 +991,36 @@ mod tests {
             ],
         });
 
-        let result = analyzer.get_table_alias_if_single_table_condition(&expr, false);
+        let result = FilterTagging::get_table_alias_if_single_table_condition(&expr, false);
         assert_eq!(result, None);
     }
 
     #[test]
     fn test_get_table_alias_aggregate_function_with_agg_fn_true() {
-        let analyzer = FilterTagging::new();
-
         // Test aggregate function with with_agg_fn=true: count(user.id)
         let expr = LogicalExpr::AggregateFnCall(AggregateFnCall {
             name: "count".to_string(),
             args: vec![create_property_access("user", "id")],
         });
 
-        let result = analyzer.get_table_alias_if_single_table_condition(&expr, true);
+        let result = FilterTagging::get_table_alias_if_single_table_condition(&expr, true);
         assert_eq!(result, Some("user".to_string()));
     }
 
     #[test]
     fn test_get_table_alias_aggregate_function_with_agg_fn_false() {
-        let analyzer = FilterTagging::new();
-
         // Test aggregate function with with_agg_fn=false: count(user.id)
         let expr = LogicalExpr::AggregateFnCall(AggregateFnCall {
             name: "count".to_string(),
             args: vec![create_property_access("user", "id")],
         });
 
-        let result = analyzer.get_table_alias_if_single_table_condition(&expr, false);
+        let result = FilterTagging::get_table_alias_if_single_table_condition(&expr, false);
         assert_eq!(result, None); // Should return None when with_agg_fn is false
     }
 
     #[test]
     fn test_get_table_alias_mixed_expression_same_table() {
-        let analyzer = FilterTagging::new();
-
         // Test mixed expression with scalar function and property: length(user.name) > user.min_length
         let expr = LogicalExpr::OperatorApplicationExp(OperatorApplication {
             operator: Operator::GreaterThan,
@@ -1051,14 +1033,12 @@ mod tests {
             ],
         });
 
-        let result = analyzer.get_table_alias_if_single_table_condition(&expr, false);
+        let result = FilterTagging::get_table_alias_if_single_table_condition(&expr, false);
         assert_eq!(result, Some("user".to_string()));
     }
 
     #[test]
     fn test_get_table_alias_literals_only() {
-        let analyzer = FilterTagging::new();
-
         // Test expression with only literals: 42 = 42
         let expr = LogicalExpr::OperatorApplicationExp(OperatorApplication {
             operator: Operator::Equal,
@@ -1068,7 +1048,7 @@ mod tests {
             ],
         });
 
-        let result = analyzer.get_table_alias_if_single_table_condition(&expr, false);
+        let result = FilterTagging::get_table_alias_if_single_table_condition(&expr, false);
         assert_eq!(result, None); // No property accesses, should return None
     }
 }

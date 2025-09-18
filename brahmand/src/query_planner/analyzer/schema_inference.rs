@@ -25,7 +25,7 @@ impl AnalyzerPass for SchemaInference {
     ) -> AnalyzerResult<Transformed<Arc<LogicalPlan>>> {
         self.infer_schema(logical_plan.clone(), plan_ctx, graph_schema)?;
 
-        self.push_inferred_table_names_to_scan(logical_plan, plan_ctx)
+        Self::push_inferred_table_names_to_scan(logical_plan, plan_ctx)
     }
 }
 
@@ -35,33 +35,32 @@ impl SchemaInference {
     }
 
     pub fn push_inferred_table_names_to_scan(
-        &self,
         logical_plan: Arc<LogicalPlan>,
         plan_ctx: &mut PlanCtx,
     ) -> AnalyzerResult<Transformed<Arc<LogicalPlan>>> {
         let transformed_plan = match logical_plan.as_ref() {
             LogicalPlan::Projection(projection) => {
                 let child_tf =
-                    self.push_inferred_table_names_to_scan(projection.input.clone(), plan_ctx)?;
+                    Self::push_inferred_table_names_to_scan(projection.input.clone(), plan_ctx)?;
                 projection.rebuild_or_clone(child_tf, logical_plan.clone())
             }
             LogicalPlan::GraphNode(graph_node) => {
                 let child_tf =
-                    self.push_inferred_table_names_to_scan(graph_node.input.clone(), plan_ctx)?;
+                    Self::push_inferred_table_names_to_scan(graph_node.input.clone(), plan_ctx)?;
                 graph_node.rebuild_or_clone(child_tf, logical_plan.clone())
             }
             LogicalPlan::GraphRel(graph_rel) => {
                 let left_tf =
-                    self.push_inferred_table_names_to_scan(graph_rel.left.clone(), plan_ctx)?;
+                    Self::push_inferred_table_names_to_scan(graph_rel.left.clone(), plan_ctx)?;
                 let center_tf =
-                    self.push_inferred_table_names_to_scan(graph_rel.center.clone(), plan_ctx)?;
+                    Self::push_inferred_table_names_to_scan(graph_rel.center.clone(), plan_ctx)?;
                 let right_tf =
-                    self.push_inferred_table_names_to_scan(graph_rel.right.clone(), plan_ctx)?;
+                    Self::push_inferred_table_names_to_scan(graph_rel.right.clone(), plan_ctx)?;
                 graph_rel.rebuild_or_clone(left_tf, center_tf, right_tf, logical_plan.clone())
             }
             LogicalPlan::Cte(cte) => {
                 let child_tf =
-                    self.push_inferred_table_names_to_scan(cte.input.clone(), plan_ctx)?;
+                    Self::push_inferred_table_names_to_scan(cte.input.clone(), plan_ctx)?;
                 cte.rebuild_or_clone(child_tf, logical_plan.clone())
             }
             LogicalPlan::Scan(scan) => {
@@ -79,39 +78,39 @@ impl SchemaInference {
             LogicalPlan::Empty => Transformed::No(logical_plan.clone()),
             LogicalPlan::GraphJoins(graph_joins) => {
                 let child_tf =
-                    self.push_inferred_table_names_to_scan(graph_joins.input.clone(), plan_ctx)?;
+                    Self::push_inferred_table_names_to_scan(graph_joins.input.clone(), plan_ctx)?;
                 graph_joins.rebuild_or_clone(child_tf, logical_plan.clone())
             }
             LogicalPlan::Filter(filter) => {
                 let child_tf =
-                    self.push_inferred_table_names_to_scan(filter.input.clone(), plan_ctx)?;
+                    Self::push_inferred_table_names_to_scan(filter.input.clone(), plan_ctx)?;
                 filter.rebuild_or_clone(child_tf, logical_plan.clone())
             }
             LogicalPlan::GroupBy(group_by) => {
                 let child_tf =
-                    self.push_inferred_table_names_to_scan(group_by.input.clone(), plan_ctx)?;
+                    Self::push_inferred_table_names_to_scan(group_by.input.clone(), plan_ctx)?;
                 group_by.rebuild_or_clone(child_tf, logical_plan.clone())
             }
             LogicalPlan::OrderBy(order_by) => {
                 let child_tf =
-                    self.push_inferred_table_names_to_scan(order_by.input.clone(), plan_ctx)?;
+                    Self::push_inferred_table_names_to_scan(order_by.input.clone(), plan_ctx)?;
                 order_by.rebuild_or_clone(child_tf, logical_plan.clone())
             }
             LogicalPlan::Skip(skip) => {
                 let child_tf =
-                    self.push_inferred_table_names_to_scan(skip.input.clone(), plan_ctx)?;
+                    Self::push_inferred_table_names_to_scan(skip.input.clone(), plan_ctx)?;
                 skip.rebuild_or_clone(child_tf, logical_plan.clone())
             }
             LogicalPlan::Limit(limit) => {
                 let child_tf =
-                    self.push_inferred_table_names_to_scan(limit.input.clone(), plan_ctx)?;
+                    Self::push_inferred_table_names_to_scan(limit.input.clone(), plan_ctx)?;
                 limit.rebuild_or_clone(child_tf, logical_plan.clone())
             }
             LogicalPlan::Union(union) => {
                 let mut inputs_tf: Vec<Transformed<Arc<LogicalPlan>>> = vec![];
                 for input_plan in union.inputs.iter() {
                     let child_tf =
-                        self.push_inferred_table_names_to_scan(input_plan.clone(), plan_ctx)?;
+                        Self::push_inferred_table_names_to_scan(input_plan.clone(), plan_ctx)?;
                     inputs_tf.push(child_tf);
                 }
                 union.rebuild_or_clone(inputs_tf, logical_plan.clone())
@@ -231,7 +230,7 @@ impl SchemaInference {
             }
             LogicalPlan::Union(union) => {
                 for input_plan in union.inputs.iter() {
-                    self.push_inferred_table_names_to_scan(input_plan.clone(), plan_ctx)?;
+                    Self::push_inferred_table_names_to_scan(input_plan.clone(), plan_ctx)?;
                 }
                 Ok(())
             }
@@ -775,7 +774,7 @@ impl SchemaInference {
         for filter_predicate in filter_predicates.iter() {
             if let LogicalExpr::OperatorApplicationExp(op_app) = filter_predicate {
                 for operand in &op_app.operands {
-                    if let Some(column_name) = self.get_column_name_from_plan_expr(operand) {
+                    if let Some(column_name) = Self::get_column_name_from_plan_expr(operand) {
                         return Some(column_name);
                     }
                 }
@@ -790,7 +789,7 @@ impl SchemaInference {
     ) -> Option<String> {
         for projection_item in projection_items.iter() {
             if let Some(column_name) =
-                self.get_column_name_from_plan_expr(&projection_item.expression)
+                Self::get_column_name_from_plan_expr(&projection_item.expression)
             {
                 return Some(column_name);
             }
@@ -798,11 +797,11 @@ impl SchemaInference {
         None
     }
 
-    fn get_column_name_from_plan_expr(&self, exp: &LogicalExpr) -> Option<String> {
+    fn get_column_name_from_plan_expr(exp: &LogicalExpr) -> Option<String> {
         match exp {
             LogicalExpr::OperatorApplicationExp(op_ex) => {
                 for operand in &op_ex.operands {
-                    if let Some(column_name) = self.get_column_name_from_plan_expr(operand) {
+                    if let Some(column_name) = Self::get_column_name_from_plan_expr(operand) {
                         return Some(column_name);
                     }
                 }
@@ -810,7 +809,7 @@ impl SchemaInference {
             }
             LogicalExpr::ScalarFnCall(function_call) => {
                 for arg in &function_call.args {
-                    if let Some(column_name) = self.get_column_name_from_plan_expr(arg) {
+                    if let Some(column_name) = Self::get_column_name_from_plan_expr(arg) {
                         return Some(column_name);
                     }
                 }
@@ -818,7 +817,7 @@ impl SchemaInference {
             }
             LogicalExpr::AggregateFnCall(function_call) => {
                 for arg in &function_call.args {
-                    if let Some(column_name) = self.get_column_name_from_plan_expr(arg) {
+                    if let Some(column_name) = Self::get_column_name_from_plan_expr(arg) {
                         return Some(column_name);
                     }
                 }

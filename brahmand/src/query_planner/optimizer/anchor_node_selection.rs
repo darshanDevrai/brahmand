@@ -20,7 +20,7 @@ impl OptimizerPass for AnchorNodeSelection {
         plan_ctx: &mut PlanCtx,
     ) -> OptimizerResult<Transformed<Arc<LogicalPlan>>> {
         if let Some(anchor_node_alias) = self.find_anchor_node(plan_ctx) {
-            return self.anchor_traversal(anchor_node_alias, logical_plan);
+            return Self::anchor_traversal(anchor_node_alias, logical_plan);
         }
 
         Ok(Transformed::No(logical_plan))
@@ -66,7 +66,7 @@ impl AnchorNodeSelection {
         for candidate in &candidates {
             if let Ok(table_ctx) = plan_ctx.get_table_ctx(candidate) {
                 for filter in table_ctx.get_filters() {
-                    if self.has_or_operator(filter) {
+                    if Self::has_or_operator(filter) {
                         return Some(candidate.clone());
                     }
                 }
@@ -78,7 +78,7 @@ impl AnchorNodeSelection {
     }
 
     // check for OR operators in expressions
-    fn has_or_operator(&self, expr: &LogicalExpr) -> bool {
+    fn has_or_operator(expr: &LogicalExpr) -> bool {
         match expr {
             LogicalExpr::OperatorApplicationExp(op_app) => {
                 if op_app.operator == Operator::Or {
@@ -86,7 +86,7 @@ impl AnchorNodeSelection {
                 }
                 // check operands for nested OR conditions
                 for operand in &op_app.operands {
-                    if self.has_or_operator(operand) {
+                    if Self::has_or_operator(operand) {
                         return true;
                     }
                 }
@@ -94,7 +94,7 @@ impl AnchorNodeSelection {
             }
             LogicalExpr::ScalarFnCall(fc) => {
                 for arg in &fc.args {
-                    if self.has_or_operator(arg) {
+                    if Self::has_or_operator(arg) {
                         return true;
                     }
                 }
@@ -102,7 +102,7 @@ impl AnchorNodeSelection {
             }
             LogicalExpr::AggregateFnCall(fc) => {
                 for arg in &fc.args {
-                    if self.has_or_operator(arg) {
+                    if Self::has_or_operator(arg) {
                         return true;
                     }
                 }
@@ -110,7 +110,7 @@ impl AnchorNodeSelection {
             }
             LogicalExpr::List(exprs) => {
                 for expr in exprs {
-                    if self.has_or_operator(expr) {
+                    if Self::has_or_operator(expr) {
                         return true;
                     }
                 }
@@ -121,13 +121,12 @@ impl AnchorNodeSelection {
     }
 
     fn anchor_traversal(
-        &self,
         anchor_node_alias: String,
         logical_plan: Arc<LogicalPlan>
     ) -> OptimizerResult<Transformed<Arc<LogicalPlan>>> {
         let transformed_plan = match logical_plan.as_ref() {
             LogicalPlan::GraphNode(graph_node) => {
-                let child_tf = self.anchor_traversal(
+                let child_tf = Self::anchor_traversal(
                     anchor_node_alias.clone(),
                     graph_node.input.clone(),
                 )?;
@@ -151,7 +150,7 @@ impl AnchorNodeSelection {
                         is_rel_anchor: false,
                     }));
                     let rotated_plan =
-                        self.rotate_plan(new_anchor_plan, graph_rel.right.clone())?;
+                        Self::rotate_plan(new_anchor_plan, graph_rel.right.clone())?;
 
                     Transformed::Yes(rotated_plan)
 
@@ -169,19 +168,19 @@ impl AnchorNodeSelection {
                         is_rel_anchor: true,
                     }));
                     let rotated_plan =
-                        self.rotate_plan(new_anchor_plan, graph_rel.right.clone())?;
+                        Self::rotate_plan(new_anchor_plan, graph_rel.right.clone())?;
 
                     Transformed::Yes(rotated_plan)
                 } else {
-                    let left_tf = self.anchor_traversal(
+                    let left_tf = Self::anchor_traversal(
                         anchor_node_alias.clone(),
                         graph_rel.left.clone(),
                     )?;
-                    let center_tf = self.anchor_traversal(
+                    let center_tf = Self::anchor_traversal(
                         anchor_node_alias.clone(),
                         graph_rel.center.clone(),
                     )?;
-                    let right_tf = self.anchor_traversal(
+                    let right_tf = Self::anchor_traversal(
                         anchor_node_alias,
                         graph_rel.right.clone(),
                     )?;
@@ -190,50 +189,50 @@ impl AnchorNodeSelection {
             }
             LogicalPlan::Cte(cte) => {
                 let child_tf =
-                    self.anchor_traversal(anchor_node_alias, cte.input.clone())?;
+                    Self::anchor_traversal(anchor_node_alias, cte.input.clone())?;
                 cte.rebuild_or_clone(child_tf, logical_plan.clone())
             }
             LogicalPlan::Scan(_) => Transformed::No(logical_plan.clone()),
             LogicalPlan::Empty => Transformed::No(logical_plan.clone()),
             LogicalPlan::GraphJoins(graph_joins) => {
                 let child_tf =
-                    self.anchor_traversal(anchor_node_alias, graph_joins.input.clone())?;
+                    Self::anchor_traversal(anchor_node_alias, graph_joins.input.clone())?;
                 graph_joins.rebuild_or_clone(child_tf, logical_plan.clone())
             }
             LogicalPlan::Filter(filter) => {
                 let child_tf =
-                    self.anchor_traversal(anchor_node_alias, filter.input.clone())?;
+                    Self::anchor_traversal(anchor_node_alias, filter.input.clone())?;
                 filter.rebuild_or_clone(child_tf, logical_plan.clone())
             }
             LogicalPlan::Projection(projection) => {
                 let child_tf =
-                    self.anchor_traversal(anchor_node_alias, projection.input.clone())?;
+                    Self::anchor_traversal(anchor_node_alias, projection.input.clone())?;
                 projection.rebuild_or_clone(child_tf, logical_plan.clone())
             }
             LogicalPlan::GroupBy(group_by) => {
                 let child_tf =
-                    self.anchor_traversal(anchor_node_alias, group_by.input.clone())?;
+                    Self::anchor_traversal(anchor_node_alias, group_by.input.clone())?;
                 group_by.rebuild_or_clone(child_tf, logical_plan.clone())
             }
             LogicalPlan::OrderBy(order_by) => {
                 let child_tf =
-                    self.anchor_traversal(anchor_node_alias, order_by.input.clone())?;
+                    Self::anchor_traversal(anchor_node_alias, order_by.input.clone())?;
                 order_by.rebuild_or_clone(child_tf, logical_plan.clone())
             }
             LogicalPlan::Skip(skip) => {
                 let child_tf =
-                    self.anchor_traversal(anchor_node_alias, skip.input.clone())?;
+                    Self::anchor_traversal(anchor_node_alias, skip.input.clone())?;
                 skip.rebuild_or_clone(child_tf, logical_plan.clone())
             }
             LogicalPlan::Limit(limit) => {
                 let child_tf =
-                    self.anchor_traversal(anchor_node_alias, limit.input.clone())?;
+                    Self::anchor_traversal(anchor_node_alias, limit.input.clone())?;
                 limit.rebuild_or_clone(child_tf, logical_plan.clone())
             }
             LogicalPlan::Union(union) => {
                 let mut inputs_tf: Vec<Transformed<Arc<LogicalPlan>>> = vec![];
                 for input_plan in union.inputs.iter() {
-                    let child_tf = self.anchor_traversal(
+                    let child_tf = Self::anchor_traversal(
                         anchor_node_alias.clone(),
                         input_plan.clone(),
                     )?;
@@ -246,7 +245,6 @@ impl AnchorNodeSelection {
     }
 
     fn rotate_plan(
-        &self,
         new_plan: Arc<LogicalPlan>,
         remaining_plan: Arc<LogicalPlan>,
     ) -> OptimizerResult<Arc<LogicalPlan>> {
@@ -300,7 +298,7 @@ impl AnchorNodeSelection {
                         is_rel_anchor: false,
                     }));
 
-                    return self.rotate_plan(new_constructed_plan, new_remaining);
+                    return Self::rotate_plan(new_constructed_plan, new_remaining);
                 }
 
                 Err(OptimizerError::MissingGraphRelInRotatePlan)

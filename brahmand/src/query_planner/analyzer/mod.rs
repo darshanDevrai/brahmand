@@ -101,7 +101,7 @@ pub fn intermediate_analyzing(
     )?;
     let plan = transformed_plan.get_plan();
 
-    let transformed_plan = schema_inference.push_inferred_table_names_to_scan(plan, plan_ctx)?;
+    let transformed_plan = SchemaInference::push_inferred_table_names_to_scan(plan, plan_ctx)?;
     let plan = transformed_plan.get_plan();
 
     let duplicate_scans_removing = DuplicateScansRemoving::new();

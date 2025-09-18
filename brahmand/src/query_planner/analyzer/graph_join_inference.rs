@@ -37,7 +37,7 @@ impl AnalyzerPass for GraphJoinInference {
             &mut joined_entities,
         )?;
         if !collected_graph_joins.is_empty() {
-            self.build_graph_joins(logical_plan, &mut collected_graph_joins)
+            Self::build_graph_joins(logical_plan, &mut collected_graph_joins)
         } else {
             Ok(Transformed::No(logical_plan.clone()))
         }
@@ -50,7 +50,6 @@ impl GraphJoinInference {
     }
 
     fn build_graph_joins(
-        &self,
         logical_plan: Arc<LogicalPlan>,
         collected_graph_joins: &mut Vec<Join>,
     ) -> AnalyzerResult<Transformed<Arc<LogicalPlan>>> {
@@ -64,59 +63,59 @@ impl GraphJoinInference {
             }
             LogicalPlan::GraphNode(graph_node) => {
                 let child_tf =
-                    self.build_graph_joins(graph_node.input.clone(), collected_graph_joins)?;
+                    Self::build_graph_joins(graph_node.input.clone(), collected_graph_joins)?;
                 graph_node.rebuild_or_clone(child_tf, logical_plan.clone())
             }
             LogicalPlan::GraphRel(graph_rel) => {
                 let left_tf =
-                    self.build_graph_joins(graph_rel.left.clone(), collected_graph_joins)?;
+                    Self::build_graph_joins(graph_rel.left.clone(), collected_graph_joins)?;
                 let center_tf =
-                    self.build_graph_joins(graph_rel.center.clone(), collected_graph_joins)?;
+                    Self::build_graph_joins(graph_rel.center.clone(), collected_graph_joins)?;
                 let right_tf =
-                    self.build_graph_joins(graph_rel.right.clone(), collected_graph_joins)?;
+                    Self::build_graph_joins(graph_rel.right.clone(), collected_graph_joins)?;
 
                 graph_rel.rebuild_or_clone(left_tf, center_tf, right_tf, logical_plan.clone())
             }
             LogicalPlan::Cte(cte) => {
-                let child_tf = self.build_graph_joins(cte.input.clone(), collected_graph_joins)?;
+                let child_tf = Self::build_graph_joins(cte.input.clone(), collected_graph_joins)?;
                 cte.rebuild_or_clone(child_tf, logical_plan.clone())
             }
             LogicalPlan::Scan(_) => Transformed::No(logical_plan.clone()),
             LogicalPlan::Empty => Transformed::No(logical_plan.clone()),
             LogicalPlan::GraphJoins(graph_joins) => {
                 let child_tf =
-                    self.build_graph_joins(graph_joins.input.clone(), collected_graph_joins)?;
+                    Self::build_graph_joins(graph_joins.input.clone(), collected_graph_joins)?;
                 graph_joins.rebuild_or_clone(child_tf, logical_plan.clone())
             }
             LogicalPlan::Filter(filter) => {
                 let child_tf =
-                    self.build_graph_joins(filter.input.clone(), collected_graph_joins)?;
+                    Self::build_graph_joins(filter.input.clone(), collected_graph_joins)?;
                 filter.rebuild_or_clone(child_tf, logical_plan.clone())
             }
             LogicalPlan::GroupBy(group_by) => {
                 let child_tf =
-                    self.build_graph_joins(group_by.input.clone(), collected_graph_joins)?;
+                    Self::build_graph_joins(group_by.input.clone(), collected_graph_joins)?;
                 group_by.rebuild_or_clone(child_tf, logical_plan.clone())
             }
             LogicalPlan::OrderBy(order_by) => {
                 let child_tf =
-                    self.build_graph_joins(order_by.input.clone(), collected_graph_joins)?;
+                    Self::build_graph_joins(order_by.input.clone(), collected_graph_joins)?;
                 order_by.rebuild_or_clone(child_tf, logical_plan.clone())
             }
             LogicalPlan::Skip(skip) => {
-                let child_tf = self.build_graph_joins(skip.input.clone(), collected_graph_joins)?;
+                let child_tf = Self::build_graph_joins(skip.input.clone(), collected_graph_joins)?;
                 skip.rebuild_or_clone(child_tf, logical_plan.clone())
             }
             LogicalPlan::Limit(limit) => {
                 let child_tf =
-                    self.build_graph_joins(limit.input.clone(), collected_graph_joins)?;
+                    Self::build_graph_joins(limit.input.clone(), collected_graph_joins)?;
                 limit.rebuild_or_clone(child_tf, logical_plan.clone())
             }
             LogicalPlan::Union(union) => {
                 let mut inputs_tf: Vec<Transformed<Arc<LogicalPlan>>> = vec![];
                 for input_plan in union.inputs.iter() {
                     let child_tf =
-                        self.build_graph_joins(input_plan.clone(), collected_graph_joins)?;
+                        Self::build_graph_joins(input_plan.clone(), collected_graph_joins)?;
                     inputs_tf.push(child_tf);
                 }
                 union.rebuild_or_clone(inputs_tf, logical_plan.clone())
