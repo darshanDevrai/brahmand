@@ -43,14 +43,14 @@ impl TableCtx {
         explicit_alias: bool,
     ) -> Self {
         TableCtx {
-            alias: alias,
-            label: label,
-            properties: properties,
+            alias,
+            label,
+            properties,
             filter_predicates: vec![],
             projection_items: vec![],
-            is_rel: is_rel,
+            is_rel,
             use_edge_list: false,
-            explicit_alias: explicit_alias,
+            explicit_alias,
         }
     }
 

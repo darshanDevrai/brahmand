@@ -297,12 +297,12 @@ impl GraphTRaversalPlanning {
     ) -> AnalyzerResult<(GraphRel, Vec<CtxToUpdate>)> {
         let mut ctxs_to_update: Vec<CtxToUpdate> = vec![];
 
-        let rel_cte_name: String;
+        
         let mut rel_ctxs_to_update: Vec<CtxToUpdate>;
-        let rel_plan: Arc<LogicalPlan>;
+        
 
-        let right_insubquery: LogicalExpr;
-        let left_insubquery: LogicalExpr;
+        
+        
 
         let (r_cte_name, r_plan, r_ctxs_to_update) = self.get_rel_ctx_for_edge_list(
             graph_rel,
@@ -311,9 +311,9 @@ impl GraphTRaversalPlanning {
             graph_context.right.id_column.clone(),
             graph_rel.is_rel_anchor,
         );
-        rel_cte_name = r_cte_name;
+        let rel_cte_name: String = r_cte_name;
         rel_ctxs_to_update = r_ctxs_to_update;
-        rel_plan = r_plan;
+        let rel_plan: Arc<LogicalPlan> = r_plan;
 
         // when using edge list, we need to check which node joins to "from_id" and which node joins to "to_id" of the relationship.
         // Based on that we decide, how the left and right nodes are connected with relationship in subqueries.
@@ -324,13 +324,13 @@ impl GraphTRaversalPlanning {
                 ("to_id".to_string(), "from_id".to_string())
             };
 
-        right_insubquery = self.build_insubquery(
+        let right_insubquery: LogicalExpr = self.build_insubquery(
             graph_context.right.id_column.clone(),
             rel_cte_name.clone(),
             right_sub_plan_column,
         );
 
-        left_insubquery = self.build_insubquery(
+        let left_insubquery: LogicalExpr = self.build_insubquery(
             graph_context.left.id_column,
             rel_cte_name.clone(),
             left_sub_plan_column,
@@ -377,7 +377,7 @@ impl GraphTRaversalPlanning {
                 ..graph_rel.clone()
             };
 
-            return Ok((new_graph_rel, ctxs_to_update));
+            Ok((new_graph_rel, ctxs_to_update))
         } else {
             ctxs_to_update.append(&mut rel_ctxs_to_update);
 
@@ -417,7 +417,7 @@ impl GraphTRaversalPlanning {
                     })),
                     ..graph_rel.clone()
                 };
-                return Ok((new_graph_rel, ctxs_to_update));
+                Ok((new_graph_rel, ctxs_to_update))
             } else {
                 let new_graph_rel = GraphRel {
                     left: Arc::new(LogicalPlan::Cte(Cte {
@@ -432,7 +432,7 @@ impl GraphTRaversalPlanning {
                     ..graph_rel.clone()
                 };
 
-                return Ok((new_graph_rel, ctxs_to_update));
+                Ok((new_graph_rel, ctxs_to_update))
             }
         }
     }
@@ -448,7 +448,7 @@ impl GraphTRaversalPlanning {
         let mut ctxs_to_update: Vec<CtxToUpdate> = vec![];
 
         let (rel_cte_name, rel_plan, mut rel_ctxs_to_update) = self.get_rel_ctx_for_bitmaps(
-            &graph_rel,
+            graph_rel,
             &graph_context,
             graph_context.right.cte_name.clone(),
             graph_context.right.id_column.clone(),
@@ -619,11 +619,11 @@ impl GraphTRaversalPlanning {
                 is_rel: true,
             };
 
-            return (
+            (
                 rel_cte_name,
                 rel_plan,
                 vec![from_edge_ctx_to_update, to_edge_ctx_to_update],
-            );
+            )
         } else {
             let rel_cte_name = format!(
                 "{}_{}",
@@ -681,7 +681,7 @@ impl GraphTRaversalPlanning {
                 is_rel: true,
             };
 
-            return (rel_cte_name, rel_plan, vec![rel_ctx_to_update]);
+            (rel_cte_name, rel_plan, vec![rel_ctx_to_update])
         }
     }
 
@@ -762,7 +762,7 @@ impl GraphTRaversalPlanning {
                 is_rel: true,
             };
 
-            return (
+            (
                 rel_cte_name,
                 rel_plan,
                 vec![
@@ -770,7 +770,7 @@ impl GraphTRaversalPlanning {
                     outgoing_ctx_to_update,
                     incoming_ctx_to_update,
                 ],
-            );
+            )
         } else {
             let index_direction = if graph_rel.direction == Direction::Either
                 && graph_context.rel.schema.from_node == graph_context.right.schema.table_name
@@ -812,7 +812,7 @@ impl GraphTRaversalPlanning {
                 is_rel: true,
             };
 
-            return (rel_cte_name, rel_plan, vec![ctx_to_update]);
+            (rel_cte_name, rel_plan, vec![ctx_to_update])
         }
     }
 

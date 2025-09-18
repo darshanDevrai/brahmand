@@ -31,7 +31,7 @@ impl ToSql for RenderPlan {
             let limit_str = format!("LIMIT {skip_str} {m}");
             sql.push_str(&limit_str)
         }
-        return sql;
+        sql
     }
 }
 
@@ -71,7 +71,7 @@ impl ToSql for FromTableItem {
             if let Some(alias) = &from_table.table_alias {
                 if !alias.is_empty() {
                     sql.push_str(" AS ");
-                    sql.push_str(&alias);
+                    sql.push_str(alias);
                 }
             }
             sql.push('\n');
@@ -202,8 +202,8 @@ impl ToSql for UnionItems {
                 UnionType::Distinct => "UNION DISTINCT \n",
                 UnionType::All => "UNION ALL \n",
             };
-            let sql = union_sql_strs.join(union_type_str);
-            sql
+            
+            union_sql_strs.join(union_type_str)
         } else {
             "".into()
         }

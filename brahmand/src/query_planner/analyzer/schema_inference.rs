@@ -141,7 +141,7 @@ impl SchemaInference {
                 let left_alias = &graph_rel.left_connection;
                 let right_alias = &graph_rel.right_connection;
 
-                let left_table_ctx = plan_ctx.get_node_table_ctx(&left_alias).map_err(|e| {
+                let left_table_ctx = plan_ctx.get_node_table_ctx(left_alias).map_err(|e| {
                     AnalyzerError::PlanCtx {
                         pass: Pass::SchemaInference,
                         source: e,
@@ -153,7 +153,7 @@ impl SchemaInference {
                         source: e,
                     }
                 })?;
-                let right_table_ctx = plan_ctx.get_node_table_ctx(&right_alias).map_err(|e| {
+                let right_table_ctx = plan_ctx.get_node_table_ctx(right_alias).map_err(|e| {
                     AnalyzerError::PlanCtx {
                         pass: Pass::SchemaInference,
                         source: e,
@@ -167,14 +167,12 @@ impl SchemaInference {
                     right_table_ctx,
                 )?;
 
-                for (alias, label) in vec![
-                    (left_alias, left_label),
+                for (alias, label) in [(left_alias, left_label),
                     (&graph_rel.alias, rel_label),
-                    (right_alias, right_label),
-                ] {
+                    (right_alias, right_label)] {
                     let table_ctx =
                         plan_ctx
-                            .get_mut_table_ctx(&alias)
+                            .get_mut_table_ctx(alias)
                             .map_err(|e| AnalyzerError::PlanCtx {
                                 pass: Pass::SchemaInference,
                                 source: e,
@@ -748,11 +746,11 @@ impl SchemaInference {
         node_table_ctx: &TableCtx,
     ) -> Option<String> {
         let column_name = if let Some(extracted_column) =
-            self.get_column_name_from_filter_predicates(&node_table_ctx.get_filters())
+            self.get_column_name_from_filter_predicates(node_table_ctx.get_filters())
         {
             extracted_column
         } else if let Some(extracted_column) =
-            self.get_column_name_from_projection_items(&node_table_ctx.get_projections())
+            self.get_column_name_from_projection_items(node_table_ctx.get_projections())
         {
             extracted_column
         } else {
