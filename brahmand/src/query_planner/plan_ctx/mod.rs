@@ -187,19 +187,19 @@ impl PlanCtx {
             })
     }
 
-    pub fn get_mut_table_ctx_from_alias_opt(
-        &mut self,
-        alias: &Option<String>,
-    ) -> Result<&mut TableCtx, PlanCtxError> {
-        let alias = alias.clone().ok_or(PlanCtxError::TableCtx {
-            alias: "".to_string(),
-        })?;
-        self.alias_table_ctx_map
-            .get_mut(&alias)
-            .ok_or(PlanCtxError::TableCtx {
-                alias: alias.clone(),
-            })
-    }
+    // pub fn get_mut_table_ctx_from_alias_opt(
+    //     &mut self,
+    //     alias: &Option<String>,
+    // ) -> Result<&mut TableCtx, PlanCtxError> {
+    //     let alias = alias.clone().ok_or(PlanCtxError::TableCtx {
+    //         alias: "".to_string(),
+    //     })?;
+    //     self.alias_table_ctx_map
+    //         .get_mut(&alias)
+    //         .ok_or(PlanCtxError::TableCtx {
+    //             alias: alias.clone(),
+    //         })
+    // }
 
     pub fn get_mut_table_ctx_opt(&mut self, alias: &str) -> Option<&mut TableCtx> {
         self.alias_table_ctx_map.get_mut(alias)
